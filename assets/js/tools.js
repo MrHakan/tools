@@ -119,7 +119,7 @@ window.BENCH_TOOLS = [
     blurb: "Inline an image as a data URI, or decode one back.", keys: "data uri encode decode inline css embed" },
   { slug: "meta-preview", cat: "Media & misc", spec: "og:title", name: "Meta Tag Preview",
     blurb: "Preview share cards and copy the meta tags.", keys: "open graph twitter card seo social head html" },
-  { soon: true, slug: "password-checker", cat: "Media & misc", spec: "entropy 78 bits", name: "Password Strength",
+  { slug: "password-checker", cat: "Media & misc", spec: "entropy 78 bits", name: "Password Strength",
     blurb: "Measure entropy and crack time, or make a strong one.", keys: "security strength entropy generator passphrase secure" },
   { soon: true, slug: "password-vault", cat: "Media & misc", spec: "••••••••••", name: "Encrypted Vault",
     blurb: "A local AES-GCM vault behind one master password.", keys: "password manager encrypt secret store aes export" },
