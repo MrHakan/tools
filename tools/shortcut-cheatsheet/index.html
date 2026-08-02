@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shortcut Cheat Sheet — Bench</title>
+<meta name="description" content="Build a printable keyboard reference for your own app, capturing chords by pressing them.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/css/bench.css">
+<style>
+  .sc__sheet { columns: 2; column-gap: 20px; }
+  .sc__group { break-inside: avoid; border: 1px solid var(--edge); border-radius: var(--r); background: var(--card); margin-bottom: 12px; overflow: hidden; }
+  .sc__ghead {
+    display: flex; align-items: center; gap: 8px; background: var(--sunk);
+    padding: 7px 11px; border-bottom: 1px solid var(--edge);
+  }
+  .sc__gname { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: .09em; color: var(--steel); flex: 1; border: 0; background: none; }
+  .sc__gname:focus { outline: 1px solid var(--signal); color: var(--ink); }
+  .sc__item { display: flex; align-items: center; gap: 10px; padding: 6px 11px; border-bottom: 1px solid var(--edge); }
+  .sc__item:last-child { border-bottom: 0; }
+  .sc__item--dupe { background: var(--fault-soft); }
+  .sc__keys { flex: none; display: flex; gap: 3px; }
+  .sc__desc { flex: 1; min-width: 0; font-size: 13.5px; border: 0; background: none; color: var(--ink); overflow-wrap: anywhere; }
+  .sc__desc:focus { outline: 1px solid var(--signal); }
+  kbd {
+    font-family: var(--mono); font-size: 11px; line-height: 1;
+    border: 1px solid var(--edge-2); border-bottom-width: 2px; border-radius: 3px;
+    padding: 3px 5px; background: var(--card); color: var(--ink); white-space: nowrap;
+  }
+  .sc__ico { width: 22px; height: 22px; display: grid; place-items: center; background: none; border: 1px solid transparent; border-radius: var(--r); color: var(--steel); font-size: 11px; flex: none; }
+  .sc__ico:hover { border-color: var(--fault); color: var(--fault); }
+  .sc__rec { border-color: var(--signal) !important; color: var(--signal); background: var(--signal-soft); }
+  @media (max-width: 800px) { .sc__sheet { columns: 1; } }
+  @media print {
+    .sc__sheet { columns: 2; }
+    .sc__ico { display: none; }
+    body { font-size: 11pt; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__home" href="../../index.html"><span class="topbar__mark">▚</span> bench</a>
+  <span class="topbar__sep">/</span>
+  <span class="topbar__here">Shortcut Cheat Sheet</span>
+  <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
+</header>
+
+<main class="wrap">
+
+  <div class="toolhead no-print">
+    <p class="toolhead__spec mono">⌘ ⇧ K</p>
+    <h1 class="toolhead__title">Shortcut Cheat Sheet</h1>
+    <p class="toolhead__desc">Build a reference card for your own app. Press a chord to capture it rather than typing out the modifier names.</p>
+  </div>
+
+  <section class="panel no-print">
+    <h2 class="panel__title">Add a shortcut</h2>
+    <div class="row">
+      <button class="btn" id="record">Press to record…</button>
+      <input class="input grow" id="desc" placeholder="What does it do?" autocomplete="off">
+      <label class="sr-only" for="group">Group</label>
+      <select class="select" id="group" style="width:auto"></select>
+      <button class="btn btn--primary" id="add">Add</button>
+    </div>
+    <div id="rec-note" style="margin-top:12px"></div>
+
+    <div class="row" style="margin-top:14px">
+      <button class="btn btn--sm" id="new-group">New group</button>
+      <span class="grow"></span>
+      <label class="check"><input type="checkbox" id="mac"> Mac keys</label>
+      <button class="btn btn--sm" id="print">Print</button>
+      <button class="btn btn--sm" id="exp-md">Markdown</button>
+      <button class="btn btn--sm" id="exp-json">JSON</button>
+      <button class="btn btn--sm" id="imp">Import</button>
+      <input type="file" id="imp-file" accept=".json" hidden>
+      <button class="btn btn--sm btn--danger" id="reset">Reset</button>
+    </div>
+  </section>
+
+  <div id="dupes" style="margin-top:var(--gap)"></div>
+
+  <h2 class="cat__name no-print" style="margin:26px 0 12px">The sheet</h2>
+  <div class="sc__sheet" id="sheet"></div>
+
+  <footer class="foot no-print">
+    <a href="../../index.html">← All tools</a>
+    <span>·</span>
+    <span>Runs entirely in your browser</span>
+  </footer>
+
+</main>
+
+<script src="../../assets/js/bench.js" defer></script>
+<script defer>
+document.addEventListener("DOMContentLoaded", function () {
+  "use strict";
+  var $ = Bench.$, $$ = Bench.$$, esc = Bench.esc;
+  var store = Bench.store("shortcut-cheatsheet");
+
+  var DEFAULT = [
+    { name: "File", items: [
+      { keys: ["Mod", "N"], desc: "New file" },
+      { keys: ["Mod", "O"], desc: "Open" },
+      { keys: ["Mod", "S"], desc: "Save" },
+      { keys: ["Mod", "Shift", "S"], desc: "Save as" },
+      { keys: ["Mod", "W"], desc: "Close tab" }
+    ]},
+    { name: "Editing", items: [
+      { keys: ["Mod", "Z"], desc: "Undo" },
+      { keys: ["Mod", "Shift", "Z"], desc: "Redo" },
+      { keys: ["Mod", "X"], desc: "Cut" },
+      { keys: ["Mod", "D"], desc: "Select the next occurrence" },
+      { keys: ["Alt", "ArrowUp"], desc: "Move the line up" }
+    ]},
+    { name: "Navigation", items: [
+      { keys: ["Mod", "P"], desc: "Go to file" },
+      { keys: ["Mod", "Shift", "P"], desc: "Command palette" },
+      { keys: ["Mod", "F"], desc: "Find in file" },
+      { keys: ["Mod", "Shift", "F"], desc: "Find across the project" },
+      { keys: ["Mod", "B"], desc: "Toggle the sidebar" }
+    ]}
+  ];
+
+  var groups = store.get("groups", null) || DEFAULT;
+  var pending = null;
+
+  // "Mod" is the platform's primary modifier — ⌘ on a Mac, Ctrl elsewhere.
+  var MAC = { Mod: "⌘", Shift: "⇧", Alt: "⌥", Ctrl: "⌃", Meta: "⌘", Enter: "↩", Escape: "⎋",
+    Backspace: "⌫", Delete: "⌦", Tab: "⇥", ArrowUp: "↑", ArrowDown: "↓", ArrowLeft: "←", ArrowRight: "→",
+    " ": "Space", PageUp: "⇞", PageDown: "⇟", Home: "↖", End: "↘" };
+  var PC = { Mod: "Ctrl", Shift: "Shift", Alt: "Alt", Ctrl: "Ctrl", Meta: "Win", Enter: "Enter", Escape: "Esc",
+    Backspace: "Backspace", Delete: "Del", Tab: "Tab", ArrowUp: "↑", ArrowDown: "↓", ArrowLeft: "←", ArrowRight: "→",
+    " ": "Space", PageUp: "PgUp", PageDown: "PgDn", Home: "Home", End: "End" };
+
+  function label(key) {
+    var map = $("#mac").checked ? MAC : PC;
+    return map[key] || (key.length === 1 ? key.toUpperCase() : key);
+  }
+
+  function save() { store.set("groups", groups); }
+
+  function keyString(keys) { return keys.join("+"); }
+
+  /* --- recording -------------------------------------------------------- */
+
+  var recording = false;
+
+  $("#record").addEventListener("click", function () {
+    recording = !recording;
+    $("#record").classList.toggle("sc__rec", recording);
+    $("#record").textContent = recording ? "Press a chord now…" : (pending ? renderKeysText(pending) : "Press to record…");
+    if (recording) $("#record").focus();
+  });
+
+  $("#record").addEventListener("keydown", function (e) {
+    if (!recording) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    var k = e.key;
+    if (["Control", "Shift", "Alt", "Meta"].indexOf(k) !== -1) return;   // wait for the real key
+
+    var keys = [];
+    if (e.ctrlKey || e.metaKey) keys.push("Mod");
+    if (e.altKey) keys.push("Alt");
+    if (e.shiftKey) keys.push("Shift");
+    keys.push(k.length === 1 ? k.toUpperCase() : k);
+
+    pending = keys;
+    recording = false;
+    $("#record").classList.remove("sc__rec");
+    $("#record").textContent = renderKeysText(pending);
+    $("#rec-note").innerHTML = '<div class="note note--ok"><span class="note__mark">✓</span><span>Captured '
+      + esc(renderKeysText(pending)) + ". Add a description and press Add.</span></div>";
+    $("#desc").focus();
+  });
+
+  function renderKeysText(keys) { return keys.map(label).join(" "); }
+
+  /* --- rendering -------------------------------------------------------- */
+
+  function render() {
+    $("#group").innerHTML = groups.map(function (g, i) {
+      return '<option value="' + i + '">' + esc(g.name) + "</option>";
+    }).join("");
+
+    // A chord bound twice in one sheet is the thing a designer needs to see.
+    var seen = {}, dupes = {};
+    groups.forEach(function (g) {
+      g.items.forEach(function (it) {
+        var k = keyString(it.keys);
+        if (seen[k]) dupes[k] = true;
+        seen[k] = true;
+      });
+    });
+
+    $("#sheet").innerHTML = groups.map(function (g, gi) {
+      return '<div class="sc__group"><div class="sc__ghead">'
+        + '<input class="sc__gname" data-g="' + gi + '" value="' + esc(g.name) + '" aria-label="Group name">'
+        + '<button class="sc__ico no-print" data-delg="' + gi + '" aria-label="Delete the ' + esc(g.name) + ' group">✕</button>'
+        + "</div>"
+        + g.items.map(function (it, ii) {
+            var dupe = dupes[keyString(it.keys)];
+            return '<div class="sc__item' + (dupe ? " sc__item--dupe" : "") + '">'
+              + '<span class="sc__keys">' + it.keys.map(function (k) { return "<kbd>" + esc(label(k)) + "</kbd>"; }).join("") + "</span>"
+              + '<input class="sc__desc" data-g="' + gi + '" data-i="' + ii + '" value="' + esc(it.desc) + '" aria-label="Description">'
+              + '<button class="sc__ico no-print" data-del="' + gi + "," + ii + '" aria-label="Delete this shortcut">✕</button>'
+              + "</div>";
+          }).join("")
+        + (g.items.length ? "" : '<div class="sc__item"><span class="empty">No shortcuts in this group yet.</span></div>')
+        + "</div>";
+    }).join("");
+
+    var dupeKeys = Object.keys(dupes);
+    $("#dupes").innerHTML = dupeKeys.length
+      ? '<div class="note note--bad"><span class="note__mark">✕</span><span><b>'
+        + Bench.plural(dupeKeys.length, "chord") + " bound more than once:</b> "
+        + dupeKeys.map(function (k) { return "<kbd>" + esc(k.split("+").map(label).join(" ")) + "</kbd>"; }).join(" ")
+        + "</span></div>"
+      : "";
+
+    save();
+  }
+
+  /* --- events ----------------------------------------------------------- */
+
+  $("#add").addEventListener("click", function () {
+    if (!pending) {
+      $("#rec-note").innerHTML = '<div class="note note--bad"><span class="note__mark">✕</span><span>Press the record button, then press the chord you want to capture.</span></div>';
+      return;
+    }
+    var desc = $("#desc").value.trim();
+    if (!desc) {
+      $("#rec-note").innerHTML = '<div class="note note--bad"><span class="note__mark">✕</span><span>Give the shortcut a description.</span></div>';
+      return;
+    }
+    groups[Number($("#group").value) || 0].items.push({ keys: pending, desc: desc });
+    pending = null;
+    $("#desc").value = "";
+    $("#record").textContent = "Press to record…";
+    $("#rec-note").innerHTML = "";
+    render();
+  });
+
+  $("#sheet").addEventListener("input", function (e) {
+    var el = e.target;
+    if (el.classList.contains("sc__gname")) { groups[+el.dataset.g].name = el.value; save(); }
+    else if (el.classList.contains("sc__desc")) { groups[+el.dataset.g].items[+el.dataset.i].desc = el.value; save(); }
+  });
+
+  $("#sheet").addEventListener("click", function (e) {
+    var d = e.target.closest("[data-del]");
+    if (d) {
+      var p = d.dataset.del.split(",").map(Number);
+      groups[p[0]].items.splice(p[1], 1);
+      render();
+      return;
+    }
+    var g = e.target.closest("[data-delg]");
+    if (g) {
+      if (groups.length <= 1) { Bench.toast("Keep at least one group", "bad"); return; }
+      groups.splice(+g.dataset.delg, 1);
+      render();
+    }
+  });
+
+  $("#new-group").addEventListener("click", function () {
+    groups.push({ name: "New group", items: [] });
+    render();
+    $("#group").value = groups.length - 1;
+  });
+
+  $("#mac").addEventListener("change", function () { store.set("mac", this.checked); render(); });
+  $("#mac").checked = store.get("mac", /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent));
+
+  $("#print").addEventListener("click", function () { window.print(); });
+
+  $("#exp-md").addEventListener("click", function () {
+    var md = groups.map(function (g) {
+      return "## " + g.name + "\n\n| Shortcut | Action |\n| --- | --- |\n"
+        + g.items.map(function (it) {
+            return "| `" + it.keys.map(label).join(" ") + "` | " + it.desc.replace(/\|/g, "\\|") + " |";
+          }).join("\n");
+    }).join("\n\n");
+    Bench.download("shortcuts.md", "# Keyboard shortcuts\n\n" + md, "text/markdown");
+  });
+
+  $("#exp-json").addEventListener("click", function () {
+    Bench.download("shortcuts.json", JSON.stringify(groups, null, 2), "application/json");
+  });
+
+  $("#imp").addEventListener("click", function () { $("#imp-file").click(); });
+  $("#imp-file").addEventListener("change", function () {
+    var f = this.files[0];
+    this.value = "";
+    if (!f) return;
+    Bench.readFile(f).then(function (t) {
+      var data;
+      try { data = JSON.parse(t); } catch (e) { Bench.toast("That file is not valid JSON", "bad"); return; }
+      if (!Array.isArray(data) || !data.every(function (g) { return g && Array.isArray(g.items); })) {
+        Bench.toast("That JSON is not a shortcut sheet", "bad");
+        return;
+      }
+      groups = data.map(function (g) {
+        return { name: String(g.name || "Group"),
+          items: g.items.filter(function (i) { return i && Array.isArray(i.keys); })
+            .map(function (i) { return { keys: i.keys.map(String), desc: String(i.desc || "") }; }) };
+      });
+      render();
+      Bench.toast("Imported " + Bench.plural(groups.length, "group"));
+    });
+  });
+
+  $("#reset").addEventListener("click", function () {
+    var b = $("#reset");
+    if (b.dataset.armed) { groups = JSON.parse(JSON.stringify(DEFAULT)); render(); b.textContent = "Reset"; delete b.dataset.armed; return; }
+    b.dataset.armed = "1";
+    b.textContent = "Really reset?";
+    setTimeout(function () { if (b.dataset.armed) { b.textContent = "Reset"; delete b.dataset.armed; } }, 3500);
+  });
+
+  render();
+});
+</script>
+
+</body>
+</html>

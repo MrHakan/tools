@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pattern Playground — Bench</title>
+<meta name="description" content="Cron, regex and glob patterns side by side in one workspace, each with live testing.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/css/bench.css">
+<style>
+  .pp__hit { padding: 6px 10px; border-radius: var(--r); font-family: var(--mono); font-size: 12.5px; margin-bottom: 4px; overflow-wrap: anywhere; }
+  .pp__hit--yes { background: var(--verify-soft); color: var(--verify); border-left: 3px solid var(--verify); }
+  .pp__hit--no { background: var(--sunk); color: var(--steel); border-left: 3px solid var(--edge-2); }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__home" href="../../index.html"><span class="topbar__mark">▚</span> bench</a>
+  <span class="topbar__sep">/</span>
+  <span class="topbar__here">Pattern Playground</span>
+  <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
+</header>
+
+<main class="wrap">
+
+  <div class="toolhead">
+    <p class="toolhead__spec mono">cron · regex · glob</p>
+    <h1 class="toolhead__title">Pattern Playground</h1>
+    <p class="toolhead__desc">The three pattern languages that turn up in every config file, in one place.</p>
+  </div>
+
+  <div class="row" style="margin-bottom:var(--gap)">
+    <button class="btn btn--on" data-tab="cron">Cron</button>
+    <button class="btn" data-tab="regex">Regex</button>
+    <button class="btn" data-tab="glob">Glob</button>
+  </div>
+
+  <!-- ============================================================== cron -->
+  <section class="panel" id="tab-cron">
+    <h2 class="panel__title">Cron expression</h2>
+    <label class="sr-only" for="c-expr">Cron expression</label>
+    <input class="input input--mono" id="c-expr" value="*/15 9-17 * * 1-5" spellcheck="false" autocomplete="off">
+    <div class="chips" style="margin-top:10px">
+      <button class="chip" data-c="*/15 9-17 * * 1-5">Every 15 min, work hours</button>
+      <button class="chip" data-c="0 0 * * 0">Weekly</button>
+      <button class="chip" data-c="0 3 1 * *">Monthly at 3am</button>
+      <button class="chip" data-c="@daily">@daily</button>
+    </div>
+    <div id="c-out" style="margin-top:14px"></div>
+  </section>
+
+  <!-- ============================================================= regex -->
+  <section class="panel" id="tab-regex" hidden>
+    <h2 class="panel__title">Regular expression</h2>
+    <div class="row" style="margin-bottom:10px">
+      <span class="mono" style="color:var(--steel)">/</span>
+      <input class="input input--mono grow" id="r-pat" value="(\w+)@(\w+\.\w+)" spellcheck="false" autocomplete="off" aria-label="Pattern">
+      <span class="mono" style="color:var(--steel)">/</span>
+      <input class="input input--mono" id="r-flags" value="g" style="width:6ch" spellcheck="false" aria-label="Flags">
+    </div>
+    <div class="chips" style="margin-bottom:12px" id="r-flagchips"></div>
+
+    <label class="label" for="r-text">Test text</label>
+    <textarea class="textarea" id="r-text" spellcheck="false" style="min-height:120px">Write to ana@example.com or ben@test.org.
+Ignore support@ (no domain) and 12345.</textarea>
+
+    <div id="r-status" style="margin-top:12px"></div>
+    <div class="out out--wrap" id="r-hl" style="margin-top:12px; min-height:80px"></div>
+
+    <h3 class="panel__title" style="margin-top:18px">Matches</h3>
+    <div class="tablewrap"><table class="table"><thead><tr><th>#</th><th>Index</th><th>Match</th><th>Groups</th></tr></thead><tbody id="r-rows"></tbody></table></div>
+
+    <div class="field" style="margin-top:16px">
+      <label class="label" for="r-rep">Replace with ($1, $&amp;, $&lt;name&gt;)</label>
+      <input class="input input--mono" id="r-rep" value="$1 at $2" spellcheck="false">
+    </div>
+    <div class="out out--wrap" id="r-result" style="min-height:60px"></div>
+  </section>
+
+  <!-- ============================================================== glob -->
+  <section class="panel" id="tab-glob" hidden>
+    <h2 class="panel__title">Glob pattern</h2>
+    <label class="sr-only" for="g-pat">Glob pattern</label>
+    <input class="input input--mono" id="g-pat" value="src/**/*.{js,ts}" spellcheck="false" autocomplete="off">
+    <div class="chips" style="margin-top:10px">
+      <button class="chip" data-g="src/**/*.{js,ts}">src/**/*.{js,ts}</button>
+      <button class="chip" data-g="*.md">*.md</button>
+      <button class="chip" data-g="**/test_?.py">**/test_?.py</button>
+      <button class="chip" data-g="assets/[abc]*.png">assets/[abc]*.png</button>
+      <button class="chip" data-g="!(node_modules)/**">negation note</button>
+    </div>
+
+    <label class="label" for="g-paths" style="margin-top:14px">Paths, one per line</label>
+    <textarea class="textarea" id="g-paths" spellcheck="false" style="min-height:150px">src/index.js
+src/lib/util.ts
+src/lib/deep/nested.js
+src/style.css
+test/index.js
+README.md
+docs/guide.md
+assets/apple.png
+assets/zebra.png</textarea>
+
+    <div id="g-status" style="margin-top:12px"></div>
+    <div id="g-out" style="margin-top:12px"></div>
+  </section>
+
+  <footer class="foot">
+    <a href="../../index.html">← All tools</a>
+    <span>·</span>
+    <span>Runs entirely in your browser</span>
+  </footer>
+
+</main>
+
+<script src="../../assets/js/bench.js" defer></script>
+<script defer>
+document.addEventListener("DOMContentLoaded", function () {
+  "use strict";
+  var $ = Bench.$, $$ = Bench.$$, esc = Bench.esc;
+  var store = Bench.store("pattern-playground");
+
+  function note(host, html, kind) {
+    host.innerHTML = '<div class="note note--' + kind + '"><span class="note__mark">'
+      + (kind === "bad" ? "✕" : kind === "ok" ? "✓" : kind === "warn" ? "!" : "i") + "</span><span>" + html + "</span></div>";
+  }
+
+  /* --- tabs ------------------------------------------------------------ */
+
+  var tab = store.get("tab", "cron");
+
+  function showTab(name) {
+    tab = name;
+    store.set("tab", name);
+    $$("[data-tab]").forEach(function (b) { b.classList.toggle("btn--on", b.dataset.tab === name); });
+    ["cron", "regex", "glob"].forEach(function (t) { $("#tab-" + t).hidden = t !== name; });
+  }
+
+  $$("[data-tab]").forEach(function (b) {
+    b.addEventListener("click", function () { showTab(b.dataset.tab); });
+  });
+
+  /* ==================================================================
+     Cron. Five fields, wildcards, lists, ranges, step syntax in both
+     forms, names, and the @shorthands. No block comment in this file
+     spells out the step operator, because the slash would end it early.
+     ================================================================== */
+
+  var FIELDS = [
+    { name: "minute", min: 0, max: 59 },
+    { name: "hour", min: 0, max: 23 },
+    { name: "day of month", min: 1, max: 31 },
+    { name: "month", min: 1, max: 12, names: "JAN FEB MAR APR MAY JUN JUL AUG SEP OCT NOV DEC".split(" ") },
+    { name: "day of week", min: 0, max: 6, names: "SUN MON TUE WED THU FRI SAT".split(" ") }
+  ];
+  var SHORT = { "@yearly": "0 0 1 1 *", "@annually": "0 0 1 1 *", "@monthly": "0 0 1 * *",
+    "@weekly": "0 0 * * 0", "@daily": "0 0 * * *", "@midnight": "0 0 * * *", "@hourly": "0 * * * *" };
+
+  function parseField(raw, def) {
+    var text = raw.toUpperCase();
+    if (def.names) def.names.forEach(function (nm, i) {
+      text = text.split(nm).join(String(i + (def.name === "month" ? 1 : 0)));
+    });
+    var set = {};
+    var parts = text.split(",");
+    for (var p = 0; p < parts.length; p++) {
+      var part = parts[p].trim();
+      if (!part) return { ok: false, why: "an empty value in the " + def.name + " field" };
+      var step = 1, body = part, slash = part.indexOf("/");
+      if (slash !== -1) {
+        body = part.slice(0, slash);
+        step = Number(part.slice(slash + 1));
+        if (!Number.isInteger(step) || step < 1) return { ok: false, why: "the step in the " + def.name + " field must be a whole number above zero" };
+      }
+      var lo, hi;
+      if (body === "*") { lo = def.min; hi = def.max; }
+      else if (body.indexOf("-") > 0) { var b = body.split("-"); lo = Number(b[0]); hi = Number(b[1]); }
+      else { lo = Number(body); hi = slash !== -1 ? def.max : lo; }
+      if (def.name === "day of week") { if (lo === 7) lo = 0; if (hi === 7) hi = 0; }
+      if (!Number.isInteger(lo) || !Number.isInteger(hi) || lo < def.min || hi > def.max || lo > hi) {
+        return { ok: false, why: "the " + def.name + " field takes " + def.min + "–" + def.max + ", got “" + esc(part) + "”" };
+      }
+      for (var v = lo; v <= hi; v += step) set[v] = true;
+    }
+    return { ok: true, set: set, wild: raw.trim() === "*" };
+  }
+
+  function parseCron(text) {
+    var input = text.trim();
+    if (SHORT[input.toLowerCase()]) input = SHORT[input.toLowerCase()];
+    var parts = input.split(/\s+/);
+    if (parts.length !== 5) return { ok: false, why: "a cron expression needs five fields — got " + parts.length + "." };
+    var f = [];
+    for (var i = 0; i < 5; i++) {
+      var r = parseField(parts[i], FIELDS[i]);
+      if (!r.ok) return { ok: false, why: r.why };
+      f.push(r);
+    }
+    return { ok: true, f: f };
+  }
+
+  function list(nums, fmt) {
+    var s = nums.map(fmt || String);
+    if (s.length === 1) return s[0];
+    if (s.length === 2) return s[0] + " and " + s[1];
+    return s.slice(0, -1).join(", ") + " and " + s[s.length - 1];
+  }
+
+  function describe(cron, text) {
+    var f = cron.f;
+    var mins = Object.keys(f[0].set).map(Number).sort(function (a, b) { return a - b; });
+    var hours = Object.keys(f[1].set).map(Number).sort(function (a, b) { return a - b; });
+    var DOW = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    var MON = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+    var when;
+    if (f[0].wild && f[1].wild) when = "Every minute";
+    else if (f[0].wild) when = "Every minute during hour " + list(hours);
+    else if (f[1].wild) when = "At " + list(mins, function (m) { return m + " minutes past"; }) + " every hour";
+    else if (mins.length === 1 && hours.length === 1) {
+      when = "At " + String(hours[0]).padStart(2, "0") + ":" + String(mins[0]).padStart(2, "0");
+    } else {
+      when = "At " + list(mins, function (m) { return "minute " + m; }) + " of hour " + list(hours);
+    }
+
+    var days = [];
+    if (!f[2].wild) days.push("on day " + list(Object.keys(f[2].set).map(Number)) + " of the month");
+    if (!f[4].wild) days.push("on " + list(Object.keys(f[4].set).map(Number).sort(), function (d) { return DOW[d]; }));
+    var dayText = days.length === 2 ? days.join(" and ") + " (cron uses OR when both are set)"
+      : days.length === 1 ? days[0] : "every day";
+
+    var months = f[3].wild ? "" : ", in " + list(Object.keys(f[3].set).map(Number).sort(function (a, b) { return a - b; }), function (m) { return MON[m - 1]; });
+
+    return when + ", " + dayText + months + ".";
+  }
+
+  function dayMatches(cron, d) {
+    var dom = cron.f[2], dow = cron.f[4];
+    if (dom.wild && dow.wild) return true;
+    if (dom.wild) return !!dow.set[d.getDay()];
+    if (dow.wild) return !!dom.set[d.getDate()];
+    return !!dom.set[d.getDate()] || !!dow.set[d.getDay()];
+  }
+
+  function nextRuns(cron, n) {
+    var out = [];
+    var d = new Date();
+    d.setSeconds(0, 0);
+    d.setMinutes(d.getMinutes() + 1);
+    // Bounded so an impossible expression such as "0 0 30 2 *" terminates.
+    for (var guard = 0; guard < 366 * 24 * 60 && out.length < n; guard++) {
+      if (cron.f[3].set[d.getMonth() + 1] && dayMatches(cron, d)
+          && cron.f[1].set[d.getHours()] && cron.f[0].set[d.getMinutes()]) {
+        out.push(new Date(d.getTime()));
+      }
+      d.setMinutes(d.getMinutes() + 1);
+    }
+    return out;
+  }
+
+  function renderCron() {
+    var cron = parseCron($("#c-expr").value);
+    var host = $("#c-out");
+    if (!cron.ok) { note(host, cron.why, "bad"); return; }
+
+    var runs = nextRuns(cron, 8);
+    host.innerHTML = '<div class="note note--ok" style="margin-bottom:12px"><span class="note__mark">✓</span><span>'
+      + esc(describe(cron, $("#c-expr").value)) + "</span></div>"
+      + (runs.length
+        ? '<h3 class="panel__title">Next runs</h3><div class="chips">'
+          + runs.map(function (r) {
+              return '<span class="chip">' + esc(r.toLocaleString(undefined, {
+                weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })) + "</span>";
+            }).join("") + "</div>"
+        : '<div class="note note--warn"><span class="note__mark">!</span><span>This expression never fires — no date in the next year satisfies it.</span></div>');
+  }
+
+  /* ==================================================================
+     Regex
+     ================================================================== */
+
+  var FLAGS = [["g", "global"], ["i", "ignore case"], ["m", "multiline"], ["s", "dot matches newline"], ["u", "unicode"], ["y", "sticky"]];
+
+  $("#r-flagchips").innerHTML = FLAGS.map(function (f) {
+    return '<button class="chip" data-flag="' + f[0] + '" title="' + f[1] + '">' + f[0] + "</button>";
+  }).join("");
+
+  function syncFlagChips() {
+    var cur = $("#r-flags").value;
+    $$("[data-flag]").forEach(function (c) { c.classList.toggle("chip--on", cur.indexOf(c.dataset.flag) !== -1); });
+  }
+
+  $("#r-flagchips").addEventListener("click", function (e) {
+    var c = e.target.closest("[data-flag]");
+    if (!c) return;
+    var f = c.dataset.flag, cur = $("#r-flags").value;
+    $("#r-flags").value = cur.indexOf(f) !== -1 ? cur.split(f).join("") : cur + f;
+    renderRegex();
+  });
+
+  function renderRegex() {
+    syncFlagChips();
+    var pat = $("#r-pat").value, flags = $("#r-flags").value, text = $("#r-text").value;
+    var status = $("#r-status");
+
+    if (!pat) { note(status, "Enter a pattern to start matching.", "info"); $("#r-hl").textContent = text; $("#r-rows").innerHTML = ""; $("#r-result").textContent = ""; return; }
+    if (text.length > 50000) { note(status, "The test text is capped at 50,000 characters here, to keep a pathological pattern from freezing the tab.", "warn"); text = text.slice(0, 50000); }
+
+    var re;
+    try { re = new RegExp(pat, flags); }
+    catch (e) { note(status, esc(e.message), "bad"); $("#r-hl").textContent = text; $("#r-rows").innerHTML = ""; return; }
+
+    var matches = [], m, guard = 0;
+    var scan = new RegExp(pat, flags.indexOf("g") === -1 ? flags + "g" : flags);
+    while ((m = scan.exec(text)) !== null && guard++ < 5000) {
+      matches.push(m);
+      if (m.index === scan.lastIndex) scan.lastIndex++;   // zero-length match guard
+      if (flags.indexOf("g") === -1) break;
+    }
+
+    // Build the highlight from match indices, never by string replacement.
+    var html = "", last = 0;
+    matches.forEach(function (mm) {
+      html += esc(text.slice(last, mm.index)) + '<mark class="hl-hit">' + esc(mm[0] || "▮") + "</mark>";
+      last = mm.index + (mm[0] ? mm[0].length : 0);
+    });
+    html += esc(text.slice(last));
+    $("#r-hl").innerHTML = html || '<span class="empty">No text.</span>';
+
+    note(status, matches.length
+      ? "<b>" + Bench.plural(matches.length, "match", "matches") + "</b> found."
+      : "No matches.", matches.length ? "ok" : "info");
+
+    $("#r-rows").innerHTML = matches.slice(0, 200).map(function (mm, i) {
+      var groups = [];
+      for (var g = 1; g < mm.length; g++) groups.push("$" + g + "=" + (mm[g] === undefined ? "—" : mm[g]));
+      if (mm.groups) Object.keys(mm.groups).forEach(function (k) { groups.push(k + "=" + (mm.groups[k] === undefined ? "—" : mm.groups[k])); });
+      return "<tr><td class='num'>" + (i + 1) + "</td><td class='num'>" + mm.index
+        + "</td><td class='mono'>" + esc(mm[0]) + "</td><td class='mono'>" + esc(groups.join(", ") || "—") + "</td></tr>";
+    }).join("") || "<tr><td colspan='4'><span class='empty'>Nothing matched.</span></td></tr>";
+
+    try { $("#r-result").textContent = text.replace(re, $("#r-rep").value); }
+    catch (e2) { $("#r-result").textContent = "(replacement failed: " + e2.message + ")"; }
+  }
+
+  /* ==================================================================
+     Glob
+     ================================================================== */
+
+  function globToRegex(glob) {
+    var re = "^", i = 0;
+    while (i < glob.length) {
+      var c = glob[i];
+
+      if (c === "*") {
+        if (glob[i + 1] === "*") {
+          // ** crosses separators; **/ also matches zero directories.
+          i += 2;
+          if (glob[i] === "/") { re += "(?:.*/)?"; i++; }
+          else re += ".*";
+        } else { re += "[^/]*"; i++; }
+        continue;
+      }
+      if (c === "?") { re += "[^/]"; i++; continue; }
+
+      if (c === "[") {
+        var end = glob.indexOf("]", i + 1);
+        if (end === -1) { re += "\\["; i++; continue; }
+        var body = glob.slice(i + 1, end);
+        var neg = body[0] === "!" || body[0] === "^";
+        if (neg) body = body.slice(1);
+        re += "[" + (neg ? "^" : "") + body.replace(/\\/g, "\\\\") + "]";
+        i = end + 1;
+        continue;
+      }
+
+      if (c === "{") {
+        var close = glob.indexOf("}", i);
+        if (close === -1) { re += "\\{"; i++; continue; }
+        var opts = glob.slice(i + 1, close).split(",");
+        re += "(?:" + opts.map(function (o) { return o.replace(/[.+^${}()|[\]\\]/g, "\\$&"); }).join("|") + ")";
+        i = close + 1;
+        continue;
+      }
+
+      re += c.replace(/[.+^${}()|[\]\\]/g, "\\$&");
+      i++;
+    }
+    return new RegExp(re + "$");
+  }
+
+  function renderGlob() {
+    var pat = $("#g-pat").value.trim();
+    var status = $("#g-status");
+
+    if (/^!/.test(pat)) {
+      note(status, "A leading <code class=\"mono\">!</code> means different things in different tools "
+        + "(gitignore negates a previous rule; some shells need extglob). It is not handled here — "
+        + "test the positive pattern instead.", "warn");
+      $("#g-out").innerHTML = "";
+      return;
+    }
+
+    var re;
+    try { re = globToRegex(pat); }
+    catch (e) { note(status, esc(e.message), "bad"); return; }
+
+    var paths = $("#g-paths").value.split("\n").map(function (s) { return s.trim(); }).filter(Boolean);
+    var hits = 0;
+    $("#g-out").innerHTML = paths.map(function (p) {
+      var ok = re.test(p);
+      if (ok) hits++;
+      return '<div class="pp__hit pp__hit--' + (ok ? "yes" : "no") + '">' + (ok ? "✓ " : "· ") + esc(p) + "</div>";
+    }).join("") || '<p class="empty">Add some paths to test.</p>';
+
+    note(status, "<b>" + hits + " of " + paths.length + "</b> paths match. Compiled to "
+      + '<code class="mono">' + esc(String(re)) + "</code>", "info");
+  }
+
+  /* --- wiring ---------------------------------------------------------- */
+
+  Bench.live($("#c-expr"), Bench.debounce(renderCron, 140));
+  $$("[data-c]").forEach(function (b) { b.addEventListener("click", function () { $("#c-expr").value = b.dataset.c; renderCron(); }); });
+
+  ["r-pat", "r-flags", "r-text", "r-rep"].forEach(function (id) {
+    $("#" + id).addEventListener("input", Bench.debounce(renderRegex, 120));
+  });
+
+  Bench.live($("#g-pat"), Bench.debounce(renderGlob, 120));
+  $("#g-paths").addEventListener("input", Bench.debounce(renderGlob, 140));
+  $$("[data-g]").forEach(function (b) { b.addEventListener("click", function () { $("#g-pat").value = b.dataset.g; renderGlob(); }); });
+
+  showTab(tab);
+  renderCron();
+  renderRegex();
+  renderGlob();
+});
+</script>
+
+</body>
+</html>

@@ -23,7 +23,7 @@ window.BENCH_TOOLS = [
     blurb: "Contacts, notes and follow-up reminders.", keys: "crm client lead people address book" },
   { soon: true, slug: "timezone-finder", cat: "Productivity", spec: "UTC+3 ⇄ UTC−5", name: "Time Zone Finder",
     blurb: "Compare cities and find an hour that works for everyone.", keys: "meeting overlap world clock schedule utc" },
-  { soon: true, slug: "shortcut-cheatsheet", cat: "Productivity", spec: "⌘ ⇧ K", name: "Shortcut Cheat Sheet",
+  { slug: "shortcut-cheatsheet", cat: "Productivity", spec: "⌘ ⇧ K", name: "Shortcut Cheat Sheet",
     blurb: "Build a printable keyboard reference for your app.", keys: "keybinding hotkey keyboard reference print" },
 
   /* --- Developer utilities ------------------------------------------------ */
@@ -39,7 +39,7 @@ window.BENCH_TOOLS = [
     blurb: "Open a CSV, then sort, filter and search it.", keys: "excel spreadsheet table tsv data import" },
   { slug: "sql-formatter", cat: "Developer utilities", spec: "SELECT * FROM", name: "SQL Formatter",
     blurb: "Turn a one-line query into readable, indented SQL.", keys: "beautify query database postgres mysql indent" },
-  { soon: true, slug: "config-converter", cat: "Developer utilities", spec: "yaml ⇄ json ⇄ toml", name: "Config Converter",
+  { slug: "config-converter", cat: "Developer utilities", spec: "yaml ⇄ json ⇄ toml", name: "Config Converter",
     blurb: "Convert between YAML, JSON and TOML.", keys: "yml transform config format translate" },
   { slug: "jwt-decoder", cat: "Developer utilities", spec: "eyJhbGciOiJIUzI1", name: "JWT Decoder",
     blurb: "Break a token into header, payload and signature.", keys: "token auth bearer claims jose expiry" },
@@ -135,7 +135,7 @@ window.BENCH_TOOLS = [
     blurb: "2048, a word guesser and Sudoku for a quiet moment.", keys: "2048 wordle sudoku puzzle play break fun" },
 
   /* --- Pattern toolbox ---------------------------------------------------- */
-  { soon: true, slug: "pattern-playground", cat: "Pattern toolbox", spec: "cron · regex · glob", name: "Pattern Playground",
+  { slug: "pattern-playground", cat: "Pattern toolbox", spec: "cron · regex · glob", name: "Pattern Playground",
     blurb: "Cron, regex and glob side by side in one workspace.", keys: "combined toolbox match test wildcard schedule" }
 ];
 
