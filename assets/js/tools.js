@@ -9,7 +9,7 @@ window.BENCH_TOOLS = [
   /* --- Productivity ------------------------------------------------------- */
   { slug: "kanban-board", cat: "Productivity", spec: "todo → doing → done", name: "Kanban Board",
     blurb: "Drag cards between lists. Saved in this browser.", keys: "trello task board project drag" },
-  { soon: true, slug: "pomodoro", cat: "Productivity", spec: "25:00", name: "Pomodoro Timer",
+  { slug: "pomodoro", cat: "Productivity", spec: "25:00", name: "Pomodoro Timer",
     blurb: "Focus timer with a task list and daily stats.", keys: "tomato focus timer break interval" },
   { soon: true, slug: "habit-tracker", cat: "Productivity", spec: "▮▮▮▮▮▯▮", name: "Habit Tracker",
     blurb: "Mark habits daily, watch the streaks build.", keys: "streak daily routine calendar pwa offline" },

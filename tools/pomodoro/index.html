@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pomodoro Timer — Bench</title>
+<meta name="description" content="A focus timer with a task list and a record of what you got done. Keeps time accurately even when the tab is in the background.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/css/bench.css">
+<style>
+  .pom__stage { display: grid; place-items: center; padding: 8px 0 4px; }
+  .pom__ring { position: relative; width: min(300px, 74vw); aspect-ratio: 1; }
+  .pom__ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .pom__track { fill: none; stroke: var(--edge); stroke-width: 6; }
+  .pom__arc {
+    fill: none; stroke: var(--signal); stroke-width: 6; stroke-linecap: round;
+    transition: stroke-dashoffset .3s linear;
+  }
+  @media (prefers-reduced-motion: reduce) { .pom__arc { transition: none; } }
+  .pom__face {
+    position: absolute; inset: 0; display: grid; place-items: center; align-content: center; gap: 2px;
+  }
+  .pom__time {
+    font-family: var(--mono); font-weight: 500;
+    font-size: clamp(2.6rem, 12vw, 3.9rem); letter-spacing: -0.04em; line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .pom__phase {
+    font-family: var(--mono); font-size: 11px; text-transform: uppercase;
+    letter-spacing: .14em; color: var(--steel);
+  }
+  .pom__for { font-size: 13px; color: var(--steel); max-width: 20ch; text-align: center; margin-top: 4px; }
+
+  .pom__task {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 11px; border: 1px solid var(--edge); border-radius: var(--r);
+    background: var(--card); margin-bottom: 7px;
+  }
+  .pom__task--on { border-color: var(--signal); background: var(--signal-soft); }
+  .pom__task--done .pom__tname { text-decoration: line-through; color: var(--steel); }
+  .pom__tname { flex: 1; min-width: 0; font-size: 14px; overflow-wrap: anywhere; }
+  .pom__tpom { font-family: var(--mono); font-size: 11.5px; color: var(--steel); white-space: nowrap; }
+  .pom__ticon {
+    flex: none; width: 26px; height: 26px; display: grid; place-items: center;
+    background: transparent; border: 1px solid transparent; border-radius: var(--r);
+    color: var(--steel); font-size: 12px;
+  }
+  .pom__ticon:hover { border-color: var(--signal); color: var(--signal); }
+  .pom__ticon--del:hover { border-color: var(--fault); color: var(--fault); }
+
+  .pom__bars { display: flex; align-items: flex-end; gap: 6px; height: 90px; }
+  .pom__bar { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 5px; height: 100%; }
+  .pom__bar i { display: block; width: 100%; background: var(--signal); border-radius: 2px; min-height: 2px; }
+  .pom__bar--none i { background: var(--edge); }
+  .pom__bar span { font-family: var(--mono); font-size: 10px; color: var(--steel); }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__home" href="../../index.html"><span class="topbar__mark">▚</span> bench</a>
+  <span class="topbar__sep">/</span>
+  <span class="topbar__here">Pomodoro Timer</span>
+  <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
+</header>
+
+<main class="wrap">
+
+  <div class="toolhead">
+    <p class="toolhead__spec mono">25:00</p>
+    <h1 class="toolhead__title">Pomodoro Timer</h1>
+    <p class="toolhead__desc">Work in focused stretches with deliberate breaks. The countdown stays accurate when the tab is in the background, and the time shows in the tab title.</p>
+  </div>
+
+  <div class="split split--narrow">
+
+    <section class="panel">
+      <h2 class="panel__title">Timer</h2>
+
+      <div class="pom__stage">
+        <div class="pom__ring">
+          <svg viewBox="0 0 100 100" aria-hidden="true">
+            <circle class="pom__track" cx="50" cy="50" r="45"></circle>
+            <circle class="pom__arc" id="arc" cx="50" cy="50" r="45"></circle>
+          </svg>
+          <div class="pom__face">
+            <div class="pom__time" id="time" role="timer" aria-live="off">25:00</div>
+            <div class="pom__phase" id="phase">Focus</div>
+            <div class="pom__for" id="for"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row" style="justify-content:center; margin-top:14px">
+        <button class="btn btn--primary" id="startstop">Start</button>
+        <button class="btn" id="reset">Reset</button>
+        <button class="btn" id="skip">Skip</button>
+      </div>
+
+      <div class="row" style="justify-content:center; margin-top:12px">
+        <button class="btn btn--sm btn--ghost" id="notify">Enable notifications</button>
+        <label class="check"><input type="checkbox" id="opt-auto" checked> Start the next stretch automatically</label>
+      </div>
+
+      <div id="notice" style="margin-top:12px"></div>
+    </section>
+
+    <div class="stack">
+
+      <section class="panel">
+        <h2 class="panel__title">Tasks</h2>
+        <form class="row" id="task-form" style="margin-bottom:12px">
+          <label class="sr-only" for="task-new">New task</label>
+          <input class="input grow" id="task-new" placeholder="What are you working on?" autocomplete="off">
+          <button class="btn btn--primary" type="submit">Add</button>
+        </form>
+        <div id="tasks"></div>
+        <p class="empty" id="tasks-empty" hidden>No tasks yet. Add one and select it to count your stretches against it.</p>
+      </section>
+
+      <section class="panel">
+        <h2 class="panel__title">Today</h2>
+        <div class="stats">
+          <div class="stat"><span class="stat__n" id="s-today">0</span><span class="stat__k">Stretches</span></div>
+          <div class="stat"><span class="stat__n" id="s-focus">0m</span><span class="stat__k">Focused</span></div>
+          <div class="stat"><span class="stat__n" id="s-streak">0</span><span class="stat__k">Day streak</span></div>
+        </div>
+
+        <h3 class="panel__title" style="margin-top:18px">Last seven days</h3>
+        <div class="pom__bars" id="bars"></div>
+      </section>
+
+      <section class="panel">
+        <h2 class="panel__title">Lengths</h2>
+        <div class="split" style="gap:12px">
+          <div class="field"><label class="label" for="len-focus">Focus, minutes</label>
+            <input class="input" type="number" id="len-focus" min="1" max="180" value="25"></div>
+          <div class="field"><label class="label" for="len-short">Short break</label>
+            <input class="input" type="number" id="len-short" min="1" max="60" value="5"></div>
+        </div>
+        <div class="split" style="gap:12px">
+          <div class="field"><label class="label" for="len-long">Long break</label>
+            <input class="input" type="number" id="len-long" min="1" max="120" value="15"></div>
+          <div class="field"><label class="label" for="len-every">Long break every</label>
+            <input class="input" type="number" id="len-every" min="2" max="12" value="4"></div>
+        </div>
+        <button class="btn btn--sm btn--danger" id="wipe">Clear all history</button>
+      </section>
+
+    </div>
+  </div>
+
+  <footer class="foot">
+    <a href="../../index.html">← All tools</a>
+    <span>·</span>
+    <span>Runs entirely in your browser</span>
+  </footer>
+
+</main>
+
+<script src="../../assets/js/bench.js" defer></script>
+<script defer>
+document.addEventListener("DOMContentLoaded", function () {
+  "use strict";
+  var $ = Bench.$, $$ = Bench.$$, esc = Bench.esc;
+  var store = Bench.store("pomodoro");
+
+  var settings = store.get("settings", { focus: 25, short: 5, long: 15, every: 4, auto: true });
+  var tasks = store.get("tasks", []);
+  var history = store.get("history", {});      // { "YYYY-MM-DD": { count, minutes } }
+  var doneCount = store.get("doneCount", 0);   // focus stretches since the last long break
+  var currentTask = store.get("currentTask", null);
+
+  var phase = "focus";        // focus | short | long
+  var endsAt = null;          // ms timestamp, or null when paused
+  var remaining = settings.focus * 60000;
+  var running = false;
+  var tick = null;
+
+  var BASE_TITLE = "Pomodoro Timer — Bench";
+
+  /* --- dates ---------------------------------------------------------- */
+
+  // Local calendar day. toISOString() would roll the date over for anyone
+  // behind UTC and put their evening stretches on the wrong day.
+  function dayKey(d) {
+    d = d || new Date();
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0")
+      + "-" + String(d.getDate()).padStart(2, "0");
+  }
+
+  function save() {
+    store.set("settings", settings);
+    store.set("tasks", tasks);
+    store.set("history", history);
+    store.set("doneCount", doneCount);
+    store.set("currentTask", currentTask);
+  }
+
+  /* --- phases --------------------------------------------------------- */
+
+  function phaseLength(p) {
+    return (p === "focus" ? settings.focus : p === "short" ? settings.short : settings.long) * 60000;
+  }
+
+  var PHASE_NAME = { focus: "Focus", short: "Short break", long: "Long break" };
+
+  function nextPhase() {
+    if (phase !== "focus") return "focus";
+    return (doneCount % settings.every === 0 && doneCount > 0) ? "long" : "short";
+  }
+
+  /* --- rendering ------------------------------------------------------ */
+
+  var CIRC = 2 * Math.PI * 45;
+
+  function fmt(ms) {
+    var s = Math.max(0, Math.ceil(ms / 1000));
+    var m = Math.floor(s / 60);
+    return String(m).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0");
+  }
+
+  function renderTimer() {
+    var total = phaseLength(phase);
+    var left = running ? Math.max(0, endsAt - Date.now()) : remaining;
+    var text = fmt(left);
+
+    $("#time").textContent = text;
+    $("#phase").textContent = PHASE_NAME[phase];
+
+    var arc = $("#arc");
+    arc.style.strokeDasharray = CIRC;
+    arc.style.strokeDashoffset = CIRC * (1 - (total ? left / total : 0));
+    arc.style.stroke = phase === "focus" ? "var(--signal)" : "var(--verify)";
+
+    var task = tasks.filter(function (t) { return t.id === currentTask; })[0];
+    $("#for").textContent = phase === "focus" && task ? "on " + task.name : "";
+
+    document.title = running ? text + " · " + PHASE_NAME[phase] + " — Bench" : BASE_TITLE;
+    $("#startstop").textContent = running ? "Pause" : (left < phaseLength(phase) ? "Resume" : "Start");
+  }
+
+  function renderTasks() {
+    $("#tasks-empty").hidden = tasks.length > 0;
+    $("#tasks").innerHTML = tasks.map(function (t) {
+      return '<div class="pom__task' + (t.id === currentTask ? " pom__task--on" : "")
+        + (t.done ? " pom__task--done" : "") + '">'
+        + '<button class="pom__ticon" data-act="done" data-id="' + t.id + '" title="'
+        + (t.done ? "Mark as not done" : "Mark as done") + '" aria-label="'
+        + (t.done ? "Mark " + esc(t.name) + " as not done" : "Mark " + esc(t.name) + " as done") + '">'
+        + (t.done ? "☑" : "☐") + "</button>"
+        + '<span class="pom__tname">' + esc(t.name) + "</span>"
+        + '<span class="pom__tpom">' + (t.pomodoros || 0) + "×</span>"
+        + '<button class="pom__ticon" data-act="select" data-id="' + t.id + '" title="Work on this" aria-label="Work on ' + esc(t.name) + '">◎</button>'
+        + '<button class="pom__ticon pom__ticon--del" data-act="del" data-id="' + t.id + '" title="Delete" aria-label="Delete ' + esc(t.name) + '">✕</button>'
+        + "</div>";
+    }).join("");
+  }
+
+  function renderStats() {
+    var today = history[dayKey()] || { count: 0, minutes: 0 };
+    $("#s-today").textContent = today.count;
+    $("#s-focus").textContent = today.minutes >= 60
+      ? (today.minutes / 60).toFixed(1) + "h"
+      : today.minutes + "m";
+
+    // Streak: consecutive days ending today (or yesterday, if today is unstarted).
+    var streak = 0;
+    var d = new Date();
+    if (!(history[dayKey(d)] && history[dayKey(d)].count)) d.setDate(d.getDate() - 1);
+    while (history[dayKey(d)] && history[dayKey(d)].count) {
+      streak++;
+      d.setDate(d.getDate() - 1);
+    }
+    $("#s-streak").textContent = streak;
+
+    var days = [];
+    for (var i = 6; i >= 0; i--) {
+      var dd = new Date();
+      dd.setDate(dd.getDate() - i);
+      days.push({ key: dayKey(dd), label: "SMTWTFS"[dd.getDay()], n: (history[dayKey(dd)] || {}).count || 0 });
+    }
+    var max = Math.max(1, Math.max.apply(null, days.map(function (x) { return x.n; })));
+    $("#bars").innerHTML = days.map(function (x) {
+      return '<div class="pom__bar' + (x.n ? "" : " pom__bar--none") + '" title="'
+        + esc(x.key + ": " + Bench.plural(x.n, "stretch", "stretches")) + '">'
+        + "<i style='height:" + (x.n ? Math.round(x.n / max * 100) : 2) + "%'></i>"
+        + "<span>" + x.label + "</span></div>";
+    }).join("");
+  }
+
+  function render() { renderTimer(); renderTasks(); renderStats(); }
+
+  /* --- sound ---------------------------------------------------------- */
+
+  var audioCtx = null;
+
+  function chime(kind) {
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === "suspended") audioCtx.resume();
+      var notes = kind === "focus" ? [660, 880] : [880, 660, 440];
+      notes.forEach(function (f, i) {
+        var osc = audioCtx.createOscillator();
+        var gain = audioCtx.createGain();
+        osc.type = "sine";
+        osc.frequency.value = f;
+        var t0 = audioCtx.currentTime + i * 0.18;
+        gain.gain.setValueAtTime(0.0001, t0);
+        gain.gain.exponentialRampToValueAtTime(0.25, t0 + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.35);
+        osc.connect(gain).connect(audioCtx.destination);
+        osc.start(t0);
+        osc.stop(t0 + 0.4);
+      });
+    } catch (e) { /* audio is a nicety, never a failure */ }
+  }
+
+  function notify(title, body) {
+    if (!("Notification" in window) || Notification.permission !== "granted") return;
+    try { new Notification(title, { body: body, tag: "bench-pomodoro" }); } catch (e) {}
+  }
+
+  /* --- running -------------------------------------------------------- */
+
+  function start() {
+    endsAt = Date.now() + remaining;
+    running = true;
+    // The tab may be throttled or asleep, so the remaining time is always
+    // recomputed from the target timestamp rather than counted down.
+    tick = setInterval(function () {
+      if (Date.now() >= endsAt) complete();
+      else renderTimer();
+    }, 250);
+    renderTimer();
+  }
+
+  function pause() {
+    if (!running) return;
+    remaining = Math.max(0, endsAt - Date.now());
+    running = false;
+    clearInterval(tick);
+    renderTimer();
+  }
+
+  function setPhase(p, autostart) {
+    phase = p;
+    remaining = phaseLength(p);
+    running = false;
+    clearInterval(tick);
+    renderTimer();
+    if (autostart) start();
+  }
+
+  function complete() {
+    clearInterval(tick);
+    running = false;
+
+    if (phase === "focus") {
+      doneCount++;
+      var k = dayKey();
+      if (!history[k]) history[k] = { count: 0, minutes: 0 };
+      history[k].count++;
+      history[k].minutes += settings.focus;
+
+      var task = tasks.filter(function (t) { return t.id === currentTask; })[0];
+      if (task) task.pomodoros = (task.pomodoros || 0) + 1;
+
+      chime("focus");
+      notify("Focus finished", "Time for a break.");
+    } else {
+      chime("break");
+      notify("Break over", "Back to it.");
+    }
+
+    save();
+    var next = nextPhase();
+    setPhase(next, settings.auto);
+    renderStats();
+    renderTasks();
+  }
+
+  /* --- controls ------------------------------------------------------- */
+
+  $("#startstop").addEventListener("click", function () { running ? pause() : start(); });
+
+  $("#reset").addEventListener("click", function () {
+    running = false;
+    clearInterval(tick);
+    remaining = phaseLength(phase);
+    renderTimer();
+  });
+
+  $("#skip").addEventListener("click", function () {
+    clearInterval(tick);
+    running = false;
+    // Skipping is not finishing: it advances without crediting a stretch.
+    if (phase === "focus") doneCount++;
+    save();
+    setPhase(nextPhase(), false);
+  });
+
+  $("#notify").addEventListener("click", function () {
+    var host = $("#notice");
+    if (!("Notification" in window)) {
+      host.innerHTML = '<div class="note note--warn"><span class="note__mark">!</span><span>This browser has no notification support. The chime and the tab title still work.</span></div>';
+      return;
+    }
+    // Only ever requested from a real click — asking on load is why people
+    // block notifications permanently.
+    Notification.requestPermission().then(function (p) {
+      host.innerHTML = p === "granted"
+        ? '<div class="note note--ok"><span class="note__mark">✓</span><span>Notifications on. You will get one when a stretch ends.</span></div>'
+        : '<div class="note note--info"><span class="note__mark">i</span><span>Notifications are ' + esc(p)
+          + '. The chime and the countdown in the tab title still work.</span></div>';
+      if (p === "granted") $("#notify").hidden = true;
+    });
+  });
+
+  $("#opt-auto").addEventListener("change", function () {
+    settings.auto = this.checked;
+    save();
+  });
+
+  /* --- tasks ---------------------------------------------------------- */
+
+  $("#task-form").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var name = $("#task-new").value.trim();
+    if (!name) return;
+    var id = Date.now().toString(36) + Bench.randInt(1e6).toString(36);
+    tasks.push({ id: id, name: name, pomodoros: 0, done: false });
+    if (!currentTask) currentTask = id;
+    $("#task-new").value = "";
+    save();
+    render();
+  });
+
+  $("#tasks").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-act]");
+    if (!b) return;
+    var id = b.dataset.id;
+    var i = tasks.map(function (t) { return t.id; }).indexOf(id);
+    if (i === -1) return;
+
+    if (b.dataset.act === "del") {
+      tasks.splice(i, 1);
+      if (currentTask === id) currentTask = tasks.length ? tasks[0].id : null;
+    } else if (b.dataset.act === "done") {
+      tasks[i].done = !tasks[i].done;
+    } else {
+      currentTask = id;
+    }
+    save();
+    render();
+  });
+
+  /* --- settings ------------------------------------------------------- */
+
+  [["len-focus", "focus"], ["len-short", "short"], ["len-long", "long"], ["len-every", "every"]]
+    .forEach(function (pair) {
+      var el = $("#" + pair[0]);
+      el.value = settings[pair[1]];
+      el.addEventListener("change", function () {
+        var v = Math.max(Number(el.min), Math.min(Number(el.max), Number(el.value) || settings[pair[1]]));
+        el.value = v;
+        settings[pair[1]] = v;
+        save();
+        if (!running) { remaining = phaseLength(phase); renderTimer(); }
+      });
+    });
+
+  $("#wipe").addEventListener("click", function () {
+    var btn = $("#wipe");
+    if (btn.dataset.armed) {
+      history = {}; tasks = []; doneCount = 0; currentTask = null;
+      save();
+      btn.textContent = "Clear all history";
+      delete btn.dataset.armed;
+      render();
+      Bench.toast("History cleared");
+      return;
+    }
+    btn.dataset.armed = "1";
+    btn.textContent = "Really clear everything?";
+    setTimeout(function () {
+      if (btn.dataset.armed) { btn.textContent = "Clear all history"; delete btn.dataset.armed; }
+    }, 4000);
+  });
+
+  $("#opt-auto").checked = settings.auto;
+  if ("Notification" in window && Notification.permission === "granted") $("#notify").hidden = true;
+
+  window.addEventListener("beforeunload", function () { document.title = BASE_TITLE; });
+
+  remaining = phaseLength(phase);
+  render();
+});
+</script>
+
+</body>
+</html>
