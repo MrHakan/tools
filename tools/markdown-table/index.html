@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Markdown Table Builder — Bench</title>
+<meta name="description" content="Edit a table like a spreadsheet and copy it out as Markdown, or paste an existing table back in to keep editing.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/css/bench.css">
+<style>
+  .mdt__scroll { overflow-x: auto; border: 1px solid var(--edge); border-radius: var(--r); background: var(--card); }
+  .mdt__grid { border-collapse: collapse; min-width: 100%; }
+  .mdt__grid th, .mdt__grid td { border: 1px solid var(--edge); padding: 0; }
+
+  .mdt__cell {
+    width: 100%;
+    min-width: 110px;
+    border: 0;
+    background: transparent;
+    padding: 7px 9px;
+    font-size: 13.5px;
+    color: var(--ink);
+  }
+  .mdt__cell:focus { outline: 2px solid var(--signal); outline-offset: -2px; background: var(--signal-soft); }
+  thead .mdt__cell { font-weight: 600; background: var(--sunk); }
+
+  .mdt__corner { width: 34px; background: var(--sunk); }
+  .mdt__rowhead {
+    width: 34px; background: var(--sunk); text-align: center;
+    font-family: var(--mono); font-size: 11px; color: var(--steel);
+  }
+  .mdt__colhead { background: var(--sunk); padding: 4px 6px !important; white-space: nowrap; }
+  .mdt__mini {
+    background: transparent; border: 1px solid transparent; border-radius: 2px;
+    color: var(--steel); font-family: var(--mono); font-size: 11px;
+    padding: 1px 4px; line-height: 1.4;
+  }
+  .mdt__mini:hover { border-color: var(--signal); color: var(--signal); }
+  .mdt__mini--on { color: var(--signal); border-color: var(--signal); background: var(--signal-soft); }
+  .mdt__ctrls { display: flex; gap: 2px; align-items: center; justify-content: center; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__home" href="../../index.html"><span class="topbar__mark">▚</span> bench</a>
+  <span class="topbar__sep">/</span>
+  <span class="topbar__here">Markdown Table Builder</span>
+  <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
+</header>
+
+<main class="wrap">
+
+  <div class="toolhead">
+    <p class="toolhead__spec mono">| a | b |</p>
+    <h1 class="toolhead__title">Markdown Table Builder</h1>
+    <p class="toolhead__desc">Edit the table like a spreadsheet and copy the Markdown. Paste an existing table, CSV or TSV to carry on editing it.</p>
+  </div>
+
+  <section class="panel">
+    <h2 class="panel__title">Table</h2>
+
+    <div class="row" style="margin-bottom:14px">
+      <button class="btn btn--sm" id="add-row">Add row</button>
+      <button class="btn btn--sm" id="add-col">Add column</button>
+      <span class="grow"></span>
+      <label class="check"><input type="checkbox" id="opt-pad" checked> Pad the source</label>
+      <button class="btn btn--sm btn--danger" id="reset">Clear</button>
+    </div>
+
+    <div class="mdt__scroll">
+      <table class="mdt__grid" id="grid"></table>
+    </div>
+
+    <p class="empty" style="margin-top:10px">
+      Tab and Shift+Tab move across, Enter and the arrow keys move down and up.
+      Use the ⯇ ⯈ arrows in a column header to move it, and ◧ ◫ ◨ to set its alignment.
+    </p>
+  </section>
+
+  <div class="split" style="margin-top:var(--gap)">
+
+    <section class="panel">
+      <h2 class="panel__title">Markdown</h2>
+      <div class="row" style="margin-bottom:12px">
+        <button class="btn btn--sm btn--on" data-out="md">Markdown</button>
+        <button class="btn btn--sm" data-out="csv">CSV</button>
+        <button class="btn btn--sm" data-out="html">HTML</button>
+        <span class="grow"></span>
+        <button class="btn btn--sm" id="copy">Copy</button>
+        <button class="btn btn--sm" id="save">Save</button>
+      </div>
+      <div class="out" id="out"></div>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel__title">Paste a table to import</h2>
+      <label class="sr-only" for="imp">Table to import</label>
+      <textarea class="textarea" id="imp" spellcheck="false" placeholder="Paste a Markdown table, CSV or TSV here…"></textarea>
+      <div class="row" style="margin-top:12px">
+        <button class="btn btn--primary" id="imp-go">Import</button>
+        <button class="btn" id="imp-sample">Load an example</button>
+      </div>
+      <div id="imp-note" style="margin-top:12px"></div>
+    </section>
+
+  </div>
+
+  <footer class="foot">
+    <a href="../../index.html">← All tools</a>
+    <span>·</span>
+    <span>Runs entirely in your browser</span>
+  </footer>
+
+</main>
+
+<script src="../../assets/js/bench.js" defer></script>
+<script defer>
+document.addEventListener("DOMContentLoaded", function () {
+  "use strict";
+  var $ = Bench.$, $$ = Bench.$$, esc = Bench.esc;
+  var store = Bench.store("markdown-table");
+
+  var ALIGN = ["left", "center", "right"];
+  var ALIGN_MARK = { left: "◧", center: "◫", right: "◨" };
+
+  var model = store.get("table", null) || {
+    align: ["left", "left", "right"],
+    rows: [
+      ["Tool", "What it does", "Size"],
+      ["JSON Formatter", "Pretty-print and validate", "13 KB"],
+      ["Regex Tester", "Live matches and groups", "23 KB"]
+    ]
+  };
+
+  var outFmt = "md";
+
+  function save() { store.set("table", model); }
+
+  function cols() { return model.rows[0] ? model.rows[0].length : 0; }
+
+  /* --- rendering ----------------------------------------------------- */
+
+  function render() {
+    var n = cols();
+    var html = "<thead><tr><th class='mdt__corner'></th>";
+
+    for (var c = 0; c < n; c++) {
+      html += "<th class='mdt__colhead'><div class='mdt__ctrls'>"
+        + "<button class='mdt__mini' data-move='" + c + "' data-dir='-1' title='Move this column left' aria-label='Move column " + (c + 1) + " left'>⯇</button>"
+        + ALIGN.map(function (a) {
+            return "<button class='mdt__mini" + (model.align[c] === a ? " mdt__mini--on" : "")
+              + "' data-align='" + c + "' data-a='" + a + "' title='Align " + a + "' aria-label='Align column " + (c + 1) + " " + a + "'>"
+              + ALIGN_MARK[a] + "</button>";
+          }).join("")
+        + "<button class='mdt__mini' data-move='" + c + "' data-dir='1' title='Move this column right' aria-label='Move column " + (c + 1) + " right'>⯈</button>"
+        + "<button class='mdt__mini' data-delcol='" + c + "' title='Delete this column' aria-label='Delete column " + (c + 1) + "'>✕</button>"
+        + "</div></th>";
+    }
+    html += "</tr><tr><th class='mdt__rowhead'>H</th>";
+    for (var hc = 0; hc < n; hc++) {
+      html += "<th><input class='mdt__cell' data-r='0' data-c='" + hc + "' value='" + esc(model.rows[0][hc]) + "'"
+        + " aria-label='Header for column " + (hc + 1) + "'></th>";
+    }
+    html += "</tr></thead><tbody>";
+
+    for (var r = 1; r < model.rows.length; r++) {
+      html += "<tr><th class='mdt__rowhead'><div class='mdt__ctrls'>"
+        + "<button class='mdt__mini' data-delrow='" + r + "' title='Delete this row' aria-label='Delete row " + r + "'>✕</button>"
+        + "</div></th>";
+      for (var rc = 0; rc < n; rc++) {
+        html += "<td><input class='mdt__cell' data-r='" + r + "' data-c='" + rc + "' value='" + esc(model.rows[r][rc] || "") + "'"
+          + " aria-label='Row " + r + ", column " + (rc + 1) + "'></td>";
+      }
+      html += "</tr>";
+    }
+    html += "</tbody>";
+
+    $("#grid").innerHTML = html;
+    renderOut();
+  }
+
+  /* --- output -------------------------------------------------------- */
+
+  // A literal pipe would end the cell, so it has to be escaped. Newlines
+  // cannot survive a Markdown table row at all, so they become <br>.
+  function mdCell(s) {
+    return String(s).replace(/\|/g, "\\|").replace(/\r?\n/g, "<br>");
+  }
+
+  function toMarkdown() {
+    var n = cols();
+    var body = model.rows.map(function (row) {
+      var out = [];
+      for (var i = 0; i < n; i++) out.push(mdCell(row[i] || ""));
+      return out;
+    });
+
+    var widths = [];
+    for (var c = 0; c < n; c++) {
+      var w = 3; // a delimiter needs at least ":-:" worth of room
+      if ($("#opt-pad").checked) {
+        body.forEach(function (row) { w = Math.max(w, row[c].length); });
+      }
+      widths.push(w);
+    }
+
+    var pad = $("#opt-pad").checked;
+    function cell(text, i) {
+      if (!pad) return text;
+      var a = model.align[i];
+      var space = widths[i] - text.length;
+      if (a === "right") return " ".repeat(space) + text;
+      if (a === "center") {
+        var l = Math.floor(space / 2);
+        return " ".repeat(l) + text + " ".repeat(space - l);
+      }
+      return text + " ".repeat(space);
+    }
+
+    function line(cells) { return "| " + cells.join(" | ") + " |"; }
+
+    var delim = [];
+    for (var d = 0; d < n; d++) {
+      var w2 = widths[d];
+      var a2 = model.align[d];
+      if (a2 === "center") delim.push(":" + "-".repeat(Math.max(1, w2 - 2)) + ":");
+      else if (a2 === "right") delim.push("-".repeat(Math.max(2, w2 - 1)) + ":");
+      else delim.push("-".repeat(Math.max(1, w2)));
+    }
+
+    var lines = [line(body[0].map(cell)), line(delim)];
+    for (var r = 1; r < body.length; r++) lines.push(line(body[r].map(cell)));
+    return lines.join("\n");
+  }
+
+  function toCSV() {
+    var n = cols();
+    return model.rows.map(function (row) {
+      var out = [];
+      for (var i = 0; i < n; i++) {
+        var v = String(row[i] || "");
+        out.push(/[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v);
+      }
+      return out.join(",");
+    }).join("\n");
+  }
+
+  function toHTML() {
+    var n = cols();
+    var s = "<table>\n  <thead>\n    <tr>\n";
+    for (var c = 0; c < n; c++) {
+      s += '      <th style="text-align:' + model.align[c] + '">' + esc(model.rows[0][c] || "") + "</th>\n";
+    }
+    s += "    </tr>\n  </thead>\n  <tbody>\n";
+    for (var r = 1; r < model.rows.length; r++) {
+      s += "    <tr>\n";
+      for (var rc = 0; rc < n; rc++) {
+        s += '      <td style="text-align:' + model.align[rc] + '">' + esc(model.rows[r][rc] || "") + "</td>\n";
+      }
+      s += "    </tr>\n";
+    }
+    return s + "  </tbody>\n</table>";
+  }
+
+  function outputText() {
+    return outFmt === "csv" ? toCSV() : outFmt === "html" ? toHTML() : toMarkdown();
+  }
+
+  function renderOut() {
+    $("#out").textContent = outputText();
+    save();
+  }
+
+  /* --- editing ------------------------------------------------------- */
+
+  $("#grid").addEventListener("input", function (e) {
+    var cell = e.target.closest(".mdt__cell");
+    if (!cell) return;
+    model.rows[+cell.dataset.r][+cell.dataset.c] = cell.value;
+    renderOut();
+  });
+
+  $("#grid").addEventListener("keydown", function (e) {
+    var cell = e.target.closest(".mdt__cell");
+    if (!cell) return;
+    var r = +cell.dataset.r, c = +cell.dataset.c;
+
+    function focusCell(rr, cc) {
+      var t = $("[data-r='" + rr + "'][data-c='" + cc + "']");
+      if (t) { t.focus(); t.select(); }
+      return !!t;
+    }
+
+    if (e.key === "Enter" || e.key === "ArrowDown") {
+      e.preventDefault();
+      if (!focusCell(r + 1, c) && e.key === "Enter") {
+        addRow();
+        focusCell(model.rows.length - 1, c);
+      }
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      focusCell(r - 1, c);
+    } else if (e.key === "Tab") {
+      // Let Tab wrap to the next row rather than escaping the grid.
+      var n = cols();
+      if (!e.shiftKey && c === n - 1 && r < model.rows.length - 1) {
+        e.preventDefault(); focusCell(r + 1, 0);
+      } else if (e.shiftKey && c === 0 && r > 0) {
+        e.preventDefault(); focusCell(r - 1, n - 1);
+      }
+    }
+  });
+
+  $("#grid").addEventListener("click", function (e) {
+    var b = e.target.closest("button");
+    if (!b) return;
+
+    if (b.dataset.align !== undefined) {
+      model.align[+b.dataset.align] = b.dataset.a;
+      render();
+    } else if (b.dataset.move !== undefined) {
+      var from = +b.dataset.move, to = from + (+b.dataset.dir);
+      if (to < 0 || to >= cols()) return;
+      model.rows.forEach(function (row) {
+        var t = row[from]; row[from] = row[to]; row[to] = t;
+      });
+      var a = model.align[from]; model.align[from] = model.align[to]; model.align[to] = a;
+      render();
+    } else if (b.dataset.delcol !== undefined) {
+      if (cols() <= 1) { Bench.toast("A table needs at least one column", "bad"); return; }
+      var ci = +b.dataset.delcol;
+      model.rows.forEach(function (row) { row.splice(ci, 1); });
+      model.align.splice(ci, 1);
+      render();
+    } else if (b.dataset.delrow !== undefined) {
+      if (model.rows.length <= 2) { Bench.toast("Keep at least one body row", "bad"); return; }
+      model.rows.splice(+b.dataset.delrow, 1);
+      render();
+    }
+  });
+
+  function addRow() {
+    model.rows.push(new Array(cols()).fill(""));
+    render();
+  }
+
+  $("#add-row").addEventListener("click", addRow);
+
+  $("#add-col").addEventListener("click", function () {
+    model.rows.forEach(function (row, i) { row.push(i === 0 ? "Column " + (cols() + 1) : ""); });
+    model.align.push("left");
+    render();
+  });
+
+  $("#reset").addEventListener("click", function () {
+    model = { align: ["left", "left"], rows: [["Column 1", "Column 2"], ["", ""]] };
+    render();
+  });
+
+  $("#opt-pad").addEventListener("change", renderOut);
+
+  $$("[data-out]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      outFmt = b.dataset.out;
+      $$("[data-out]").forEach(function (x) { x.classList.toggle("btn--on", x === b); });
+      renderOut();
+    });
+  });
+
+  $("#copy").addEventListener("click", function (e) { Bench.copy(outputText(), e.currentTarget); });
+  $("#save").addEventListener("click", function () {
+    var ext = { md: "md", csv: "csv", html: "html" }[outFmt];
+    Bench.download("table." + ext, outputText());
+  });
+
+  /* --- import -------------------------------------------------------- */
+
+  function splitCSVLine(line, delim) {
+    var out = [], cur = "", q = false;
+    for (var i = 0; i < line.length; i++) {
+      var ch = line[i];
+      if (q) {
+        if (ch === '"') {
+          if (line[i + 1] === '"') { cur += '"'; i++; } else q = false;
+        } else cur += ch;
+      } else if (ch === '"') q = true;
+      else if (ch === delim) { out.push(cur); cur = ""; }
+      else cur += ch;
+    }
+    out.push(cur);
+    return out;
+  }
+
+  function parseImport(text) {
+    var lines = text.replace(/\r\n?/g, "\n").split("\n").filter(function (l) { return l.trim(); });
+    if (!lines.length) return null;
+
+    // A Markdown table is recognised by its delimiter row, not by the pipes —
+    // a CSV can contain pipes too.
+    var isMd = lines.length >= 2 && /^\s*\|?[\s:-]*-[-\s:|]*\|?\s*$/.test(lines[1]) && lines[1].indexOf("-") !== -1;
+
+    if (isMd) {
+      var align = [];
+      lines[1].replace(/^\s*\|/, "").replace(/\|\s*$/, "").split("|").forEach(function (seg) {
+        var s = seg.trim();
+        align.push(s.startsWith(":") && s.endsWith(":") ? "center"
+          : s.endsWith(":") ? "right" : "left");
+      });
+      var rows = lines.filter(function (l, i) { return i !== 1; }).map(function (l) {
+        return l.replace(/^\s*\|/, "").replace(/\|\s*$/, "")
+          .split(/(?<!\\)\|/)
+          .map(function (c) { return c.trim().replace(/\\\|/g, "|").replace(/<br\s*\/?>/gi, "\n"); });
+      });
+      return { rows: rows, align: align, kind: "Markdown" };
+    }
+
+    var delim = lines[0].indexOf("\t") !== -1 ? "\t" : ",";
+    var rows2 = lines.map(function (l) { return splitCSVLine(l, delim); });
+    return { rows: rows2, align: null, kind: delim === "\t" ? "TSV" : "CSV" };
+  }
+
+  $("#imp-go").addEventListener("click", function () {
+    var text = $("#imp").value.trim();
+    var noteHost = $("#imp-note");
+    if (!text) {
+      noteHost.innerHTML = '<div class="note note--bad"><span class="note__mark">✕</span><span>Paste a table first.</span></div>';
+      return;
+    }
+
+    var parsed = parseImport(text);
+    if (!parsed || !parsed.rows.length) {
+      noteHost.innerHTML = '<div class="note note--bad"><span class="note__mark">✕</span><span>That did not look like a table. Markdown needs a <code class="mono">|---|</code> row; CSV needs commas or tabs.</span></div>';
+      return;
+    }
+
+    // Ragged input is common when hand-editing — square it off rather than refuse.
+    var width = Math.max.apply(null, parsed.rows.map(function (r) { return r.length; }));
+    var ragged = parsed.rows.some(function (r) { return r.length !== width; });
+    parsed.rows.forEach(function (r) { while (r.length < width) r.push(""); });
+
+    model.rows = parsed.rows;
+    model.align = [];
+    for (var i = 0; i < width; i++) {
+      model.align.push(parsed.align && parsed.align[i] ? parsed.align[i] : "left");
+    }
+    if (model.rows.length < 2) model.rows.push(new Array(width).fill(""));
+
+    render();
+    noteHost.innerHTML = '<div class="note note--ok"><span class="note__mark">✓</span><span>Imported '
+      + esc(parsed.kind) + " — " + Bench.plural(width, "column") + ", "
+      + Bench.plural(model.rows.length - 1, "body row") + "."
+      + (ragged ? " Rows had uneven lengths, so the short ones were padded." : "") + "</span></div>";
+  });
+
+  $("#imp-sample").addEventListener("click", function () {
+    $("#imp").value = "| Method | Idempotent | Body |\n|:-------|:----------:|-----:|\n"
+      + "| GET | yes | no |\n| POST | no | yes |\n| PUT | yes | yes |\n| DELETE | yes | no |";
+  });
+
+  Bench.dropzone($("#imp"), function (files) {
+    Bench.readFile(files[0]).then(function (t) { $("#imp").value = t; });
+  });
+
+  render();
+});
+</script>
+
+</body>
+</html>

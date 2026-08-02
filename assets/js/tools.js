@@ -95,7 +95,7 @@ window.BENCH_TOOLS = [
   /* --- Content & text ----------------------------------------------------- */
   { slug: "markdown-converter", cat: "Content & text", spec: "# Heading", name: "Markdown Editor",
     blurb: "Write Markdown, preview live, export HTML or print.", keys: "md html pdf preview writing convert export" },
-  { soon: true, slug: "markdown-table", cat: "Content & text", spec: "| a | b |", name: "Markdown Table Builder",
+  { slug: "markdown-table", cat: "Content & text", spec: "| a | b |", name: "Markdown Table Builder",
     blurb: "Edit a table like a spreadsheet, copy the Markdown.", keys: "grid csv align column row generator gfm" },
   { soon: true, slug: "badge-generator", cat: "Content & text", spec: "![build passing]", name: "README Badge Builder",
     blurb: "Compose shields.io badges for a project README.", keys: "shield readme github markdown status label ci" },
