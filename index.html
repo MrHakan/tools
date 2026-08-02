@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en" prefix="og: https://ogp.me/ns#">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bench — 59 tools that run in your browser</title>
+<meta name="description" content="A workbench of 59 small, single-purpose tools for developers, designers and writers. Everything runs client-side: nothing you type or open is ever uploaded.">
+<meta name="color-scheme" content="light dark">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Bench — 59 tools that run in your browser">
+<meta property="og:description" content="JSON, regex, cron, diff, colour, Markdown and 54 more. All client-side, nothing uploaded.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="preload" href="assets/fonts/space-grotesk-700-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/fonts/jetbrains-mono-400-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="assets/css/bench.css">
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__home" href="index.html"><span class="topbar__mark">▚</span> bench</a>
+  <span class="topbar__sep">/</span>
+  <span class="topbar__here">59 tools, no server</span>
+  <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
+</header>
+
+<main class="wrap">
+
+  <section class="hero">
+    <h1 class="hero__lede">Small tools that do <em>one thing</em>, in the tab you already have open.</h1>
+
+    <div class="finder">
+      <span class="finder__icon" aria-hidden="true">⌕</span>
+      <input
+        id="finder"
+        class="finder__input"
+        type="search"
+        autocomplete="off"
+        autocapitalize="off"
+        spellcheck="false"
+        placeholder="Type to find a tool — try cron, colour, base64, diff"
+        aria-label="Search tools"
+        aria-describedby="finder-count">
+      <span class="finder__kbd" aria-hidden="true">/</span>
+    </div>
+
+    <p class="hero__meta" id="finder-count">
+      <span><b id="count">59</b> tools</span>
+      <span>Everything runs in your browser</span>
+      <span>Nothing is uploaded</span>
+      <span>Works offline once loaded</span>
+    </p>
+  </section>
+
+  <div id="results"></div>
+
+  <p class="noresult" id="noresult" hidden>No tool matches <b id="noresult-q"></b>. Try a broader word — <em>colour</em>, <em>text</em>, <em>time</em>, <em>image</em>.</p>
+
+  <footer class="foot">
+    <span>Bench</span>
+    <span>·</span>
+    <span>59 client-side tools</span>
+    <span>·</span>
+    <a href="https://github.com/MrHakan/tools">Source on GitHub</a>
+    <span>·</span>
+    <a href="https://github.com/MrHakan/tools/blob/main/LICENSE">MIT</a>
+  </footer>
+
+</main>
+
+<script src="assets/js/tools.js"></script>
+<script src="assets/js/bench.js" defer></script>
+<script>
+(function () {
+  "use strict";
+
+  var tools = window.BENCH_TOOLS;
+  var cats = window.BENCH_CATS;
+  var results = document.getElementById("results");
+  var finder = document.getElementById("finder");
+  var count = document.getElementById("count");
+  var noresult = document.getElementById("noresult");
+  var noresultQ = document.getElementById("noresult-q");
+
+  function esc(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+
+  // Build the full grid once, then show and hide cards while filtering.
+  // Sixty nodes is small enough that re-rendering is wasteful and re-focusing
+  // the input on every keystroke is worse.
+  var nodes = [];
+
+  cats.forEach(function (cat) {
+    var inCat = tools.filter(function (t) { return t.cat === cat; });
+    if (!inCat.length) return;
+
+    var section = document.createElement("section");
+    section.className = "cat";
+    section.innerHTML =
+      '<div class="cat__head">' +
+        '<h2 class="cat__name">' + esc(cat) + '</h2>' +
+        '<span class="cat__rule"></span>' +
+        '<span class="cat__n">' + inCat.length + '</span>' +
+      '</div><div class="grid"></div>';
+
+    var grid = section.querySelector(".grid");
+    var counter = section.querySelector(".cat__n");
+
+    inCat.forEach(function (t) {
+      var a = document.createElement("a");
+      a.className = "tool";
+      a.href = "tools/" + t.slug + "/index.html";
+      a.innerHTML =
+        '<span class="tool__spec">' + esc(t.spec) + '</span>' +
+        '<span class="tool__name">' + esc(t.name) + '</span>' +
+        '<span class="tool__desc">' + esc(t.blurb) + '</span>';
+      grid.appendChild(a);
+      nodes.push({
+        el: a,
+        section: section,
+        counter: counter,
+        hay: (t.name + " " + t.blurb + " " + t.keys + " " + t.cat + " " + t.slug + " " + t.spec).toLowerCase()
+      });
+    });
+
+    results.appendChild(section);
+  });
+
+  function filter() {
+    var q = finder.value.trim().toLowerCase();
+    var terms = q ? q.split(/\s+/) : [];
+    var shown = 0;
+    var perSection = new Map();
+
+    nodes.forEach(function (n) {
+      var hit = terms.every(function (term) { return n.hay.indexOf(term) !== -1; });
+      n.el.hidden = !hit;
+      if (hit) {
+        shown++;
+        perSection.set(n.section, (perSection.get(n.section) || 0) + 1);
+      }
+    });
+
+    nodes.forEach(function (n) {
+      var c = perSection.get(n.section) || 0;
+      n.section.hidden = c === 0;
+      n.counter.textContent = c;
+    });
+
+    count.textContent = shown;
+    noresult.hidden = shown !== 0;
+    if (!shown) noresultQ.textContent = '"' + finder.value.trim() + '"';
+  }
+
+  finder.addEventListener("input", filter);
+
+  // Enter opens the only remaining match — the fast path once you have typed
+  // enough to narrow it to one.
+  finder.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") { finder.value = ""; filter(); return; }
+    if (e.key !== "Enter") return;
+    var visible = nodes.filter(function (n) { return !n.el.hidden; });
+    if (visible.length) window.location.href = visible[0].el.href;
+  });
+
+  // "/" focuses the finder from anywhere on the page.
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "/" && document.activeElement !== finder) {
+      e.preventDefault();
+      finder.focus();
+      finder.select();
+    }
+  });
+
+  if (!matchMedia("(hover: none)").matches) finder.focus();
+  filter();
+})();
+</script>
+
+</body>
+</html>
