@@ -107,7 +107,7 @@ window.BENCH_TOOLS = [
     blurb: "Find and count terms across a long document.", keys: "search find highlight occurrences count document scan" },
   { slug: "lorem-generator", cat: "Content & text", spec: "Lorem ipsum dolor", name: "Placeholder Data",
     blurb: "Lorem ipsum plus fake people, addresses and JSON.", keys: "dummy fake faker mock seed test data names email" },
-  { soon: true, slug: "random-generators", cat: "Content & text", spec: "Xk9#mQ2$vL", name: "Random Generators",
+  { slug: "random-generators", cat: "Content & text", spec: "Xk9#mQ2$vL", name: "Random Generators",
     blurb: "Passwords, names, numbers, dice, picks and shuffles.", keys: "random password name number dice choose shuffle coin" },
 
   /* --- Media & misc ------------------------------------------------------- */
@@ -115,7 +115,7 @@ window.BENCH_TOOLS = [
     blurb: "Crop, resize and filter images on canvas.", keys: "photo grayscale brightness rotate flip resize crop" },
   { slug: "qr-tool", cat: "Media & misc", spec: "█▀█ ▄▄ █▀█", name: "QR Code Studio",
     blurb: "Generate QR codes and scan them with your camera.", keys: "qrcode barcode scan camera url wifi vcard" },
-  { soon: true, slug: "image-base64", cat: "Media & misc", spec: "data:image/png", name: "Image ⇄ Base64",
+  { slug: "image-base64", cat: "Media & misc", spec: "data:image/png", name: "Image ⇄ Base64",
     blurb: "Inline an image as a data URI, or decode one back.", keys: "data uri encode decode inline css embed" },
   { soon: true, slug: "meta-preview", cat: "Media & misc", spec: "og:title", name: "Meta Tag Preview",
     blurb: "Preview share cards and copy the meta tags.", keys: "open graph twitter card seo social head html" },

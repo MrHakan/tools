@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Image ⇄ Base64 — Bench</title>
+<meta name="description" content="Inline an image as a data URI or decode one back to a file, with optional resizing and re-encoding. Nothing is uploaded.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/css/bench.css">
+<style>
+  .b64__drop {
+    border: 1px dashed var(--edge-2);
+    border-radius: var(--r);
+    padding: 30px 20px;
+    text-align: center;
+    background: var(--sunk);
+    transition: border-color .12s ease, background .12s ease;
+  }
+  .b64__drop.is-drop { border-color: var(--signal); background: var(--signal-soft); }
+  .b64__drop p { color: var(--steel); font-size: 13.5px; margin-top: 8px; }
+  .b64__mark { font-family: var(--mono); font-size: 22px; color: var(--steel); }
+  .b64__drop.is-drop .b64__mark { color: var(--signal); }
+
+  .b64__preview {
+    background: var(--sunk);
+    border: 1px solid var(--edge);
+    border-radius: var(--r);
+    padding: 12px;
+    display: grid;
+    place-items: center;
+    min-height: 150px;
+    /* A checkerboard so transparency is visible in both themes. */
+    background-image:
+      linear-gradient(45deg, var(--edge) 25%, transparent 25%),
+      linear-gradient(-45deg, var(--edge) 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, var(--edge) 75%),
+      linear-gradient(-45deg, transparent 75%, var(--edge) 75%);
+    background-size: 16px 16px;
+    background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+  }
+  .b64__preview img { max-height: 260px; width: auto; border-radius: 2px; }
+  .b64__tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__home" href="../../index.html"><span class="topbar__mark">▚</span> bench</a>
+  <span class="topbar__sep">/</span>
+  <span class="topbar__here">Image ⇄ Base64</span>
+  <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
+</header>
+
+<main class="wrap">
+
+  <div class="toolhead">
+    <p class="toolhead__spec mono">data:image/png</p>
+    <h1 class="toolhead__title">Image ⇄ Base64</h1>
+    <p class="toolhead__desc">Inline an image as a data URI, or decode one back to a file. The image is read by this tab and never uploaded.</p>
+  </div>
+
+  <div class="row" style="margin-bottom:var(--gap)">
+    <button class="btn btn--on" data-mode="encode">Image → Base64</button>
+    <button class="btn" data-mode="decode">Base64 → Image</button>
+  </div>
+
+  <!-- ============================================================ encode -->
+  <div id="pane-encode">
+    <div class="split split--narrow">
+
+      <section class="panel">
+        <h2 class="panel__title">Source image</h2>
+
+        <div class="b64__drop" id="drop">
+          <div class="b64__mark" aria-hidden="true">⇩</div>
+          <p>Drop an image here, or <button class="btn btn--sm" id="choose" style="margin:0 2px">choose a file</button></p>
+          <p style="font-size:12px">PNG, JPEG, GIF, WebP, AVIF or SVG</p>
+          <input type="file" id="file" accept="image/*" hidden>
+        </div>
+
+        <div id="enc-body" hidden>
+          <div class="b64__preview" style="margin-top:14px">
+            <img id="prev" alt="Preview of the selected image">
+          </div>
+
+          <div class="stats" style="margin-top:14px">
+            <div class="stat"><span class="stat__n" id="s-dim">—</span><span class="stat__k">Pixels</span></div>
+            <div class="stat"><span class="stat__n" id="s-type">—</span><span class="stat__k">Type</span></div>
+            <div class="stat"><span class="stat__n" id="s-orig">—</span><span class="stat__k">File</span></div>
+            <div class="stat"><span class="stat__n" id="s-enc">—</span><span class="stat__k">Encoded</span></div>
+          </div>
+
+          <h3 class="panel__title" style="margin-top:20px">Re-encode before inlining</h3>
+          <div class="field">
+            <label class="label" for="re-max">Longest side, pixels (0 keeps the original)</label>
+            <input class="input input--mono" type="number" id="re-max" min="0" max="8000" value="0">
+          </div>
+          <div class="split" style="gap:12px">
+            <div class="field">
+              <label class="label" for="re-fmt">Format</label>
+              <select class="select" id="re-fmt">
+                <option value="">Keep original</option>
+                <option value="image/webp">WebP</option>
+                <option value="image/jpeg">JPEG</option>
+                <option value="image/png">PNG</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="label" for="re-q">Quality <span class="mono" id="re-q-n">0.82</span></label>
+              <input type="range" id="re-q" min="0.1" max="1" step="0.01" value="0.82">
+            </div>
+          </div>
+          <div class="row">
+            <button class="btn" id="re-go">Apply</button>
+            <button class="btn btn--ghost" id="re-reset">Reset to original</button>
+          </div>
+          <div id="re-note" style="margin-top:12px"></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2 class="panel__title">Output</h2>
+
+        <div class="row row--between" style="margin-bottom:12px">
+          <div class="b64__tabs">
+            <button class="btn btn--sm btn--on" data-fmt="uri">Data URI</button>
+            <button class="btn btn--sm" data-fmt="css">CSS</button>
+            <button class="btn btn--sm" data-fmt="html">HTML</button>
+            <button class="btn btn--sm" data-fmt="md">Markdown</button>
+            <button class="btn btn--sm" data-fmt="raw">Base64 only</button>
+          </div>
+          <button class="btn btn--sm" id="enc-copy">Copy</button>
+        </div>
+
+        <div class="out out--wrap" id="enc-out"><span class="empty">Choose an image to see its data URI.</span></div>
+        <div id="enc-note" style="margin-top:12px"></div>
+      </section>
+
+    </div>
+  </div>
+
+  <!-- ============================================================ decode -->
+  <div id="pane-decode" hidden>
+    <div class="split">
+
+      <section class="panel">
+        <h2 class="panel__title">Data URI or base64</h2>
+        <label class="sr-only" for="dec-in">Data URI to decode</label>
+        <textarea class="textarea" id="dec-in" spellcheck="false" placeholder="data:image/png;base64,iVBORw0KGgo…"></textarea>
+
+        <div class="field" style="margin-top:12px">
+          <label class="label" for="dec-mime">If the base64 has no data: prefix, assume</label>
+          <select class="select" id="dec-mime">
+            <option value="image/png">image/png</option>
+            <option value="image/jpeg">image/jpeg</option>
+            <option value="image/gif">image/gif</option>
+            <option value="image/webp">image/webp</option>
+            <option value="image/svg+xml">image/svg+xml</option>
+          </select>
+        </div>
+
+        <div class="row">
+          <button class="btn btn--primary" id="dec-go">Decode</button>
+          <button class="btn btn--danger" id="dec-clear">Clear</button>
+        </div>
+        <div id="dec-note" style="margin-top:12px"></div>
+      </section>
+
+      <section class="panel">
+        <h2 class="panel__title">Decoded image</h2>
+        <div class="b64__preview">
+          <img id="dec-prev" alt="Decoded image preview" hidden>
+          <span class="empty" id="dec-empty">Paste a data URI to see the image.</span>
+        </div>
+        <div class="stats" style="margin-top:14px">
+          <div class="stat"><span class="stat__n" id="d-dim">—</span><span class="stat__k">Pixels</span></div>
+          <div class="stat"><span class="stat__n" id="d-type">—</span><span class="stat__k">Type</span></div>
+          <div class="stat"><span class="stat__n" id="d-size">—</span><span class="stat__k">Decoded</span></div>
+        </div>
+        <div class="row" style="margin-top:14px">
+          <button class="btn btn--primary" id="dec-save" disabled>Download image</button>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <footer class="foot">
+    <a href="../../index.html">← All tools</a>
+    <span>·</span>
+    <span>Runs entirely in your browser</span>
+  </footer>
+
+</main>
+
+<script src="../../assets/js/bench.js" defer></script>
+<script defer>
+document.addEventListener("DOMContentLoaded", function () {
+  "use strict";
+  var $ = Bench.$, $$ = Bench.$$, esc = Bench.esc;
+
+  function note(host, html, kind) {
+    host.innerHTML = '<div class="note note--' + kind + '"><span class="note__mark">'
+      + (kind === "bad" ? "✕" : kind === "ok" ? "✓" : kind === "warn" ? "!" : "i")
+      + "</span><span>" + html + "</span></div>";
+  }
+
+  /* --- mode switch --------------------------------------------------- */
+
+  $$("[data-mode]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var mode = btn.dataset.mode;
+      $$("[data-mode]").forEach(function (b) { b.classList.toggle("btn--on", b === btn); });
+      $("#pane-encode").hidden = mode !== "encode";
+      $("#pane-decode").hidden = mode !== "decode";
+    });
+  });
+
+  /* ==================================================================
+     Encode
+     ================================================================== */
+
+  var original = null;   // { dataURL, mime, name, bytes, w, h }
+  var current = null;    // what the output reflects (may be re-encoded)
+  var fmt = "uri";
+
+  // A data URL's payload is base64, so its byte length is derivable without
+  // re-decoding: 4 chars carry 3 bytes, minus the "=" padding.
+  function b64Bytes(dataURL) {
+    var i = dataURL.indexOf(",");
+    var b64 = i === -1 ? dataURL : dataURL.slice(i + 1);
+    var pad = b64.endsWith("==") ? 2 : b64.endsWith("=") ? 1 : 0;
+    return Math.floor(b64.length * 3 / 4) - pad;
+  }
+
+  function loadImage(dataURL) {
+    return new Promise(function (resolve, reject) {
+      var img = new Image();
+      img.onload = function () { resolve(img); };
+      img.onerror = function () { reject(new Error("That file could not be read as an image.")); };
+      img.src = dataURL;
+    });
+  }
+
+  function setCurrent(rec) {
+    current = rec;
+    $("#prev").src = rec.dataURL;
+    $("#s-dim").textContent = rec.w && rec.h ? rec.w + "×" + rec.h : "—";
+    $("#s-type").textContent = rec.mime.replace("image/", "");
+    $("#s-orig").textContent = Bench.bytes(rec.bytes);
+    $("#s-enc").textContent = Bench.bytes(rec.dataURL.length);
+    $("#enc-body").hidden = false;
+    renderOut();
+  }
+
+  function renderOut() {
+    if (!current) return;
+    var out = $("#enc-out");
+    var uri = current.dataURL;
+    var alt = (current.name || "image").replace(/\.[^.]+$/, "");
+    var text;
+
+    if (fmt === "css") text = "background-image: url(\"" + uri + "\");";
+    else if (fmt === "html") text = '<img src="' + uri + '" alt="' + esc(alt) + '" width="' + current.w + '" height="' + current.h + '">';
+    else if (fmt === "md") text = "![" + alt + "](" + uri + ")";
+    else if (fmt === "raw") text = uri.slice(uri.indexOf(",") + 1);
+    else text = uri;
+
+    out.textContent = text;
+
+    var grew = current.dataURL.length - current.bytes;
+    var pct = current.bytes ? Math.round(grew / current.bytes * 100) : 0;
+    var msg = "Base64 carries 6 bits per character, so inlining adds about a third — <b>"
+      + Bench.bytes(current.bytes) + "</b> becomes <b>" + Bench.bytes(current.dataURL.length)
+      + "</b>, up " + pct + "%.";
+
+    if (current.dataURL.length > 200 * 1024) {
+      note($("#enc-note"), msg + " At this size, inlining is usually the wrong call: the bytes land in "
+        + "every file that references them and cannot be cached separately. Link to the file instead.", "warn");
+    } else {
+      note($("#enc-note"), msg, "info");
+    }
+  }
+
+  function accept(file) {
+    if (!file) return;
+    if (!/^image\//.test(file.type)) {
+      note($("#enc-note"), "That is a " + esc(file.type || "unknown") + " file. Choose an image.", "bad");
+      return;
+    }
+    Bench.readFile(file, "dataURL").then(function (dataURL) {
+      return loadImage(dataURL).then(function (img) {
+        original = {
+          dataURL: dataURL, mime: file.type, name: file.name,
+          bytes: file.size, w: img.naturalWidth, h: img.naturalHeight
+        };
+        $("#re-note").innerHTML = "";
+        setCurrent(original);
+      });
+    }).catch(function (e) {
+      note($("#enc-note"), esc(e.message), "bad");
+    });
+  }
+
+  $("#choose").addEventListener("click", function () { $("#file").click(); });
+  $("#file").addEventListener("change", function () { accept(this.files[0]); this.value = ""; });
+  Bench.dropzone($("#drop"), function (files) { accept(files[0]); });
+
+  $$("[data-fmt]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      fmt = b.dataset.fmt;
+      $$("[data-fmt]").forEach(function (x) { x.classList.toggle("btn--on", x === b); });
+      renderOut();
+    });
+  });
+
+  $("#enc-copy").addEventListener("click", function (e) {
+    if (!current) { Bench.toast("Choose an image first", "bad"); return; }
+    Bench.copy($("#enc-out").textContent, e.currentTarget);
+  });
+
+  Bench.live($("#re-q"), function () { $("#re-q-n").textContent = Number($("#re-q").value).toFixed(2); });
+
+  $("#re-go").addEventListener("click", function () {
+    if (!original) { Bench.toast("Choose an image first", "bad"); return; }
+
+    var maxSide = Math.max(0, Number($("#re-max").value) || 0);
+    var target = $("#re-fmt").value || original.mime;
+    var q = Number($("#re-q").value);
+
+    if (target === "image/svg+xml" || original.mime === "image/svg+xml") {
+      note($("#re-note"), "SVG is already text, so redrawing it to a canvas would turn it into pixels "
+        + "and lose the thing that makes it worth using. Inline the original instead.", "warn");
+      return;
+    }
+
+    var w = original.w, h = original.h;
+    if (maxSide && Math.max(w, h) > maxSide) {
+      var scale = maxSide / Math.max(w, h);
+      w = Math.max(1, Math.round(w * scale));
+      h = Math.max(1, Math.round(h * scale));
+    }
+
+    loadImage(original.dataURL).then(function (img) {
+      var c = document.createElement("canvas");
+      c.width = w; c.height = h;
+      var ctx = c.getContext("2d");
+      // JPEG has no alpha; without a fill, transparency turns black.
+      if (target === "image/jpeg") {
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, w, h);
+      }
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(img, 0, 0, w, h);
+
+      var url = c.toDataURL(target, q);
+      var actual = url.slice(5, url.indexOf(";"));
+      if (actual !== target) {
+        note($("#re-note"), "This browser cannot write " + esc(target.replace("image/", "").toUpperCase())
+          + ", so the result is " + esc(actual.replace("image/", "").toUpperCase()) + " instead.", "warn");
+      }
+
+      var bytes = b64Bytes(url);
+      var saved = original.bytes - bytes;
+      setCurrent({ dataURL: url, mime: actual, name: original.name, bytes: bytes, w: w, h: h });
+
+      var verdict = saved > 0
+        ? "Down from " + Bench.bytes(original.bytes) + " to " + Bench.bytes(bytes)
+          + " — <b>" + Math.round(saved / original.bytes * 100) + "% smaller</b>."
+        : "That came out <b>larger</b> than the original (" + Bench.bytes(bytes)
+          + " vs " + Bench.bytes(original.bytes) + "). Try a lower quality, or keep the original.";
+      note($("#re-note"), verdict, saved > 0 ? "ok" : "warn");
+    }).catch(function (e) { note($("#re-note"), esc(e.message), "bad"); });
+  });
+
+  $("#re-reset").addEventListener("click", function () {
+    if (!original) return;
+    $("#re-max").value = 0;
+    $("#re-fmt").value = "";
+    $("#re-note").innerHTML = "";
+    setCurrent(original);
+  });
+
+  /* ==================================================================
+     Decode
+     ================================================================== */
+
+  var decoded = null;
+
+  $("#dec-go").addEventListener("click", function () {
+    var raw = $("#dec-in").value.trim();
+    var noteHost = $("#dec-note");
+
+    if (!raw) { note(noteHost, "Paste a data URI or a base64 string first.", "bad"); return; }
+
+    var uri, mime;
+    if (/^data:/i.test(raw)) {
+      var m = /^data:([^;,]+)(;base64)?,/i.exec(raw);
+      if (!m) { note(noteHost, "That looks like a data URI but the header is malformed.", "bad"); return; }
+      if (!m[2]) { note(noteHost, "This data URI is not base64-encoded, so there is nothing to decode.", "bad"); return; }
+      mime = m[1];
+      uri = raw.replace(/\s+/g, "");
+      if (!/^image\//i.test(mime)) {
+        note(noteHost, "That data URI holds <b>" + esc(mime) + "</b>, not an image.", "bad");
+        return;
+      }
+    } else {
+      // Bare base64 — strip whitespace and validate before trusting it.
+      var b64 = raw.replace(/\s+/g, "");
+      if (!/^[A-Za-z0-9+/]*={0,2}$/.test(b64) || b64.length % 4 !== 0) {
+        note(noteHost, "That is not valid base64 — it has characters outside the alphabet, "
+          + "or its length is not a multiple of four.", "bad");
+        return;
+      }
+      mime = $("#dec-mime").value;
+      uri = "data:" + mime + ";base64," + b64;
+    }
+
+    loadImage(uri).then(function (img) {
+      decoded = { uri: uri, mime: mime };
+      $("#dec-prev").src = uri;
+      $("#dec-prev").hidden = false;
+      $("#dec-empty").hidden = true;
+      $("#d-dim").textContent = img.naturalWidth + "×" + img.naturalHeight;
+      $("#d-type").textContent = mime.replace("image/", "");
+      $("#d-size").textContent = Bench.bytes(b64Bytes(uri));
+      $("#dec-save").disabled = false;
+      note(noteHost, "Decoded a " + img.naturalWidth + "×" + img.naturalHeight + " "
+        + esc(mime.replace("image/", "").toUpperCase()) + " image.", "ok");
+    }).catch(function () {
+      decoded = null;
+      $("#dec-prev").hidden = true;
+      $("#dec-empty").hidden = false;
+      $("#dec-save").disabled = true;
+      note(noteHost, "The base64 decoded, but it is not an image this browser can display. "
+        + "Check the MIME type — a PNG labelled as JPEG will fail here.", "bad");
+    });
+  });
+
+  $("#dec-clear").addEventListener("click", function () {
+    $("#dec-in").value = "";
+    $("#dec-note").innerHTML = "";
+    $("#dec-prev").hidden = true;
+    $("#dec-empty").hidden = false;
+    ["#d-dim", "#d-type", "#d-size"].forEach(function (s) { $(s).textContent = "—"; });
+    $("#dec-save").disabled = true;
+    decoded = null;
+  });
+
+  $("#dec-save").addEventListener("click", function () {
+    if (!decoded) return;
+    // Rebuild the bytes rather than fetching the data: URL, so nothing leaves the page.
+    var b64 = decoded.uri.slice(decoded.uri.indexOf(",") + 1);
+    var bin = atob(b64);
+    var buf = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+    var ext = { "image/png": "png", "image/jpeg": "jpg", "image/gif": "gif",
+                "image/webp": "webp", "image/svg+xml": "svg" }[decoded.mime] || "bin";
+    Bench.download("decoded." + ext, new Blob([buf], { type: decoded.mime }));
+  });
+
+  Bench.dropzone($("#dec-in"), function (files) {
+    Bench.readFile(files[0]).then(function (t) { $("#dec-in").value = t; });
+  });
+});
+</script>
+
+</body>
+</html>

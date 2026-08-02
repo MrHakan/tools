@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Random Generators — Bench</title>
+<meta name="description" content="Passwords, passphrases, numbers, dice, picks and shuffles — every draw from the browser's cryptographic random source.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/css/bench.css">
+<style>
+  .rnd__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr)); gap: var(--gap); align-items: start; }
+  .rnd__result {
+    font-family: var(--mono);
+    font-size: 15px;
+    background: var(--sunk);
+    border: 1px solid var(--edge);
+    border-radius: var(--r);
+    padding: 11px 12px;
+    overflow-wrap: anywhere;
+    min-height: 42px;
+    user-select: all;
+  }
+  .rnd__list { display: grid; gap: 5px; }
+  .rnd__list .rnd__result { font-size: 13.5px; min-height: 0; }
+  .rnd__slider { display: flex; align-items: center; gap: 12px; }
+  .rnd__slider input[type="range"] { flex: 1; }
+  .rnd__num {
+    font-family: var(--mono); font-size: 13px; width: 3.5ch; text-align: right;
+    color: var(--signal); font-variant-numeric: tabular-nums;
+  }
+  .rnd__meter { height: 5px; background: var(--sunk); border-radius: 3px; overflow: hidden; margin-top: 8px; }
+  .rnd__meter i { display: block; height: 100%; background: var(--signal); transition: width .15s ease; }
+  .rnd__dice { display: flex; flex-wrap: wrap; gap: 6px; }
+  .rnd__die {
+    font-family: var(--mono); font-size: 14px; font-weight: 500;
+    min-width: 34px; text-align: center; padding: 6px 8px;
+    border: 1px solid var(--edge-2); border-radius: var(--r); background: var(--card);
+  }
+  .rnd__die--max { border-color: var(--verify); color: var(--verify); }
+  .rnd__die--min { border-color: var(--fault); color: var(--fault); }
+  .rnd__total { font-family: var(--mono); font-size: 1.5rem; font-weight: 500; letter-spacing: -0.02em; }
+  .rnd__swatch { height: 60px; border-radius: var(--r); border: 1px solid var(--edge); margin-bottom: 10px; }
+  .rnd__big { font-family: var(--mono); font-size: 2rem; font-weight: 500; letter-spacing: -0.03em; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__home" href="../../index.html"><span class="topbar__mark">▚</span> bench</a>
+  <span class="topbar__sep">/</span>
+  <span class="topbar__here">Random Generators</span>
+  <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
+</header>
+
+<main class="wrap">
+
+  <div class="toolhead">
+    <p class="toolhead__spec mono">Xk9#mQ2$vL</p>
+    <h1 class="toolhead__title">Random Generators</h1>
+    <p class="toolhead__desc">Passwords, passphrases, numbers, dice, picks and shuffles. Every draw comes from the browser's cryptographic random source, not <code class="mono">Math.random</code>.</p>
+  </div>
+
+  <div class="note note--info" style="margin-bottom:var(--gap)">
+    <span class="note__mark">i</span>
+    <span>Everything here uses <b>crypto.getRandomValues</b> with rejection sampling, so the results are uniform and unpredictable — the difference that matters when the output is a password. Nothing is generated on, or sent to, a server.</span>
+  </div>
+
+  <div class="rnd__grid">
+
+    <!-- ---------------------------------------------------------- password -->
+    <section class="panel">
+      <h2 class="panel__title">Password</h2>
+
+      <div class="field">
+        <label class="label" for="pw-len">Length</label>
+        <div class="rnd__slider">
+          <input type="range" id="pw-len" min="4" max="128" value="20">
+          <span class="rnd__num" id="pw-len-n">20</span>
+        </div>
+      </div>
+
+      <div class="field">
+        <span class="label">Include</span>
+        <div class="row">
+          <label class="check"><input type="checkbox" id="pw-lower" checked> a–z</label>
+          <label class="check"><input type="checkbox" id="pw-upper" checked> A–Z</label>
+          <label class="check"><input type="checkbox" id="pw-digit" checked> 0–9</label>
+          <label class="check"><input type="checkbox" id="pw-sym" checked> symbols</label>
+        </div>
+      </div>
+
+      <div class="field">
+        <div class="row">
+          <label class="check"><input type="checkbox" id="pw-noamb"> Exclude look-alikes (0 O 1 l I)</label>
+          <label class="check"><input type="checkbox" id="pw-each" checked> One of each kind</label>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="label" for="pw-count">How many</label>
+        <input class="input" type="number" id="pw-count" min="1" max="100" value="1">
+      </div>
+
+      <div class="row" style="margin-bottom:12px">
+        <button class="btn btn--primary" id="pw-go">Generate</button>
+        <button class="btn" id="pw-copy">Copy all</button>
+      </div>
+
+      <div class="rnd__list" id="pw-out"></div>
+      <div id="pw-note" style="margin-top:12px"></div>
+    </section>
+
+    <!-- -------------------------------------------------------- passphrase -->
+    <section class="panel">
+      <h2 class="panel__title">Passphrase</h2>
+
+      <div class="field">
+        <label class="label" for="pp-words">Words</label>
+        <div class="rnd__slider">
+          <input type="range" id="pp-words" min="3" max="16" value="8">
+          <span class="rnd__num" id="pp-words-n">8</span>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="label" for="pp-sep">Separator</label>
+        <select class="select" id="pp-sep">
+          <option value="-">hyphen &nbsp; correct-horse</option>
+          <option value=".">dot &nbsp; correct.horse</option>
+          <option value="_">underscore &nbsp; correct_horse</option>
+          <option value=" ">space &nbsp; correct horse</option>
+          <option value="">none &nbsp; correcthorse</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <div class="row">
+          <label class="check"><input type="checkbox" id="pp-cap"> Capitalise</label>
+          <label class="check"><input type="checkbox" id="pp-num"> Add a number</label>
+        </div>
+      </div>
+
+      <div class="row" style="margin-bottom:12px">
+        <button class="btn btn--primary" id="pp-go">Generate</button>
+        <button class="btn" data-copy="#pp-out">Copy</button>
+      </div>
+
+      <div class="rnd__result" id="pp-out"></div>
+      <div id="pp-note" style="margin-top:12px"></div>
+      <p class="empty" style="margin-top:10px; line-height:1.5">
+        This word list is deliberately small enough to ship in the page, so each
+        word adds about 8 bits. A full Diceware list of 7,776 words adds 12.9,
+        which is why you need more words here to reach the same strength.
+      </p>
+    </section>
+
+    <!-- ------------------------------------------------------------ number -->
+    <section class="panel">
+      <h2 class="panel__title">Number</h2>
+
+      <div class="split" style="gap:12px">
+        <div class="field"><label class="label" for="n-min">Minimum</label>
+          <input class="input input--mono" type="number" id="n-min" value="1"></div>
+        <div class="field"><label class="label" for="n-max">Maximum</label>
+          <input class="input input--mono" type="number" id="n-max" value="100"></div>
+      </div>
+
+      <div class="split" style="gap:12px">
+        <div class="field"><label class="label" for="n-count">How many</label>
+          <input class="input" type="number" id="n-count" min="1" max="1000" value="1"></div>
+        <div class="field"><label class="label" for="n-dp">Decimal places</label>
+          <input class="input" type="number" id="n-dp" min="0" max="10" value="0"></div>
+      </div>
+
+      <div class="field">
+        <label class="check"><input type="checkbox" id="n-uniq"> No repeats</label>
+      </div>
+
+      <div class="row" style="margin-bottom:12px">
+        <button class="btn btn--primary" id="n-go">Generate</button>
+        <button class="btn" data-copy="#n-out">Copy</button>
+      </div>
+
+      <div class="rnd__result" id="n-out"></div>
+      <div id="n-note" style="margin-top:12px"></div>
+    </section>
+
+    <!-- -------------------------------------------------------------- dice -->
+    <section class="panel">
+      <h2 class="panel__title">Dice</h2>
+
+      <div class="field">
+        <label class="label" for="d-not">Notation</label>
+        <input class="input input--mono" id="d-not" value="3d6+2" placeholder="3d6+2, 1d20, 2d10-1, 4d6">
+      </div>
+
+      <div class="chips" style="margin-bottom:14px">
+        <button class="chip" data-dice="1d20">1d20</button>
+        <button class="chip" data-dice="2d6">2d6</button>
+        <button class="chip" data-dice="3d6+2">3d6+2</button>
+        <button class="chip" data-dice="4d6">4d6</button>
+        <button class="chip" data-dice="1d100">1d100</button>
+      </div>
+
+      <div class="row" style="margin-bottom:12px">
+        <button class="btn btn--primary" id="d-go">Roll</button>
+      </div>
+
+      <div id="d-out"></div>
+    </section>
+
+    <!-- ---------------------------------------------------- pick & shuffle -->
+    <section class="panel">
+      <h2 class="panel__title">Pick &amp; shuffle</h2>
+
+      <div class="field">
+        <label class="label" for="p-list">Your list, one per line</label>
+        <textarea class="textarea" id="p-list" style="min-height:120px" spellcheck="false">Ana
+Ben
+Chidi
+Dara
+Eve
+Farid</textarea>
+      </div>
+
+      <div class="field">
+        <label class="label" for="p-n">Pick how many</label>
+        <input class="input" type="number" id="p-n" min="1" value="1">
+      </div>
+
+      <div class="row" style="margin-bottom:12px">
+        <button class="btn btn--primary" id="p-pick">Pick</button>
+        <button class="btn" id="p-shuffle">Shuffle all</button>
+        <button class="btn" data-copy="#p-out">Copy</button>
+      </div>
+
+      <div class="rnd__result" id="p-out"></div>
+      <div id="p-note" style="margin-top:12px"></div>
+    </section>
+
+    <!-- ------------------------------------------------------------ decide -->
+    <section class="panel">
+      <h2 class="panel__title">Decide</h2>
+
+      <div class="row" style="margin-bottom:14px">
+        <button class="btn btn--primary" id="c-flip">Flip a coin</button>
+        <button class="btn" id="c-yes">Yes or no</button>
+      </div>
+      <div class="rnd__big" id="c-out" style="margin-bottom:6px">—</div>
+      <p class="empty" id="c-tally">No flips yet.</p>
+    </section>
+
+    <!-- ------------------------------------------------------------ colour -->
+    <section class="panel">
+      <h2 class="panel__title">Colour</h2>
+      <div class="rnd__swatch" id="col-sw" style="background:#e0521a"></div>
+      <div class="rnd__result" id="col-out" style="margin-bottom:12px">#e0521a</div>
+      <div class="row">
+        <button class="btn btn--primary" id="col-go">New colour</button>
+        <button class="btn" data-copy="#col-out">Copy</button>
+      </div>
+    </section>
+
+    <!-- -------------------------------------------------------------- date -->
+    <section class="panel">
+      <h2 class="panel__title">Date</h2>
+
+      <div class="split" style="gap:12px">
+        <div class="field"><label class="label" for="dt-from">From</label>
+          <input class="input" type="date" id="dt-from"></div>
+        <div class="field"><label class="label" for="dt-to">To</label>
+          <input class="input" type="date" id="dt-to"></div>
+      </div>
+
+      <div class="field">
+        <label class="label" for="dt-count">How many</label>
+        <input class="input" type="number" id="dt-count" min="1" max="100" value="1">
+      </div>
+
+      <div class="row" style="margin-bottom:12px">
+        <button class="btn btn--primary" id="dt-go">Generate</button>
+        <button class="btn" data-copy="#dt-out">Copy</button>
+      </div>
+
+      <div class="rnd__result" id="dt-out"></div>
+      <div id="dt-note" style="margin-top:12px"></div>
+    </section>
+
+  </div>
+
+  <footer class="foot">
+    <a href="../../index.html">← All tools</a>
+    <span>·</span>
+    <span>Runs entirely in your browser</span>
+  </footer>
+
+</main>
+
+<script src="../../assets/js/bench.js" defer></script>
+<script defer>
+document.addEventListener("DOMContentLoaded", function () {
+  "use strict";
+  var $ = Bench.$, $$ = Bench.$$, esc = Bench.esc;
+  var R = Bench.randInt, pick = Bench.randPick;
+
+  function note(host, html, kind) {
+    host.innerHTML = '<div class="note note--' + kind + '"><span class="note__mark">'
+      + (kind === "bad" ? "✕" : kind === "ok" ? "✓" : "i") + "</span><span>" + html + "</span></div>";
+  }
+
+  /* ==================================================================
+     Password
+     ================================================================== */
+
+  var SETS = {
+    lower: "abcdefghijklmnopqrstuvwxyz",
+    upper: "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+    digit: "0123456789",
+    sym: "!#$%&()*+,-./:;<=>?@[]^_{|}~"
+  };
+  var AMBIGUOUS = "0O1lI|";
+
+  function pwPool() {
+    var pool = "", parts = [];
+    ["lower", "upper", "digit", "sym"].forEach(function (k) {
+      if (!$("#pw-" + (k === "digit" ? "digit" : k)).checked) return;
+      var set = SETS[k];
+      if ($("#pw-noamb").checked) {
+        set = set.split("").filter(function (c) { return AMBIGUOUS.indexOf(c) === -1; }).join("");
+      }
+      pool += set;
+      parts.push(set);
+    });
+    return { pool: pool, parts: parts };
+  }
+
+  function shuffle(arr) {
+    for (var i = arr.length - 1; i > 0; i--) {
+      var j = R(i + 1);
+      var t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+    }
+    return arr;
+  }
+
+  function makePassword(len, pool, parts, oneEach) {
+    var chars = [];
+    if (oneEach && parts.length <= len) {
+      parts.forEach(function (set) { chars.push(set[R(set.length)]); });
+    }
+    while (chars.length < len) chars.push(pool[R(pool.length)]);
+    // Guaranteeing one of each biases the first positions, so shuffle after.
+    return shuffle(chars).join("");
+  }
+
+  function pwGo() {
+    var p = pwPool();
+    var host = $("#pw-out"), noteHost = $("#pw-note");
+
+    if (!p.pool.length) {
+      host.innerHTML = "";
+      note(noteHost, "Pick at least one character set.", "bad");
+      return;
+    }
+
+    var len = Number($("#pw-len").value);
+    var n = Math.min(100, Math.max(1, Number($("#pw-count").value) || 1));
+    var oneEach = $("#pw-each").checked;
+
+    var list = [];
+    for (var i = 0; i < n; i++) list.push(makePassword(len, p.pool, p.parts, oneEach));
+
+    host.innerHTML = list.map(function (s) {
+      return '<div class="rnd__result">' + esc(s) + "</div>";
+    }).join("");
+
+    var bits = Math.log2(p.pool.length) * len;
+    var extra = oneEach && p.parts.length > len
+      ? " Length is shorter than the number of selected sets, so not every kind can appear."
+      : "";
+    note(noteHost,
+      "<b>" + Math.round(bits) + " bits</b> of entropy — " + p.pool.length
+      + " possible characters, " + len + " long. " + crackText(bits) + extra,
+      bits >= 75 ? "ok" : bits >= 50 ? "warn" : "bad");
+  }
+
+  // Offline attack against a fast unsalted hash, ~100 billion guesses/second.
+  function crackText(bits) {
+    var seconds = Math.pow(2, bits - 1) / 1e11;
+    return "About " + humanTime(seconds) + " to crack at 10¹¹ guesses a second.";
+  }
+
+  function humanTime(s) {
+    if (s < 1) return "under a second";
+    var units = [
+      [60, "second"], [60, "minute"], [24, "hour"], [365.25, "day"],
+      [100, "year"], [1e3, "century"], [1e6, "hundred millennia"]
+    ];
+    var v = s, i = 0;
+    while (i < units.length && v >= units[i][0]) { v /= units[i][0]; i++; }
+    var name = i === 0 ? "second" : units[i - 1][1];
+    if (v > 1e6) return v.toExponential(1) + " " + name + "s";
+    return Bench.num(Math.round(v)) + " " + name + (Math.round(v) === 1 ? "" : "s");
+  }
+
+  Bench.live($("#pw-len"), function () { $("#pw-len-n").textContent = $("#pw-len").value; });
+  $("#pw-go").addEventListener("click", pwGo);
+  ["pw-lower", "pw-upper", "pw-digit", "pw-sym", "pw-noamb", "pw-each", "pw-len"].forEach(function (id) {
+    $("#" + id).addEventListener("change", pwGo);
+  });
+  $("#pw-copy").addEventListener("click", function (e) {
+    var all = $$("#pw-out .rnd__result").map(function (d) { return d.textContent; }).join("\n");
+    Bench.copy(all, e.currentTarget);
+  });
+
+  /* ==================================================================
+     Passphrase. The bits-per-word figure below is derived from the list's
+     actual length rather than asserted, so the entropy shown stays true if
+     the list is ever edited. Words are short and unambiguous to type.
+     ================================================================== */
+
+  var WORDS = ("able acid acorn actor adapt admit adopt agent agree album alert alien alive alley alloy "
+    + "amber amble amend amino ample anchor angle ankle apple april arbor arena argue arise armor arrow "
+    + "asset atlas atom audio audit aunt avoid awake award axis bacon badge bagel baker balmy banjo barge "
+    + "basil batch beach beacon beam bean bench berry bicycle birch bison black blade blaze blend bliss "
+    + "block bloom blue board bolt bonus boost booth borax botany bottle boulder brace braid brain brand "
+    + "brass brave bread brick bridge brief bright bring brisk broad bronze brook broom brown brush bubble "
+    + "bucket buddy budget buffalo bugle build bulb bunch bundle bunker burst butter button cabin cable "
+    + "cactus cadet cage cameo canal candy canoe canvas canyon carbon cargo carol carpet carrot carve "
+    + "castle catch cedar cello census chain chalk charm chart chase cheese cherry chess chest chief chili "
+    + "chime choice chorus cider cinema circle citrus civic clamp clay clean clever cliff climb cloak clock "
+    + "cloth cloud clover coach coast cobalt cocoa coffee comet common compass copper coral corner cosmic "
+    + "cotton county cousin cover coyote cozy crane crate cream creek crest crisp crown cruise crystal "
+    + "cube cupid curve custom cycle dagger dahlia daisy dance dandy dapper daring dawn deal debate decade "
+    + "decent decoy deep deer defer delta demand denim dense depot desert design desk detail devote diary "
+    + "diesel differ digit dinner direct ditch diver dizzy dock dolphin domain donate donkey donut double "
+    + "dough dove downy dozen draft dragon drama draw dream dress drift drink drive drum dryer duck dune "
+    + "dusk dust duty eager eagle early earth easel east eaten echo eclipse edge edit eight elbow elder "
+    + "electric elegant elk elm ember emblem empty enact endure energy engine enjoy enrich entry envoy "
+    + "equal equip erase escape essay ethics evolve exact exile exist exit expand expert extra fabric").split(/\s+/);
+
+  var PP_BITS = Math.log2(WORDS.length);
+
+  function ppGo() {
+    var n = Number($("#pp-words").value);
+    var sep = $("#pp-sep").value;
+    var out = [];
+    for (var i = 0; i < n; i++) {
+      var w = pick(WORDS);
+      if ($("#pp-cap").checked) w = w.charAt(0).toUpperCase() + w.slice(1);
+      out.push(w);
+    }
+    var phrase = out.join(sep);
+    var bits = PP_BITS * n;
+    if ($("#pp-num").checked) {
+      phrase += (sep || "") + R(100);
+      bits += Math.log2(100);
+    }
+    $("#pp-out").textContent = phrase;
+    note($("#pp-note"),
+      "<b>" + Math.round(bits) + " bits</b> — " + n + " words from a list of "
+      + WORDS.length + " (" + PP_BITS.toFixed(1) + " bits each). " + crackText(bits),
+      bits >= 75 ? "ok" : bits >= 50 ? "warn" : "bad");
+  }
+
+  Bench.live($("#pp-words"), function () { $("#pp-words-n").textContent = $("#pp-words").value; });
+  $("#pp-go").addEventListener("click", ppGo);
+  ["pp-words", "pp-sep", "pp-cap", "pp-num"].forEach(function (id) {
+    $("#" + id).addEventListener("change", ppGo);
+  });
+
+  /* ==================================================================
+     Number
+     ================================================================== */
+
+  function nGo() {
+    var min = Number($("#n-min").value), max = Number($("#n-max").value);
+    var count = Math.min(1000, Math.max(1, Number($("#n-count").value) || 1));
+    var dp = Math.min(10, Math.max(0, Number($("#n-dp").value) || 0));
+    var uniq = $("#n-uniq").checked;
+    var out = $("#n-out"), noteHost = $("#n-note");
+
+    if (!isFinite(min) || !isFinite(max)) { out.textContent = ""; note(noteHost, "Enter two numbers.", "bad"); return; }
+    if (min > max) { var t = min; min = max; max = t; }
+
+    var span = max - min;
+    if (dp === 0) {
+      var slots = Math.floor(span) + 1;
+      if (uniq && count > slots) {
+        out.textContent = "";
+        note(noteHost, "Only " + Bench.plural(slots, "whole number") + " between " + min + " and " + max
+          + " — cannot draw " + count + " without repeats.", "bad");
+        return;
+      }
+      var vals;
+      if (uniq) {
+        // Partial Fisher-Yates over the range, so no rejection loop is needed.
+        var pool = [];
+        for (var i = 0; i < slots; i++) pool.push(min + i);
+        for (var k = 0; k < count; k++) {
+          var j = k + R(slots - k);
+          var tmp = pool[k]; pool[k] = pool[j]; pool[j] = tmp;
+        }
+        vals = pool.slice(0, count);
+      } else {
+        vals = [];
+        for (var m = 0; m < count; m++) vals.push(min + R(slots));
+      }
+      out.textContent = vals.join(", ");
+      note(noteHost, "Drawn from " + Bench.num(slots) + " possible values.", "info");
+      return;
+    }
+
+    // Decimals: scale to integers so the step is exact.
+    var scale = Math.pow(10, dp);
+    var steps = Math.round(span * scale) + 1;
+    if (steps > 9007199254740992) { out.textContent = ""; note(noteHost, "That range is too wide for this many decimal places.", "bad"); return; }
+    var res = [];
+    for (var q = 0; q < count; q++) res.push((min + R(steps) / scale).toFixed(dp));
+    out.textContent = res.join(", ");
+    note(noteHost, "Drawn in steps of " + (1 / scale).toFixed(dp) + ".", "info");
+  }
+
+  $("#n-go").addEventListener("click", nGo);
+
+  /* ==================================================================
+     Dice
+     ================================================================== */
+
+  function dGo() {
+    var raw = $("#d-not").value.trim().toLowerCase();
+    var m = /^(\d*)d(\d+)\s*([+-]\s*\d+)?$/.exec(raw.replace(/\s+/g, ""));
+    var out = $("#d-out");
+
+    if (!m) {
+      note(out, "Use dice notation like <b>3d6</b>, <b>1d20</b> or <b>2d10+3</b>.", "bad");
+      return;
+    }
+
+    var n = m[1] === "" ? 1 : Number(m[1]);
+    var sides = Number(m[2]);
+    var mod = m[3] ? Number(m[3].replace(/\s/g, "")) : 0;
+
+    if (n < 1 || n > 200) { note(out, "Roll between 1 and 200 dice.", "bad"); return; }
+    if (sides < 2 || sides > 1000) { note(out, "Dice need between 2 and 1000 sides.", "bad"); return; }
+
+    var rolls = [], sum = 0;
+    for (var i = 0; i < n; i++) { var v = 1 + R(sides); rolls.push(v); sum += v; }
+    var total = sum + mod;
+
+    out.innerHTML =
+      '<div class="rnd__dice" style="margin-bottom:12px">'
+      + rolls.map(function (v) {
+          var cls = v === sides ? " rnd__die--max" : v === 1 ? " rnd__die--min" : "";
+          return '<span class="rnd__die' + cls + '">' + v + "</span>";
+        }).join("")
+      + "</div>"
+      + '<div class="rnd__total">' + total + "</div>"
+      + '<p class="empty" style="margin-top:4px">' + n + "d" + sides
+      + (mod ? (mod > 0 ? " + " + mod : " − " + Math.abs(mod)) : "")
+      + " · dice sum " + sum + " · range " + (n + mod) + "–" + (n * sides + mod) + "</p>";
+  }
+
+  $("#d-go").addEventListener("click", dGo);
+  $$("[data-dice]").forEach(function (b) {
+    b.addEventListener("click", function () { $("#d-not").value = b.dataset.dice; dGo(); });
+  });
+
+  /* ==================================================================
+     Pick & shuffle
+     ================================================================== */
+
+  function items() {
+    return $("#p-list").value.split("\n").map(function (s) { return s.trim(); })
+      .filter(function (s) { return s.length; });
+  }
+
+  $("#p-pick").addEventListener("click", function () {
+    var list = items(), out = $("#p-out"), noteHost = $("#p-note");
+    var n = Math.max(1, Number($("#p-n").value) || 1);
+    if (!list.length) { out.textContent = ""; note(noteHost, "Add some lines to pick from.", "bad"); return; }
+    if (n > list.length) { out.textContent = ""; note(noteHost, "Only " + Bench.plural(list.length, "item") + " in the list.", "bad"); return; }
+    var chosen = shuffle(list.slice()).slice(0, n);
+    out.textContent = chosen.join("\n");
+    note(noteHost, "Picked " + n + " of " + list.length + ", without replacement.", "info");
+  });
+
+  $("#p-shuffle").addEventListener("click", function () {
+    var list = items(), out = $("#p-out"), noteHost = $("#p-note");
+    if (!list.length) { out.textContent = ""; note(noteHost, "Add some lines to shuffle.", "bad"); return; }
+    out.textContent = shuffle(list.slice()).join("\n");
+    note(noteHost, "Shuffled all " + list.length + " with Fisher-Yates.", "info");
+  });
+
+  /* ==================================================================
+     Decide
+     ================================================================== */
+
+  var heads = 0, tails = 0;
+
+  $("#c-flip").addEventListener("click", function () {
+    var h = R(2) === 0;
+    if (h) heads++; else tails++;
+    $("#c-out").textContent = h ? "Heads" : "Tails";
+    $("#c-tally").textContent = "Heads " + heads + " · tails " + tails
+      + " · " + Bench.plural(heads + tails, "flip");
+  });
+
+  $("#c-yes").addEventListener("click", function () {
+    $("#c-out").textContent = R(2) === 0 ? "Yes" : "No";
+  });
+
+  /* ==================================================================
+     Colour
+     ================================================================== */
+
+  function colGo() {
+    var hex = "#" + R(16777216).toString(16).padStart(6, "0");
+    $("#col-sw").style.background = hex;
+    $("#col-out").textContent = hex;
+  }
+  $("#col-go").addEventListener("click", colGo);
+
+  /* ==================================================================
+     Date
+     ================================================================== */
+
+  function ymd(d) {
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0")
+      + "-" + String(d.getDate()).padStart(2, "0");
+  }
+
+  var today = new Date();
+  $("#dt-to").value = ymd(today);
+  $("#dt-from").value = ymd(new Date(today.getFullYear() - 1, today.getMonth(), today.getDate()));
+
+  $("#dt-go").addEventListener("click", function () {
+    var out = $("#dt-out"), noteHost = $("#dt-note");
+    var a = $("#dt-from").value, b = $("#dt-to").value;
+    if (!a || !b) { out.textContent = ""; note(noteHost, "Pick both dates.", "bad"); return; }
+
+    // Work in whole days so every date in the range is equally likely and no
+    // timezone shifts creep in.
+    var start = new Date(a + "T00:00:00");
+    var end = new Date(b + "T00:00:00");
+    if (start > end) { var t = start; start = end; end = t; }
+
+    var days = Math.round((end - start) / 86400000) + 1;
+    var count = Math.min(100, Math.max(1, Number($("#dt-count").value) || 1));
+    var res = [];
+    for (var i = 0; i < count; i++) {
+      var d = new Date(start.getTime());
+      d.setDate(d.getDate() + R(days));
+      res.push(ymd(d));
+    }
+    out.textContent = res.join(", ");
+    note(noteHost, "Drawn from " + Bench.plural(days, "day") + " in the range.", "info");
+  });
+
+  /* --- first run ----------------------------------------------------- */
+  pwGo(); ppGo(); nGo(); dGo(); colGo();
+});
+</script>
+
+</body>
+</html>
