@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cron Calendar — Bench</title>
+<meta name="description" content="See a month at a glance and exactly when a cron job fires, plus a heat grid of a typical week.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/css/bench.css">
+<style>
+  .cc__cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+  .cc__dow {
+    font-family: var(--mono); font-size: 10.5px; text-transform: uppercase;
+    letter-spacing: .08em; color: var(--steel); text-align: center; padding-bottom: 4px;
+  }
+  .cc__day {
+    aspect-ratio: 1 / 1; min-height: 62px; border: 1px solid var(--edge); border-radius: var(--r);
+    background: var(--card); padding: 5px 6px; display: flex; flex-direction: column;
+    align-items: flex-start; gap: 2px; text-align: left; overflow: hidden;
+  }
+  .cc__day:hover { border-color: var(--signal); }
+  .cc__day--out { opacity: .35; }
+  .cc__day--today { border-color: var(--signal); border-width: 2px; }
+  .cc__day--on { background: var(--signal-soft); }
+  .cc__dnum { font-family: var(--mono); font-size: 12px; font-weight: 500; }
+  .cc__dcount { font-family: var(--mono); font-size: 9.5px; color: var(--signal); }
+  .cc__dtimes { font-family: var(--mono); font-size: 9px; color: var(--steel); line-height: 1.35; overflow: hidden; }
+  @media (max-width: 620px) { .cc__day { min-height: 48px; } .cc__dtimes { display: none; } }
+
+  .cc__heat { display: grid; grid-template-columns: 34px repeat(24, minmax(0, 1fr)); gap: 2px; }
+  .cc__hcell { aspect-ratio: 1 / 1; border-radius: 2px; background: var(--sunk); }
+  .cc__hlabel { font-family: var(--mono); font-size: 9.5px; color: var(--steel); display: grid; place-items: center; }
+  .cc__hwrap { overflow-x: auto; }
+  .cc__hinner { min-width: 520px; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__home" href="../../index.html"><span class="topbar__mark">▚</span> bench</a>
+  <span class="topbar__sep">/</span>
+  <span class="topbar__here">Cron Calendar</span>
+  <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
+</header>
+
+<main class="wrap">
+
+  <div class="toolhead">
+    <p class="toolhead__spec mono">0 9 * * 1-5</p>
+    <h1 class="toolhead__title">Cron Calendar</h1>
+    <p class="toolhead__desc">See which days a schedule actually fires, and at what times.</p>
+  </div>
+
+  <section class="panel">
+    <label class="label" for="expr">Cron expression</label>
+    <input class="input input--mono" id="expr" value="0 9 * * 1-5" spellcheck="false" autocomplete="off">
+    <div class="chips" style="margin-top:10px">
+      <button class="chip" data-ex="0 9 * * 1-5">Weekday mornings</button>
+      <button class="chip" data-ex="*/15 * * * *">Every 15 minutes</button>
+      <button class="chip" data-ex="0 0 1 * *">First of the month</button>
+      <button class="chip" data-ex="30 3 * * 0">Sunday 03:30</button>
+      <button class="chip" data-ex="0 12 1,15 * *">1st and 15th at noon</button>
+      <button class="chip" data-ex="0 0 13 * 5">Friday the 13th</button>
+    </div>
+    <div id="status" style="margin-top:12px"></div>
+  </section>
+
+  <div class="split split--narrow" style="margin-top:var(--gap)">
+
+    <section class="panel">
+      <div class="row row--between" style="margin-bottom:14px">
+        <h2 class="panel__title" style="margin:0" id="month"></h2>
+        <div class="row">
+          <button class="btn btn--sm" id="prev" aria-label="Previous month">‹</button>
+          <button class="btn btn--sm" id="today">Today</button>
+          <button class="btn btn--sm" id="next" aria-label="Next month">›</button>
+        </div>
+      </div>
+      <div class="cc__cal" id="cal"></div>
+      <div class="stats" style="margin-top:14px">
+        <div class="stat"><span class="stat__n" id="s-runs">0</span><span class="stat__k">Runs this month</span></div>
+        <div class="stat"><span class="stat__n" id="s-days">0</span><span class="stat__k">Active days</span></div>
+        <div class="stat"><span class="stat__n" id="s-avg">0</span><span class="stat__k">Per active day</span></div>
+      </div>
+    </section>
+
+    <div class="stack">
+      <section class="panel">
+        <h2 class="panel__title" id="day-title">Pick a day</h2>
+        <div id="day-list"><p class="empty">Click a day in the calendar to list every time it fires.</p></div>
+      </section>
+
+      <section class="panel">
+        <h2 class="panel__title">A typical week</h2>
+        <div class="cc__hwrap"><div class="cc__hinner" id="heat"></div></div>
+        <p class="empty" style="margin-top:8px">Hours across, days down. Darker means more runs in that hour.</p>
+      </section>
+    </div>
+
+  </div>
+
+  <footer class="foot">
+    <a href="../../index.html">← All tools</a>
+    <span>·</span>
+    <span>Runs entirely in your browser</span>
+  </footer>
+
+</main>
+
+<script src="../../assets/js/bench.js" defer></script>
+<script defer>
+document.addEventListener("DOMContentLoaded", function () {
+  "use strict";
+  var $ = Bench.$, $$ = Bench.$$, esc = Bench.esc;
+
+  // Cron engine. Standard five fields: minute hour day-of-month month day-of-week.
+  // Supports wildcards, lists, ranges, step syntax in both forms, names, and the
+  // @shorthands. Note: NO block comments in this file mention the step operator,
+  // because the slash would close the comment early.
+
+  var FIELDS = [
+    { name: "minute", min: 0, max: 59 },
+    { name: "hour", min: 0, max: 23 },
+    { name: "day of month", min: 1, max: 31 },
+    { name: "month", min: 1, max: 12, names: "JAN FEB MAR APR MAY JUN JUL AUG SEP OCT NOV DEC".split(" ") },
+    { name: "day of week", min: 0, max: 6, names: "SUN MON TUE WED THU FRI SAT".split(" ") }
+  ];
+
+  var SHORTHAND = {
+    "@yearly": "0 0 1 1 *", "@annually": "0 0 1 1 *", "@monthly": "0 0 1 * *",
+    "@weekly": "0 0 * * 0", "@daily": "0 0 * * *", "@midnight": "0 0 * * *", "@hourly": "0 * * * *"
+  };
+
+  function parseField(raw, def) {
+    var text = raw.toUpperCase();
+    if (def.names) {
+      def.names.forEach(function (nm, idx) {
+        text = text.split(nm).join(String(idx + (def.name === "month" ? 1 : 0)));
+      });
+    }
+
+    var values = {};
+    var parts = text.split(",");
+
+    for (var p = 0; p < parts.length; p++) {
+      var part = parts[p].trim();
+      if (!part) return { ok: false, why: "empty value in the " + def.name + " field" };
+
+      var step = 1, body = part;
+      var slash = part.indexOf("/");
+      if (slash !== -1) {
+        body = part.slice(0, slash);
+        step = Number(part.slice(slash + 1));
+        if (!Number.isInteger(step) || step < 1) return { ok: false, why: "the step in the " + def.name + " field must be a whole number above zero" };
+      }
+
+      var lo, hi;
+      if (body === "*") { lo = def.min; hi = def.max; }
+      else if (body.indexOf("-") > 0) {
+        var bits = body.split("-");
+        lo = Number(bits[0]); hi = Number(bits[1]);
+      } else {
+        lo = Number(body);
+        hi = slash !== -1 ? def.max : lo;
+      }
+
+      if (!Number.isInteger(lo) || !Number.isInteger(hi)) return { ok: false, why: '"' + esc(part) + '" is not a number the ' + def.name + " field understands" };
+
+      // Cron accepts 7 for Sunday alongside 0.
+      if (def.name === "day of week") { if (lo === 7) lo = 0; if (hi === 7) hi = 0; }
+
+      if (lo < def.min || hi > def.max || lo > hi) {
+        return { ok: false, why: "the " + def.name + " field takes " + def.min + "–" + def.max + ", got " + esc(part) };
+      }
+      for (var v = lo; v <= hi; v += step) values[v] = true;
+    }
+
+    return { ok: true, set: values, wild: raw.trim() === "*" };
+  }
+
+  function parseCron(text) {
+    var input = text.trim();
+    if (SHORTHAND[input.toLowerCase()]) input = SHORTHAND[input.toLowerCase()];
+    var parts = input.split(/\s+/);
+    if (parts.length !== 5) {
+      return { ok: false, why: "a cron expression needs five fields — got " + parts.length + "." };
+    }
+    var out = [];
+    for (var i = 0; i < 5; i++) {
+      var f = parseField(parts[i], FIELDS[i]);
+      if (!f.ok) return { ok: false, why: f.why };
+      out.push(f);
+    }
+    return { ok: true, f: out };
+  }
+
+  // The classic trap: when BOTH day-of-month and day-of-week are restricted,
+  // cron fires on the UNION of the two, not the intersection.
+  function dayMatches(cron, date) {
+    var dom = cron.f[2], dow = cron.f[4];
+    var domHit = !!dom.set[date.getDate()];
+    var dowHit = !!dow.set[date.getDay()];
+    if (dom.wild && dow.wild) return true;
+    if (dom.wild) return dowHit;
+    if (dow.wild) return domHit;
+    return domHit || dowHit;
+  }
+
+  function timesForDay(cron, date) {
+    if (!cron.f[3].set[date.getMonth() + 1]) return [];
+    if (!dayMatches(cron, date)) return [];
+    var out = [];
+    var hours = Object.keys(cron.f[1].set).map(Number).sort(function (a, b) { return a - b; });
+    var mins = Object.keys(cron.f[0].set).map(Number).sort(function (a, b) { return a - b; });
+    for (var h = 0; h < hours.length; h++) {
+      for (var m = 0; m < mins.length; m++) {
+        out.push(String(hours[h]).padStart(2, "0") + ":" + String(mins[m]).padStart(2, "0"));
+      }
+    }
+    return out;
+  }
+
+  /* --- state ------------------------------------------------------------ */
+
+  var view = new Date();
+  view.setDate(1);
+  var selected = null;
+
+  function render() {
+    var cron = parseCron($("#expr").value);
+    var status = $("#status");
+
+    if (!cron.ok) {
+      status.innerHTML = '<div class="note note--bad"><span class="note__mark">✕</span><span>' + cron.why + "</span></div>";
+      $("#cal").innerHTML = "";
+      $("#heat").innerHTML = "";
+      ["s-runs", "s-days", "s-avg"].forEach(function (id) { $("#" + id).textContent = "—"; });
+      $("#month").textContent = "";
+      return;
+    }
+
+    var perDay = Object.keys(cron.f[0].set).length * Object.keys(cron.f[1].set).length;
+    status.innerHTML = '<div class="note note--ok"><span class="note__mark">✓</span><span>Valid — '
+      + Bench.plural(perDay, "run") + " on each day it is active.</span></div>";
+
+    renderMonth(cron);
+    renderHeat(cron);
+    if (selected) renderDay(cron, selected);
+  }
+
+  function renderMonth(cron) {
+    var y = view.getFullYear(), m = view.getMonth();
+    $("#month").textContent = view.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+
+    var first = new Date(y, m, 1);
+    // Monday-first grid.
+    var lead = (first.getDay() + 6) % 7;
+    var start = new Date(y, m, 1 - lead);
+
+    var todayKey = new Date().toDateString();
+    var html = ["M", "T", "W", "T", "F", "S", "S"].map(function (d) {
+      return '<div class="cc__dow">' + d + "</div>";
+    }).join("");
+
+    var totalRuns = 0, activeDays = 0;
+
+    for (var i = 0; i < 42; i++) {
+      var d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+      var inMonth = d.getMonth() === m;
+      var times = timesForDay(cron, d);
+      if (inMonth && times.length) { totalRuns += times.length; activeDays++; }
+
+      var cls = "cc__day" + (inMonth ? "" : " cc__day--out")
+        + (d.toDateString() === todayKey ? " cc__day--today" : "")
+        + (times.length ? " cc__day--on" : "");
+
+      html += '<button class="' + cls + '" data-date="' + d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate() + '"'
+        + ' aria-label="' + esc(d.toDateString()) + ", " + Bench.plural(times.length, "run") + '">'
+        + '<span class="cc__dnum">' + d.getDate() + "</span>"
+        + (times.length ? '<span class="cc__dcount">' + times.length + "×</span>" : "")
+        + (times.length && times.length <= 3 ? '<span class="cc__dtimes">' + times.join("<br>") + "</span>" : "")
+        + "</button>";
+    }
+
+    $("#cal").innerHTML = html;
+    $("#s-runs").textContent = Bench.num(totalRuns);
+    $("#s-days").textContent = activeDays;
+    $("#s-avg").textContent = activeDays ? Math.round(totalRuns / activeDays) : 0;
+  }
+
+  function renderHeat(cron) {
+    var days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    var mins = Object.keys(cron.f[0].set).length;
+    var html = '<div class="cc__heat">';
+    html += '<div class="cc__hlabel"></div>';
+    for (var h = 0; h < 24; h++) {
+      html += '<div class="cc__hlabel">' + (h % 3 === 0 ? h : "") + "</div>";
+    }
+    days.forEach(function (label, idx) {
+      var jsDay = (idx + 1) % 7;  // Monday-first back to Sunday=0
+      html += '<div class="cc__hlabel">' + label + "</div>";
+      for (var hh = 0; hh < 24; hh++) {
+        var active = cron.f[1].set[hh]
+          && (cron.f[4].wild ? true : !!cron.f[4].set[jsDay])
+          && (cron.f[2].wild || !cron.f[4].wild);
+        var n = active ? mins : 0;
+        var alpha = n ? Math.min(1, 0.25 + n / 60 * 0.75) : 0;
+        html += '<div class="cc__hcell" title="' + label + " " + String(hh).padStart(2, "0") + ":00 — "
+          + Bench.plural(n, "run") + '"' + (n ? ' style="background:var(--signal);opacity:' + alpha.toFixed(2) + '"' : "") + "></div>";
+      }
+    });
+    $("#heat").innerHTML = html + "</div>";
+  }
+
+  function renderDay(cron, key) {
+    var bits = key.split("-").map(Number);
+    var d = new Date(bits[0], bits[1] - 1, bits[2]);
+    var times = timesForDay(cron, d);
+
+    $("#day-title").textContent = d.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
+
+    if (!times.length) {
+      $("#day-list").innerHTML = '<p class="empty">The job does not run on this day.</p>';
+      return;
+    }
+    // A minute-level schedule can be 1,440 entries. Count them all, render a slice.
+    var shown = times.slice(0, 120);
+    $("#day-list").innerHTML = '<p class="empty" style="margin-bottom:8px">' + Bench.plural(times.length, "run")
+      + (times.length > shown.length ? " — showing the first " + shown.length : "") + "</p>"
+      + '<div class="chips">' + shown.map(function (t) {
+          return '<span class="chip">' + t + "</span>";
+        }).join("") + "</div>";
+  }
+
+  /* --- events ----------------------------------------------------------- */
+
+  $("#cal").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-date]");
+    if (!b) return;
+    selected = b.dataset.date;
+    var cron = parseCron($("#expr").value);
+    if (cron.ok) renderDay(cron, selected);
+  });
+
+  $("#prev").addEventListener("click", function () { view.setMonth(view.getMonth() - 1); render(); });
+  $("#next").addEventListener("click", function () { view.setMonth(view.getMonth() + 1); render(); });
+  $("#today").addEventListener("click", function () { view = new Date(); view.setDate(1); render(); });
+
+  $$("[data-ex]").forEach(function (b) {
+    b.addEventListener("click", function () { $("#expr").value = b.dataset.ex; render(); });
+  });
+
+  Bench.live($("#expr"), Bench.debounce(render, 140));
+  render();
+});
+</script>
+
+</body>
+</html>

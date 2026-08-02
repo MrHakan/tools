@@ -37,7 +37,7 @@ window.BENCH_TOOLS = [
     blurb: "Base64, URL and hex encoding plus SHA hashes.", keys: "base64 url encode decode hash sha256 md5 hex" },
   { slug: "csv-viewer", cat: "Developer utilities", spec: "a,b,c", name: "CSV Viewer",
     blurb: "Open a CSV, then sort, filter and search it.", keys: "excel spreadsheet table tsv data import" },
-  { soon: true, slug: "sql-formatter", cat: "Developer utilities", spec: "SELECT * FROM", name: "SQL Formatter",
+  { slug: "sql-formatter", cat: "Developer utilities", spec: "SELECT * FROM", name: "SQL Formatter",
     blurb: "Turn a one-line query into readable, indented SQL.", keys: "beautify query database postgres mysql indent" },
   { soon: true, slug: "config-converter", cat: "Developer utilities", spec: "yaml ⇄ json ⇄ toml", name: "Config Converter",
     blurb: "Convert between YAML, JSON and TOML.", keys: "yml transform config format translate" },
@@ -73,7 +73,7 @@ window.BENCH_TOOLS = [
   /* --- Cron & scheduling -------------------------------------------------- */
   { slug: "cron-explainer", cat: "Cron & scheduling", spec: "*/5 * * * *", name: "Cron Explainer",
     blurb: "Read a cron expression in plain English, or build one.", keys: "crontab schedule job expression parse describe" },
-  { soon: true, slug: "cron-calendar", cat: "Cron & scheduling", spec: "0 9 * * 1-5", name: "Cron Calendar",
+  { slug: "cron-calendar", cat: "Cron & scheduling", spec: "0 9 * * 1-5", name: "Cron Calendar",
     blurb: "See a month at a glance and when the job fires.", keys: "crontab visualise calendar month runs preview" },
 
   /* --- Design & CSS ------------------------------------------------------- */
@@ -97,7 +97,7 @@ window.BENCH_TOOLS = [
     blurb: "Write Markdown, preview live, export HTML or print.", keys: "md html pdf preview writing convert export" },
   { slug: "markdown-table", cat: "Content & text", spec: "| a | b |", name: "Markdown Table Builder",
     blurb: "Edit a table like a spreadsheet, copy the Markdown.", keys: "grid csv align column row generator gfm" },
-  { soon: true, slug: "badge-generator", cat: "Content & text", spec: "![build passing]", name: "README Badge Builder",
+  { slug: "badge-generator", cat: "Content & text", spec: "![build passing]", name: "README Badge Builder",
     blurb: "Compose shields.io badges for a project README.", keys: "shield readme github markdown status label ci" },
   { slug: "text-analysis", cat: "Content & text", spec: "Flesch 62.4", name: "Text Analyser",
     blurb: "Readability scores, word frequency and structure.", keys: "readability flesch grade level statistics frequency" },

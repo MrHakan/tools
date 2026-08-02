@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SQL Formatter — Bench</title>
+<meta name="description" content="Turn a one-line query into readable, indented and highlighted SQL, or minify it back down.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/css/bench.css">
+<style>
+  .sql-kw { color: var(--signal); font-weight: 500; }
+  .sql-str { color: var(--verify); }
+  .sql-num { color: var(--ink); font-weight: 500; }
+  .sql-com { color: var(--steel); font-style: italic; }
+  .sql-fn { color: var(--ink); font-weight: 600; }
+  .sql-punc { color: var(--steel); }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__home" href="../../index.html"><span class="topbar__mark">▚</span> bench</a>
+  <span class="topbar__sep">/</span>
+  <span class="topbar__here">SQL Formatter</span>
+  <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
+</header>
+
+<main class="wrap">
+
+  <div class="toolhead">
+    <p class="toolhead__spec mono">SELECT * FROM</p>
+    <h1 class="toolhead__title">SQL Formatter</h1>
+    <p class="toolhead__desc">Turn a one-line query into something you can read. Strings and comments are never broken.</p>
+  </div>
+
+  <div class="split">
+
+    <section class="panel">
+      <h2 class="panel__title">Query</h2>
+      <div class="row" style="margin-bottom:12px">
+        <button class="btn btn--sm" id="sample">Load a sample</button>
+        <button class="btn btn--sm btn--danger" id="clear">Clear</button>
+      </div>
+      <label class="sr-only" for="src">SQL to format</label>
+      <textarea class="textarea" id="src" spellcheck="false" placeholder="select id,name from users u join orders o on o.user_id=u.id where u.active=1 order by name"></textarea>
+
+      <div class="split" style="gap:12px; margin-top:14px">
+        <div class="field">
+          <label class="label" for="opt-indent">Indent</label>
+          <select class="select" id="opt-indent">
+            <option value="2">2 spaces</option>
+            <option value="4" selected>4 spaces</option>
+            <option value="tab">Tab</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="label" for="opt-case">Keywords</label>
+          <select class="select" id="opt-case">
+            <option value="upper" selected>UPPERCASE</option>
+            <option value="lower">lowercase</option>
+            <option value="keep">Leave as typed</option>
+          </select>
+        </div>
+      </div>
+      <div class="row">
+        <label class="check"><input type="checkbox" id="opt-comma"> Comma-first style</label>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel__title">Output</h2>
+      <div class="row row--between" style="margin-bottom:12px">
+        <div class="row">
+          <button class="btn btn--sm btn--on" data-mode="pretty">Format</button>
+          <button class="btn btn--sm" data-mode="min">Minify</button>
+        </div>
+        <div class="row">
+          <button class="btn btn--sm" id="copy">Copy</button>
+          <button class="btn btn--sm" id="save">Save</button>
+        </div>
+      </div>
+      <div class="out" id="out"><span class="empty">Formatted SQL appears here.</span></div>
+      <div id="note" style="margin-top:12px"></div>
+    </section>
+
+  </div>
+
+  <footer class="foot">
+    <a href="../../index.html">← All tools</a>
+    <span>·</span>
+    <span>Runs entirely in your browser</span>
+  </footer>
+
+</main>
+
+<script src="../../assets/js/bench.js" defer></script>
+<script defer>
+document.addEventListener("DOMContentLoaded", function () {
+  "use strict";
+  var $ = Bench.$, $$ = Bench.$$, esc = Bench.esc;
+
+  // Clauses that start a new line at the current indent level.
+  var TOP = ["SELECT", "FROM", "WHERE", "GROUP BY", "HAVING", "ORDER BY", "LIMIT", "OFFSET",
+    "UNION ALL", "UNION", "INTERSECT", "EXCEPT", "INSERT INTO", "VALUES", "UPDATE", "SET",
+    "DELETE FROM", "RETURNING", "WITH", "WINDOW", "FETCH"];
+  var JOINS = ["LEFT OUTER JOIN", "RIGHT OUTER JOIN", "FULL OUTER JOIN", "CROSS JOIN",
+    "INNER JOIN", "LEFT JOIN", "RIGHT JOIN", "FULL JOIN", "NATURAL JOIN", "JOIN"];
+  var NEWLINE_ALSO = ["ON", "AND", "OR", "WHEN", "ELSE", "END", "THEN", "CASE"];
+
+  var KEYWORDS = TOP.concat(JOINS, NEWLINE_ALSO, ["AS", "IN", "IS", "NOT", "NULL", "LIKE", "ILIKE",
+    "BETWEEN", "EXISTS", "ALL", "ANY", "DISTINCT", "ASC", "DESC", "BY", "INTO", "PARTITION",
+    "OVER", "TRUE", "FALSE", "CAST", "USING", "RECURSIVE", "NULLS", "FIRST", "LAST"])
+    .join(" ").split(" ").reduce(function (a, w) { a[w] = true; return a; }, {});
+
+  var FUNCS = ("COUNT SUM AVG MIN MAX COALESCE NULLIF ROUND ABS UPPER LOWER TRIM LENGTH SUBSTRING "
+    + "CONCAT NOW DATE_TRUNC EXTRACT ROW_NUMBER RANK DENSE_RANK LAG LEAD ARRAY_AGG STRING_AGG "
+    + "JSON_AGG GREATEST LEAST").split(" ").reduce(function (a, w) { a[w] = true; return a; }, {});
+
+  /* --- tokeniser -------------------------------------------------------
+     Strings and comments become single opaque tokens, which is what keeps
+     the formatter from ever breaking one apart. */
+
+  function tokenise(sql) {
+    var out = [], i = 0, n = sql.length;
+
+    while (i < n) {
+      var c = sql[i];
+
+      if (/\s/.test(c)) { var j = i; while (j < n && /\s/.test(sql[j])) j++; out.push({ t: "ws", v: sql.slice(i, j) }); i = j; continue; }
+
+      if (c === "-" && sql[i + 1] === "-") { var e = sql.indexOf("\n", i); if (e === -1) e = n; out.push({ t: "com", v: sql.slice(i, e) }); i = e; continue; }
+      if (c === "/" && sql[i + 1] === "*") { var e2 = sql.indexOf("*/", i + 2); e2 = e2 === -1 ? n : e2 + 2; out.push({ t: "com", v: sql.slice(i, e2), block: true }); i = e2; continue; }
+
+      if (c === "'" || c === '"' || c === "`") {
+        var k = i + 1, v = c;
+        while (k < n) {
+          if (sql[k] === "\\" && (c === "'" || c === '"')) { v += sql[k] + (sql[k + 1] || ""); k += 2; continue; }
+          if (sql[k] === c) { if (sql[k + 1] === c) { v += c + c; k += 2; continue; } v += c; k++; break; }
+          v += sql[k++];
+        }
+        out.push({ t: c === "'" ? "str" : "ident", v: v });
+        i = k; continue;
+      }
+
+      if (c === "[") { var e3 = sql.indexOf("]", i); e3 = e3 === -1 ? n : e3 + 1; out.push({ t: "ident", v: sql.slice(i, e3) }); i = e3; continue; }
+
+      if (/[0-9]/.test(c) || (c === "." && /[0-9]/.test(sql[i + 1] || ""))) {
+        var m = /^[0-9]*\.?[0-9]+(?:[eE][+-]?[0-9]+)?/.exec(sql.slice(i));
+        out.push({ t: "num", v: m[0] }); i += m[0].length; continue;
+      }
+
+      if (/[A-Za-z_@#$]/.test(c)) {
+        var w = /^[A-Za-z0-9_@#$.]*/.exec(sql.slice(i))[0];
+        out.push({ t: "word", v: w }); i += w.length; continue;
+      }
+
+      if (c === "(" || c === ")") { out.push({ t: c === "(" ? "open" : "close", v: c }); i++; continue; }
+      if (c === ",") { out.push({ t: "comma", v: "," }); i++; continue; }
+      if (c === ";") { out.push({ t: "semi", v: ";" }); i++; continue; }
+
+      var op = /^(<=>|<>|!=|>=|<=|\|\||::|=|<|>|\+|-|\*|\/|%|\||&|\^|~|\?|:)/.exec(sql.slice(i));
+      out.push({ t: "op", v: op ? op[0] : c });
+      i += op ? op[0].length : 1;
+    }
+    return out;
+  }
+
+  function words(toks) { return toks.filter(function (t) { return t.t !== "ws"; }); }
+
+  /** Match a multi-word clause such as "GROUP BY" starting at index i. */
+  function matchPhrase(toks, i, list) {
+    for (var p = 0; p < list.length; p++) {
+      var parts = list[p].split(" ");
+      var ok = true;
+      for (var q = 0; q < parts.length; q++) {
+        var t = toks[i + q];
+        if (!t || t.t !== "word" || t.v.toUpperCase() !== parts[q]) { ok = false; break; }
+      }
+      if (ok) return { phrase: list[p], len: parts.length };
+    }
+    return null;
+  }
+
+  function kw(text) {
+    var mode = $("#opt-case").value;
+    return mode === "upper" ? text.toUpperCase() : mode === "lower" ? text.toLowerCase() : text;
+  }
+
+  /* --- formatter -------------------------------------------------------- */
+
+  function format(sql) {
+    var toks = words(tokenise(sql));
+    var pad = $("#opt-indent").value === "tab" ? "\t" : " ".repeat(Number($("#opt-indent").value));
+    var commaFirst = $("#opt-comma").checked;
+
+    var out = "";
+    var depth = 0;          // parenthesis depth
+    var lineOpen = false;   // something has been written on the current line
+    var selectList = false; // inside a comma-separated list that gets one item per line
+
+    function nl(extra) {
+      out = out.replace(/[ \t]+$/, "");
+      out += "\n" + pad.repeat(Math.max(0, depth + (extra || 0)));
+      lineOpen = false;
+    }
+    function put(text, spaced) {
+      if (lineOpen && spaced !== false && !/[\s(]$/.test(out)) out += " ";
+      out += text;
+      lineOpen = true;
+    }
+
+    for (var i = 0; i < toks.length; i++) {
+      var t = toks[i];
+
+      if (t.t === "com") {
+        if (lineOpen) put(t.v); else { out += t.v; lineOpen = true; }
+        if (!t.block) nl();
+        continue;
+      }
+
+      if (t.t === "word") {
+        var top = matchPhrase(toks, i, TOP);
+        var join = matchPhrase(toks, i, JOINS);
+
+        if (top) {
+          if (out) nl();
+          put(kw(top.phrase), false);
+          i += top.len - 1;
+          selectList = /^(SELECT|SET|VALUES|RETURNING|GROUP BY|ORDER BY)$/.test(top.phrase);
+          if (top.phrase === "SELECT" || top.phrase === "SET") nl(1);
+          continue;
+        }
+        if (join) {
+          nl();
+          put(kw(join.phrase), false);
+          i += join.len - 1;
+          selectList = false;
+          continue;
+        }
+        var up = t.v.toUpperCase();
+        if (up === "ON" || up === "AND" || up === "OR") { nl(1); put(kw(t.v), false); continue; }
+        if (up === "WHEN" || up === "ELSE") { nl(1); put(kw(t.v), false); continue; }
+        if (up === "END") { put(kw(t.v)); continue; }
+
+        var isFn = FUNCS[up] && toks[i + 1] && toks[i + 1].t === "open";
+        put(KEYWORDS[up] && !isFn ? kw(t.v) : t.v);
+        continue;
+      }
+
+      if (t.t === "open") {
+        // A paren that follows a name is a call or a qualifier, so it must not
+        // be pushed away from it: count(*), not count (*).
+        var prev = toks[i - 1];
+        var glued = prev && ((prev.t === "word" && !KEYWORDS[prev.v.toUpperCase()])
+          || prev.t === "ident" || prev.t === "close");
+        put("(", !glued);
+        depth++;
+        continue;
+      }
+      if (t.t === "close") { depth--; out = out.replace(/\s+$/, ""); out += ")"; lineOpen = true; continue; }
+
+      if (t.t === "comma") {
+        if (selectList && depth === 0) {
+          if (commaFirst) { nl(1); out += ", "; lineOpen = true; }
+          else { out = out.replace(/\s+$/, "") + ","; nl(1); }
+        } else {
+          out = out.replace(/\s+$/, "") + ", ";
+          lineOpen = true;
+        }
+        continue;
+      }
+
+      if (t.t === "semi") { out = out.replace(/\s+$/, "") + ";"; nl(); selectList = false; continue; }
+
+      if (t.t === "op" && (t.v === "." || t.v === "::")) { out = out.replace(/\s+$/, "") + t.v; lineOpen = true; continue; }
+
+      put(t.v);
+    }
+
+    return out.split("\n").map(function (l) { return l.replace(/\s+$/, ""); })
+      .join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  }
+
+  function minify(sql) {
+    var toks = words(tokenise(sql));
+    var out = "";
+    toks.forEach(function (t, i) {
+      var prev = toks[i - 1];
+      var glue = !prev
+        || t.t === "comma" || t.t === "semi" || t.t === "close"
+        || prev.t === "open"
+        // A call's parenthesis stays attached to its name: count(*), not count (*).
+        || (t.t === "open" && ((prev.t === "word" && !KEYWORDS[prev.v.toUpperCase()])
+            || prev.t === "ident" || prev.t === "close"))
+        || (t.t === "op" && (t.v === "." || t.v === "::"))
+        || (prev.t === "op" && (prev.v === "." || prev.v === "::"));
+      if (!glue) out += " ";
+      out += t.t === "word" && KEYWORDS[t.v.toUpperCase()] ? kw(t.v) : t.v;
+    });
+    return out.trim();
+  }
+
+  /* --- highlighting ------------------------------------------------------ */
+
+  function highlight(sql) {
+    return tokenise(sql).map(function (t) {
+      var v = esc(t.v);
+      if (t.t === "com") return '<span class="sql-com">' + v + "</span>";
+      if (t.t === "str") return '<span class="sql-str">' + v + "</span>";
+      if (t.t === "num") return '<span class="sql-num">' + v + "</span>";
+      if (t.t === "comma" || t.t === "semi" || t.t === "open" || t.t === "close")
+        return '<span class="sql-punc">' + v + "</span>";
+      if (t.t === "word") {
+        var up = t.v.toUpperCase();
+        if (KEYWORDS[up]) return '<span class="sql-kw">' + v + "</span>";
+        if (FUNCS[up]) return '<span class="sql-fn">' + v + "</span>";
+      }
+      return v;
+    }).join("");
+  }
+
+  /* --- wiring ------------------------------------------------------------ */
+
+  var mode = "pretty";
+
+  function render() {
+    var sql = $("#src").value.trim();
+    var out = $("#out");
+    if (!sql) {
+      out.innerHTML = '<span class="empty">Formatted SQL appears here.</span>';
+      $("#note").innerHTML = "";
+      return;
+    }
+    var result = mode === "min" ? minify(sql) : format(sql);
+    out.className = mode === "min" ? "out out--wrap" : "out";
+    out.innerHTML = highlight(result);
+
+    var toks = words(tokenise(sql));
+    var unbalanced = 0;
+    toks.forEach(function (t) { if (t.t === "open") unbalanced++; else if (t.t === "close") unbalanced--; });
+    $("#note").innerHTML = unbalanced !== 0
+      ? '<div class="note note--warn"><span class="note__mark">!</span><span>'
+        + (unbalanced > 0 ? unbalanced + " unclosed " : Math.abs(unbalanced) + " extra closing ")
+        + "parenthesis. The output is still produced, but the indentation will be off.</span></div>"
+      : '<div class="note note--info"><span class="note__mark">i</span><span>'
+        + Bench.plural(toks.length, "token") + " · " + Bench.plural(result.split("\n").length, "line") + ".</span></div>";
+  }
+
+  function output() {
+    var sql = $("#src").value.trim();
+    return sql ? (mode === "min" ? minify(sql) : format(sql)) : "";
+  }
+
+  $$("[data-mode]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      mode = b.dataset.mode;
+      $$("[data-mode]").forEach(function (x) { x.classList.toggle("btn--on", x === b); });
+      render();
+    });
+  });
+
+  ["opt-indent", "opt-case", "opt-comma"].forEach(function (id) { $("#" + id).addEventListener("change", render); });
+  Bench.live($("#src"), Bench.debounce(render, 130));
+
+  $("#copy").addEventListener("click", function (e) { Bench.copy(output(), e.currentTarget); });
+  $("#save").addEventListener("click", function () {
+    if (!output()) { Bench.toast("Nothing to save", "bad"); return; }
+    Bench.download("query.sql", output(), "application/sql");
+  });
+  $("#clear").addEventListener("click", function () { $("#src").value = ""; render(); $("#src").focus(); });
+
+  $("#sample").addEventListener("click", function () {
+    $("#src").value = "with recent as (select user_id, count(*) as n from orders "
+      + "where created_at > now() - interval '30 days' group by user_id) "
+      + "select u.id, u.name, coalesce(r.n,0) as orders, case when r.n > 10 then 'vip' when r.n > 0 then 'active' else 'dormant' end as tier "
+      + "from users u left join recent r on r.user_id = u.id "
+      + "where u.deleted_at is null and u.email like '%@example.com' -- only test accounts\n"
+      + "order by orders desc, u.name asc limit 50;";
+    render();
+  });
+
+  render();
+});
+</script>
+
+</body>
+</html>
