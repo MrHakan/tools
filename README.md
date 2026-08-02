@@ -6,13 +6,11 @@
 
 Each tool does one thing. Open the page, paste something in, get something out. Nothing you type or open ever leaves the tab — there is no server to send it to. Once the page has loaded it keeps working offline.
 
-## Status
+## What's in it
 
-**59 of a planned 59 tools are built and working.** The hub shows the full set: finished tools are live links, the rest render as dashed "building" cards so the shape of the collection stays legible. Nothing links to a page that doesn't exist.
+**All 59 tools are built and working.** Every page is one self-contained HTML file that pulls in a shared stylesheet and a small runtime, and nothing else. No build step, no dependencies, no network requests at runtime — not even for fonts.
 
-Built so far: Kanban Board · Pomodoro Timer · Habit Tracker · Résumé Builder · Expense Splitter · Budget Tracker · Contact Tracker · Time Zone Finder · Shortcut Cheat Sheet · Diff Checker · JSON Formatter · Regex Tester · Encoder & Hasher · CSV Viewer · SQL Formatter · Config Converter · JWT Decoder · ID Generator · Timestamp Converter · Number Base Converter · Text Case Converter · .gitignore Generator · License Picker · .env Builder · Rate Limit Calculator · Mock API Designer · SemVer Calculator · Patch Generator · Word-level Diff · HTML Entity Converter · Cron Explainer · Cron Calendar · CSS Generator · Contrast Checker · Palette Extractor · Clamp Calculator · Aspect Ratio Calculator · Favicon Generator · Placeholder Image · Markdown Editor · Markdown Table Builder · README Badge Builder · Text Analyser · Word Counter · Keyword Highlighter · Placeholder Data · Random Generators · Image Editor · QR Code Studio · Image ⇄ Base64 · Meta Tag Preview · Password Strength · Encrypted Vault · HTTP Status Codes · Git Cheat Sheet · Whiteboard · Link Keeper · Game Corner · Pattern Playground
-
-## The full plan
+## The full set
 
 | Group | Tools |
 | --- | --- |
