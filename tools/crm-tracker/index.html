@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Contact Tracker — Bench</title>
+<meta name="description" content="Keep contacts, notes and follow-ups in one place, with a dashboard of what is due.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/css/bench.css">
+<style>
+  .cr__item { border: 1px solid var(--edge); border-radius: var(--r); background: var(--card); padding: 11px 13px; margin-bottom: 7px; cursor: pointer; }
+  .cr__item--on { border-color: var(--signal); background: var(--signal-soft); }
+  .cr__top { display: flex; gap: 9px; align-items: baseline; flex-wrap: wrap; }
+  .cr__name { font-size: 14.5px; font-weight: 600; }
+  .cr__org { font-size: 12.5px; color: var(--steel); flex: 1; min-width: 0; }
+  .cr__st { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .07em; padding: 2px 6px; border-radius: 2px; }
+  .cr__st--lead { background: var(--signal-soft); color: var(--signal); }
+  .cr__st--active { background: var(--verify-soft); color: var(--verify); }
+  .cr__st--dormant { background: var(--sunk); color: var(--steel); }
+  .cr__st--closed { background: var(--fault-soft); color: var(--fault); }
+  .cr__meta { font-family: var(--mono); font-size: 11px; color: var(--steel); margin-top: 5px; display: flex; gap: 12px; flex-wrap: wrap; }
+  .cr__note { border-left: 2px solid var(--edge); padding: 6px 0 6px 10px; margin-bottom: 8px; }
+  .cr__when { font-family: var(--mono); font-size: 10.5px; color: var(--steel); }
+  .cr__ico { width: 24px; height: 24px; background: none; border: 1px solid transparent; border-radius: var(--r); color: var(--steel); font-size: 11px; flex: none; }
+  .cr__ico:hover { border-color: var(--signal); color: var(--signal); }
+  .cr__ico--del:hover { border-color: var(--fault); color: var(--fault); }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__home" href="../../index.html"><span class="topbar__mark">▚</span> bench</a>
+  <span class="topbar__sep">/</span>
+  <span class="topbar__here">Contact Tracker</span>
+  <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
+</header>
+
+<main class="wrap">
+
+  <div class="toolhead">
+    <p class="toolhead__spec mono">note · 2 due</p>
+    <h1 class="toolhead__title">Contact Tracker</h1>
+    <p class="toolhead__desc">Contacts, notes and follow-ups, with what is due today at the top.</p>
+  </div>
+
+  <section class="panel">
+    <h2 class="panel__title">Due now</h2>
+    <div id="due"></div>
+  </section>
+
+  <div class="split split--narrow" style="margin-top:var(--gap)">
+
+    <section class="panel">
+      <div class="row" style="margin-bottom:10px">
+        <label class="sr-only" for="q">Search contacts</label>
+        <input class="input grow" id="q" type="search" placeholder="Search name, company, email, tags, notes" autocomplete="off">
+        <label class="sr-only" for="sort">Sort</label>
+        <select class="select" id="sort" style="width:auto">
+          <option value="due">By follow-up</option>
+          <option value="name">By name</option>
+          <option value="org">By company</option>
+        </select>
+      </div>
+      <div class="chips" id="filters" style="margin-bottom:12px"></div>
+      <div id="list"></div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn btn--sm" id="new">New contact</button>
+        <button class="btn btn--sm" id="exp">Export JSON</button>
+        <button class="btn btn--sm" id="imp">Import</button>
+        <input type="file" id="imp-file" accept=".json" hidden>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel__title" id="detail-title">Details</h2>
+      <div id="detail"><p class="empty">Pick a contact on the left, or add a new one.</p></div>
+    </section>
+
+  </div>
+
+  <footer class="foot">
+    <a href="../../index.html">← All tools</a>
+    <span>·</span>
+    <span>Runs entirely in your browser</span>
+  </footer>
+
+</main>
+
+<script src="../../assets/js/bench.js" defer></script>
+<script defer>
+document.addEventListener("DOMContentLoaded", function () {
+  "use strict";
+  var $ = Bench.$, $$ = Bench.$$, esc = Bench.esc;
+  var store = Bench.store("crm-tracker");
+
+  var STATUSES = ["lead", "active", "dormant", "closed"];
+
+  function key(d) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+  function shift(n) { var d = new Date(); d.setDate(d.getDate() + n); return key(d); }
+  function id() { return Date.now().toString(36) + Bench.randInt(1e6).toString(36); }
+
+  var contacts = store.get("contacts", null) || [
+    { id: "c1", name: "Ana Ferreira", org: "Northwind Studio", role: "Design lead", email: "ana@northwind.test",
+      phone: "+44 20 7946 0011", tags: ["design", "agency"], status: "active", due: shift(-2),
+      notes: [{ at: Date.now() - 86400000 * 5, text: "Sent the revised proposal. She wants a call before signing off." }] },
+    { id: "c2", name: "Ben Okafor", org: "Harbour Logistics", role: "CTO", email: "ben@harbour.test",
+      phone: "+44 161 496 0022", tags: ["enterprise"], status: "lead", due: key(new Date()),
+      notes: [{ at: Date.now() - 86400000 * 2, text: "Intro call went well. Wants pricing for 200 seats." }] },
+    { id: "c3", name: "Chidi Nwosu", org: "Fieldnote", role: "Founder", email: "chidi@fieldnote.test",
+      phone: "", tags: ["startup", "design"], status: "active", due: shift(4),
+      notes: [{ at: Date.now() - 86400000 * 9, text: "Trial extended by two weeks." }] },
+    { id: "c4", name: "Dara Whitfield", org: "Meridian Press", role: "Editor", email: "dara@meridian.test",
+      phone: "", tags: ["media"], status: "dormant", due: "", notes: [] },
+    { id: "c5", name: "Elif Kaya", org: "Atlas Data", role: "Head of ops", email: "elif@atlasdata.test",
+      phone: "", tags: ["enterprise", "data"], status: "lead", due: shift(11), notes: [] },
+    { id: "c6", name: "Farid Haddad", org: "Lantern Health", role: "Product manager", email: "farid@lantern.test",
+      phone: "", tags: ["health"], status: "closed", due: "", notes: [{ at: Date.now() - 86400000 * 30, text: "Went with a competitor. Worth revisiting next year." }] }
+  ];
+
+  var selected = contacts.length ? contacts[0].id : null;
+  var filter = "";
+
+  function save() { store.set("contacts", contacts); }
+  function find(cid) { return contacts.filter(function (c) { return c.id === cid; })[0]; }
+
+  function dueState(c) {
+    if (!c.due) return null;
+    var today = key(new Date());
+    if (c.due < today) return "overdue";
+    if (c.due === today) return "today";
+    return "upcoming";
+  }
+
+  function when(ts) {
+    var d = new Date(ts);
+    var days = Math.round((Date.now() - ts) / 86400000);
+    if (days === 0) return "today";
+    if (days === 1) return "yesterday";
+    if (days < 30) return days + " days ago";
+    return d.toLocaleDateString();
+  }
+
+  /* --- render ------------------------------------------------------------ */
+
+  function renderDue() {
+    var groups = { overdue: [], today: [], upcoming: [] };
+    contacts.forEach(function (c) {
+      var s = dueState(c);
+      if (s) groups[s].push(c);
+    });
+    groups.upcoming.sort(function (a, b) { return a.due < b.due ? -1 : 1; });
+    groups.overdue.sort(function (a, b) { return a.due < b.due ? -1 : 1; });
+
+    function block(kind, mark, label, list, extra) {
+      if (!list.length) return "";
+      return '<div class="note note--' + kind + '" style="margin-bottom:7px"><span class="note__mark">' + mark + "</span><span><b>"
+        + label + "</b> — " + list.map(function (c) {
+            return '<button class="chip" data-go="' + c.id + '">' + esc(c.name) + " · " + esc(c.due) + "</button>";
+          }).join(" ") + (extra || "") + "</span></div>";
+    }
+
+    var html = block("bad", "✕", Bench.plural(groups.overdue.length, "follow-up") + " overdue", groups.overdue)
+      + block("warn", "!", "Due today", groups.today)
+      + block("info", "i", "Coming up", groups.upcoming.slice(0, 5));
+
+    $("#due").innerHTML = html || '<div class="note note--ok"><span class="note__mark">✓</span><span>Nothing is due. Set a follow-up date on a contact to see it here.</span></div>';
+  }
+
+  function renderList() {
+    var q = $("#q").value.trim().toLowerCase();
+    var terms = q ? q.split(/\s+/) : [];
+
+    var tags = {};
+    contacts.forEach(function (c) { c.tags.forEach(function (t) { tags[t] = (tags[t] || 0) + 1; }); });
+
+    $("#filters").innerHTML = '<button class="chip' + (filter ? "" : " chip--on") + '" data-f="">All ' + contacts.length + "</button>"
+      + STATUSES.map(function (s) {
+          var n = contacts.filter(function (c) { return c.status === s; }).length;
+          return n ? '<button class="chip' + (filter === "status:" + s ? " chip--on" : "") + '" data-f="status:' + s + '">' + s + " " + n + "</button>" : "";
+        }).join("")
+      + Object.keys(tags).sort().map(function (t) {
+          return '<button class="chip' + (filter === "tag:" + t ? " chip--on" : "") + '" data-f="tag:' + esc(t) + '">#' + esc(t) + " " + tags[t] + "</button>";
+        }).join("");
+
+    var shown = contacts.filter(function (c) {
+      if (filter.indexOf("status:") === 0 && c.status !== filter.slice(7)) return false;
+      if (filter.indexOf("tag:") === 0 && c.tags.indexOf(filter.slice(4)) === -1) return false;
+      var hay = (c.name + " " + c.org + " " + c.role + " " + c.email + " " + c.tags.join(" ")
+        + " " + c.notes.map(function (n) { return n.text; }).join(" ")).toLowerCase();
+      return terms.every(function (t) { return hay.indexOf(t) !== -1; });
+    });
+
+    var sort = $("#sort").value;
+    shown.sort(function (a, b) {
+      if (sort === "name") return a.name.localeCompare(b.name);
+      if (sort === "org") return (a.org || "").localeCompare(b.org || "");
+      return (a.due || "9999") < (b.due || "9999") ? -1 : 1;
+    });
+
+    $("#list").innerHTML = shown.map(function (c) {
+      var st = dueState(c);
+      return '<div class="cr__item' + (c.id === selected ? " cr__item--on" : "") + '" data-c="' + c.id + '">'
+        + '<div class="cr__top"><span class="cr__name">' + esc(c.name) + "</span>"
+        + '<span class="cr__org">' + esc(c.org || "") + (c.role ? " · " + esc(c.role) : "") + "</span>"
+        + '<span class="cr__st cr__st--' + c.status + '">' + c.status + "</span></div>"
+        + '<div class="cr__meta">'
+        + (c.due ? "<span style='color:" + (st === "overdue" ? "var(--fault)" : st === "today" ? "var(--signal)" : "var(--steel)")
+            + "'>follow up " + esc(c.due) + "</span>" : "")
+        + (c.notes.length ? "<span>" + Bench.plural(c.notes.length, "note") + "</span>" : "")
+        + (c.tags.length ? "<span>" + c.tags.map(esc).join(" · ") + "</span>" : "")
+        + "</div></div>";
+    }).join("") || '<p class="empty">No contacts match.</p>';
+  }
+
+  function renderDetail() {
+    var c = find(selected);
+    if (!c) { $("#detail").innerHTML = '<p class="empty">Pick a contact on the left, or add a new one.</p>'; $("#detail-title").textContent = "Details"; return; }
+    $("#detail-title").textContent = c.name;
+
+    $("#detail").innerHTML =
+      '<div class="split" style="gap:12px">'
+      + field("name", "Name", c.name) + field("org", "Company", c.org) + "</div>"
+      + '<div class="split" style="gap:12px">' + field("role", "Role", c.role) + field("email", "Email", c.email) + "</div>"
+      + '<div class="split" style="gap:12px">' + field("phone", "Phone", c.phone)
+      + '<div class="field"><label class="label" for="d-status">Status</label><select class="select" id="d-status">'
+      + STATUSES.map(function (s) { return '<option' + (c.status === s ? " selected" : "") + ">" + s + "</option>"; }).join("")
+      + "</select></div></div>"
+      + '<div class="split" style="gap:12px">' + field("tags", "Tags, comma separated", c.tags.join(", "))
+      + '<div class="field"><label class="label" for="d-due">Follow up on</label>'
+      + '<input class="input" type="date" id="d-due" value="' + esc(c.due || "") + '"></div></div>'
+
+      + '<h3 class="panel__title" style="margin-top:16px">Notes</h3>'
+      + '<form class="row" id="note-form" style="margin-bottom:12px">'
+      + '<label class="sr-only" for="note-new">New note</label>'
+      + '<input class="input grow" id="note-new" placeholder="Add a note" autocomplete="off">'
+      + '<button class="btn btn--primary" type="submit">Add</button></form>'
+      + (c.notes.length
+        ? c.notes.slice().sort(function (a, b) { return b.at - a.at; }).map(function (n, i) {
+            return '<div class="cr__note"><div class="row row--between"><span class="cr__when">' + esc(when(n.at))
+              + '</span><button class="cr__ico cr__ico--del" data-delnote="' + n.at + '" aria-label="Delete note">✕</button></div>'
+              + '<div style="font-size:13.5px">' + esc(n.text) + "</div></div>";
+          }).join("")
+        : '<p class="empty">No notes yet.</p>')
+
+      + '<div class="row" style="margin-top:16px">'
+      + '<button class="btn btn--sm" id="vcard">Export vCard</button>'
+      + '<button class="btn btn--sm btn--danger" id="delc">Delete contact</button></div>';
+
+    function field(k, label, value) {
+      return '<div class="field"><label class="label" for="d-' + k + '">' + label + "</label>"
+        + '<input class="input" id="d-' + k + '" value="' + esc(value || "") + '"></div>';
+    }
+
+    // Wire the freshly rendered fields.
+    ["name", "org", "role", "email", "phone", "tags"].forEach(function (k) {
+      $("#d-" + k).addEventListener("input", function () {
+        if (k === "tags") c.tags = this.value.split(",").map(function (t) { return t.trim(); }).filter(Boolean);
+        else c[k] = this.value;
+        save();
+        renderList();
+        if (k === "name") $("#detail-title").textContent = c.name;
+      });
+    });
+    $("#d-status").addEventListener("change", function () { c.status = this.value; save(); renderList(); });
+    $("#d-due").addEventListener("change", function () { c.due = this.value; save(); renderList(); renderDue(); });
+
+    $("#note-form").addEventListener("submit", function (e) {
+      e.preventDefault();
+      var t = $("#note-new").value.trim();
+      if (!t) return;
+      c.notes.push({ at: Date.now(), text: t });
+      save();
+      renderDetail();
+      renderList();
+    });
+
+    $("#vcard").addEventListener("click", function () {
+      var lines = ["BEGIN:VCARD", "VERSION:3.0", "FN:" + c.name];
+      var parts = c.name.split(" ");
+      lines.push("N:" + (parts.slice(1).join(" ") || "") + ";" + parts[0] + ";;;");
+      if (c.org) lines.push("ORG:" + c.org);
+      if (c.role) lines.push("TITLE:" + c.role);
+      if (c.email) lines.push("EMAIL;TYPE=WORK:" + c.email);
+      if (c.phone) lines.push("TEL;TYPE=WORK,VOICE:" + c.phone);
+      if (c.tags.length) lines.push("CATEGORIES:" + c.tags.join(","));
+      if (c.notes.length) lines.push("NOTE:" + c.notes.map(function (n) { return n.text; }).join(" \\n ").replace(/[,;]/g, "\\$&"));
+      lines.push("END:VCARD");
+      Bench.download(c.name.replace(/\s+/g, "-").toLowerCase() + ".vcf", lines.join("\r\n"), "text/vcard");
+    });
+
+    $("#delc").addEventListener("click", function () {
+      var b = $("#delc");
+      if (b.dataset.armed) {
+        contacts = contacts.filter(function (x) { return x.id !== c.id; });
+        selected = contacts.length ? contacts[0].id : null;
+        save(); render();
+        return;
+      }
+      b.dataset.armed = "1";
+      b.textContent = "Really delete?";
+      setTimeout(function () { if (b.isConnected && b.dataset.armed) { b.textContent = "Delete contact"; delete b.dataset.armed; } }, 3500);
+    });
+  }
+
+  function render() { renderDue(); renderList(); renderDetail(); save(); }
+
+  /* --- events ------------------------------------------------------------ */
+
+  // Delegated once on the container. Binding inside renderDetail would stack a
+  // fresh listener on every re-render and delete several notes per click.
+  $("#detail").addEventListener("click", function (e) {
+    var d = e.target.closest("[data-delnote]");
+    if (!d) return;
+    var c = find(selected);
+    if (!c) return;
+    c.notes = c.notes.filter(function (n) { return String(n.at) !== d.dataset.delnote; });
+    save();
+    renderDetail();
+    renderList();
+  });
+
+  $("#list").addEventListener("click", function (e) {
+    var it = e.target.closest("[data-c]");
+    if (!it) return;
+    selected = it.dataset.c;
+    renderList();
+    renderDetail();
+  });
+
+  $("#due").addEventListener("click", function (e) {
+    var g = e.target.closest("[data-go]");
+    if (!g) return;
+    selected = g.dataset.go;
+    renderList();
+    renderDetail();
+  });
+
+  $("#filters").addEventListener("click", function (e) {
+    var f = e.target.closest("[data-f]");
+    if (!f) return;
+    filter = f.dataset.f;
+    renderList();
+  });
+
+  Bench.live($("#q"), Bench.debounce(renderList, 110));
+  $("#sort").addEventListener("change", renderList);
+
+  $("#new").addEventListener("click", function () {
+    var c = { id: id(), name: "New contact", org: "", role: "", email: "", phone: "", tags: [], status: "lead", due: "", notes: [] };
+    contacts.unshift(c);
+    selected = c.id;
+    render();
+    $("#d-name").focus();
+    $("#d-name").select();
+  });
+
+  $("#exp").addEventListener("click", function () {
+    Bench.download("contacts.json", JSON.stringify(contacts, null, 2), "application/json");
+  });
+
+  $("#imp").addEventListener("click", function () { $("#imp-file").click(); });
+  $("#imp-file").addEventListener("change", function () {
+    var f = this.files[0];
+    this.value = "";
+    if (!f) return;
+    Bench.readFile(f).then(function (t) {
+      var data;
+      try { data = JSON.parse(t); } catch (e) { Bench.toast("That file is not valid JSON", "bad"); return; }
+      if (!Array.isArray(data)) { Bench.toast("That JSON is not a contact list", "bad"); return; }
+      contacts = data.filter(function (c) { return c && c.name; }).map(function (c) {
+        return { id: String(c.id || id()), name: String(c.name), org: String(c.org || ""), role: String(c.role || ""),
+          email: String(c.email || ""), phone: String(c.phone || ""),
+          tags: Array.isArray(c.tags) ? c.tags.map(String) : [],
+          status: STATUSES.indexOf(c.status) !== -1 ? c.status : "lead",
+          due: String(c.due || ""), notes: Array.isArray(c.notes) ? c.notes : [] };
+      });
+      selected = contacts.length ? contacts[0].id : null;
+      render();
+      Bench.toast("Imported " + Bench.plural(contacts.length, "contact"));
+    });
+  });
+
+  render();
+});
+</script>
+
+</body>
+</html>

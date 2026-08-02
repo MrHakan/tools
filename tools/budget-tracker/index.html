@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Budget Tracker — Bench</title>
+<meta name="description" content="Log income and spending, see where the money goes, and keep categories inside their budgets.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/css/bench.css">
+<style>
+  .bt__legend { display: grid; gap: 6px; }
+  .bt__leg { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+  .bt__dot { width: 10px; height: 10px; border-radius: 2px; flex: none; }
+  .bt__legname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bt__legval { font-family: var(--mono); font-size: 12px; color: var(--steel); }
+  .bt__budget { margin-bottom: 10px; }
+  .bt__bhead { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 3px; }
+  .bt__bbar { height: 6px; background: var(--sunk); border-radius: 3px; overflow: hidden; }
+  .bt__bbar i { display: block; height: 100%; background: var(--verify); }
+  .bt__bbar i.near { background: var(--signal); }
+  .bt__bbar i.over { background: var(--fault); }
+  .bt__ico { width: 24px; height: 24px; background: none; border: 1px solid transparent; border-radius: var(--r); color: var(--steel); font-size: 11px; }
+  .bt__ico:hover { border-color: var(--fault); color: var(--fault); }
+  .bt__pos { color: var(--verify); }
+  .bt__neg { color: var(--fault); }
+  /* The donut has a fixed width and the legend's mono figures will not shrink,
+     so below this width they stop competing and stack instead. */
+  @media (max-width: 560px) {
+    .bt__chartrow { flex-direction: column; align-items: stretch; }
+    .bt__chartrow > div:first-child { margin-inline: auto; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__home" href="../../index.html"><span class="topbar__mark">▚</span> bench</a>
+  <span class="topbar__sep">/</span>
+  <span class="topbar__here">Budget Tracker</span>
+  <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
+</header>
+
+<main class="wrap">
+
+  <div class="toolhead">
+    <p class="toolhead__spec mono">−$1,240.00</p>
+    <h1 class="toolhead__title">Budget Tracker</h1>
+    <p class="toolhead__desc">Log what comes in and what goes out, and see where it actually goes.</p>
+  </div>
+
+  <section class="panel">
+    <div class="row row--between">
+      <div class="row">
+        <button class="btn btn--sm" id="prev" aria-label="Previous month">‹</button>
+        <b id="month" style="min-width:11ch; text-align:center"></b>
+        <button class="btn btn--sm" id="next" aria-label="Next month">›</button>
+      </div>
+      <div class="row">
+        <button class="btn btn--sm" id="sample">Load an example</button>
+        <button class="btn btn--sm" id="exp-csv">Export CSV</button>
+        <button class="btn btn--sm" id="imp">Import CSV</button>
+        <input type="file" id="imp-file" accept=".csv,text/csv" hidden>
+        <button class="btn btn--sm btn--danger" id="wipe">Clear</button>
+      </div>
+    </div>
+    <div class="stats" style="margin-top:14px">
+      <div class="stat"><span class="stat__n bt__pos" id="s-in">—</span><span class="stat__k">Income</span></div>
+      <div class="stat"><span class="stat__n bt__neg" id="s-out">—</span><span class="stat__k">Spent</span></div>
+      <div class="stat"><span class="stat__n" id="s-net">—</span><span class="stat__k">Net</span></div>
+      <div class="stat"><span class="stat__n" id="s-rate">—</span><span class="stat__k">Saved</span></div>
+    </div>
+  </section>
+
+  <div class="split" style="margin-top:var(--gap)">
+
+    <section class="panel">
+      <h2 class="panel__title">Where it went</h2>
+      <div class="row bt__chartrow" style="gap:20px; align-items:center">
+        <div id="donut" style="flex:none"></div>
+        <div class="bt__legend grow" id="legend"></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel__title">Last six months</h2>
+      <div id="bars"></div>
+    </section>
+
+  </div>
+
+  <div class="split split--narrow" style="margin-top:var(--gap)">
+
+    <div class="stack">
+      <section class="panel">
+        <h2 class="panel__title">Add a transaction</h2>
+        <form id="form">
+          <div class="split" style="gap:12px">
+            <div class="field"><label class="label" for="t-date">Date</label>
+              <input class="input" type="date" id="t-date"></div>
+            <div class="field"><label class="label" for="t-amt">Amount</label>
+              <input class="input input--mono" type="number" step="0.01" id="t-amt" placeholder="0.00"></div>
+          </div>
+          <div class="field"><label class="label" for="t-desc">Description</label>
+            <input class="input" id="t-desc" placeholder="Weekly shop" autocomplete="off"></div>
+          <div class="split" style="gap:12px">
+            <div class="field"><label class="label" for="t-type">Type</label>
+              <select class="select" id="t-type"><option value="expense">Expense</option><option value="income">Income</option></select></div>
+            <div class="field"><label class="label" for="t-cat">Category</label>
+              <select class="select" id="t-cat"></select></div>
+          </div>
+          <button class="btn btn--primary" type="submit">Add</button>
+        </form>
+      </section>
+
+      <section class="panel">
+        <h2 class="panel__title">Budgets</h2>
+        <div id="budgets"></div>
+      </section>
+    </div>
+
+    <section class="panel">
+      <h2 class="panel__title">This month</h2>
+      <div class="row" style="margin-bottom:10px">
+        <label class="sr-only" for="q">Search</label>
+        <input class="input grow" id="q" type="search" placeholder="Search descriptions and categories" autocomplete="off">
+      </div>
+      <div class="tablewrap" style="max-height:440px; overflow-y:auto">
+        <table class="table">
+          <thead><tr><th>Date</th><th>Description</th><th>Category</th><th>Amount</th><th></th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </section>
+
+  </div>
+
+  <footer class="foot">
+    <a href="../../index.html">← All tools</a>
+    <span>·</span>
+    <span>Runs entirely in your browser</span>
+  </footer>
+
+</main>
+
+<script src="../../assets/js/bench.js" defer></script>
+<script defer>
+document.addEventListener("DOMContentLoaded", function () {
+  "use strict";
+  var $ = Bench.$, $$ = Bench.$$, esc = Bench.esc;
+  var store = Bench.store("budget-tracker");
+
+  var CATS = [
+    { name: "Housing", colour: "#e0521a", budget: 120000 },
+    { name: "Food", colour: "#0f7a5a", budget: 45000 },
+    { name: "Transport", colour: "#3b7dd8", budget: 15000 },
+    { name: "Utilities", colour: "#8a5cd8", budget: 18000 },
+    { name: "Health", colour: "#d83b7d", budget: 8000 },
+    { name: "Fun", colour: "#d8a53b", budget: 20000 },
+    { name: "Other", colour: "#7b8a86", budget: 10000 },
+    { name: "Salary", colour: "#0f7a5a", budget: 0 }
+  ];
+
+  function key(d) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+
+  function seed() {
+    var out = [], now = new Date();
+    var descs = { Housing: ["Rent"], Food: ["Weekly shop", "Corner shop", "Lunch out"],
+      Transport: ["Travel card", "Fuel"], Utilities: ["Electricity", "Broadband", "Water"],
+      Health: ["Pharmacy", "Dentist"], Fun: ["Cinema", "Books", "Concert"], Other: ["Gift", "Stationery"] };
+    for (var m = 0; m < 3; m++) {
+      var base = new Date(now.getFullYear(), now.getMonth() - m, 1);
+      out.push({ date: key(new Date(base.getFullYear(), base.getMonth(), 1)), desc: "Salary", cents: 320000, type: "income", cat: "Salary" });
+      out.push({ date: key(new Date(base.getFullYear(), base.getMonth(), 2)), desc: "Rent", cents: 118000, type: "expense", cat: "Housing" });
+      Object.keys(descs).forEach(function (c) {
+        if (c === "Housing") return;
+        var n = 2 + (m % 2);
+        for (var i = 0; i < n; i++) {
+          out.push({
+            date: key(new Date(base.getFullYear(), base.getMonth(), 3 + i * 6 + (m % 3))),
+            desc: descs[c][i % descs[c].length],
+            cents: 1200 + ((i + m + c.length) * 1700) % 9000,
+            type: "expense", cat: c
+          });
+        }
+      });
+    }
+    return out;
+  }
+
+  var cats = store.get("cats", null) || CATS;
+  var txns = store.get("txns", null) || seed();
+  var view = new Date();
+  view.setDate(1);
+
+  function save() { store.set("txns", txns); store.set("cats", cats); }
+  function money(c) { return (c < 0 ? "−" : "") + "$" + (Math.abs(c) / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function monthKey(d) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"); }
+  function catOf(name) { return cats.filter(function (c) { return c.name === name; })[0] || { colour: "#7b8a86", budget: 0 }; }
+
+  function inMonth(mk) { return txns.filter(function (t) { return t.date.slice(0, 7) === mk; }); }
+
+  /* --- charts, hand-drawn SVG ------------------------------------------- */
+
+  function donut(slices, size) {
+    var total = slices.reduce(function (a, s) { return a + s.value; }, 0);
+    if (!total) return '<svg width="' + size + '" height="' + size + '" role="img" aria-label="No spending"><circle cx="'
+      + size / 2 + '" cy="' + size / 2 + '" r="' + (size / 2 - 14) + '" fill="none" stroke="var(--edge)" stroke-width="22"/></svg>';
+
+    var r = size / 2 - 14, c = size / 2;
+    var circ = 2 * Math.PI * r;
+    var offset = 0;
+    var arcs = slices.map(function (s) {
+      var frac = s.value / total;
+      var seg = '<circle cx="' + c + '" cy="' + c + '" r="' + r + '" fill="none" stroke="' + esc(s.colour)
+        + '" stroke-width="22" stroke-dasharray="' + (frac * circ).toFixed(2) + " " + circ.toFixed(2)
+        + '" stroke-dashoffset="' + (-offset * circ).toFixed(2) + '" transform="rotate(-90 ' + c + " " + c + ')">'
+        + "<title>" + esc(s.name + " " + money(s.value) + " (" + Math.round(frac * 100) + "%)") + "</title></circle>";
+      offset += frac;
+      return seg;
+    }).join("");
+
+    return '<svg width="' + size + '" height="' + size + '" role="img" aria-label="Spending by category">'
+      + arcs
+      + '<text x="' + c + '" y="' + (c - 2) + '" text-anchor="middle" font-family="var(--mono)" font-size="15" fill="var(--ink)">'
+      + esc(money(total)) + "</text>"
+      + '<text x="' + c + '" y="' + (c + 14) + '" text-anchor="middle" font-family="var(--mono)" font-size="9" fill="var(--steel)">SPENT</text>'
+      + "</svg>";
+  }
+
+  function bars() {
+    var months = [];
+    for (var i = 5; i >= 0; i--) {
+      var d = new Date(view.getFullYear(), view.getMonth() - i, 1);
+      var mk = monthKey(d);
+      var list = inMonth(mk);
+      months.push({
+        label: d.toLocaleDateString(undefined, { month: "short" }),
+        income: list.filter(function (t) { return t.type === "income"; }).reduce(function (a, t) { return a + t.cents; }, 0),
+        spend: list.filter(function (t) { return t.type === "expense"; }).reduce(function (a, t) { return a + t.cents; }, 0)
+      });
+    }
+    var max = Math.max(1, Math.max.apply(null, months.map(function (m) { return Math.max(m.income, m.spend); })));
+    var W = 100 / months.length;
+
+    return '<svg viewBox="0 0 100 60" width="100%" height="180" preserveAspectRatio="none" role="img" aria-label="Income and spending over six months">'
+      + months.map(function (m, i) {
+          var x = i * W;
+          var ih = m.income / max * 44, sh = m.spend / max * 44;
+          return '<rect x="' + (x + W * 0.14).toFixed(2) + '" y="' + (48 - ih).toFixed(2) + '" width="' + (W * 0.32).toFixed(2)
+            + '" height="' + ih.toFixed(2) + '" fill="var(--verify)"><title>' + esc(m.label + " income " + money(m.income)) + "</title></rect>"
+            + '<rect x="' + (x + W * 0.5).toFixed(2) + '" y="' + (48 - sh).toFixed(2) + '" width="' + (W * 0.32).toFixed(2)
+            + '" height="' + sh.toFixed(2) + '" fill="var(--signal)"><title>' + esc(m.label + " spent " + money(m.spend)) + "</title></rect>"
+            + '<text x="' + (x + W / 2).toFixed(2) + '" y="57" text-anchor="middle" font-size="4.5" fill="var(--steel)" font-family="var(--mono)">'
+            + esc(m.label) + "</text>";
+        }).join("")
+      + "</svg>"
+      + '<div class="row" style="margin-top:8px;font-family:var(--mono);font-size:11px;color:var(--steel)">'
+      + '<span class="bt__dot" style="background:var(--verify)"></span> income'
+      + '<span class="bt__dot" style="background:var(--signal);margin-left:10px"></span> spending</div>';
+  }
+
+  /* --- render ------------------------------------------------------------ */
+
+  function render() {
+    var mk = monthKey(view);
+    $("#month").textContent = view.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+
+    var list = inMonth(mk);
+    var income = list.filter(function (t) { return t.type === "income"; }).reduce(function (a, t) { return a + t.cents; }, 0);
+    var spend = list.filter(function (t) { return t.type === "expense"; }).reduce(function (a, t) { return a + t.cents; }, 0);
+    var net = income - spend;
+
+    $("#s-in").textContent = money(income);
+    $("#s-out").textContent = money(spend);
+    $("#s-net").textContent = money(net);
+    $("#s-net").className = "stat__n " + (net >= 0 ? "bt__pos" : "bt__neg");
+    $("#s-rate").textContent = income ? Math.round(net / income * 100) + "%" : "—";
+
+    // Category totals
+    var byCat = {};
+    list.filter(function (t) { return t.type === "expense"; }).forEach(function (t) {
+      byCat[t.cat] = (byCat[t.cat] || 0) + t.cents;
+    });
+    var slices = Object.keys(byCat).map(function (name) {
+      return { name: name, value: byCat[name], colour: catOf(name).colour };
+    }).sort(function (a, b) { return b.value - a.value; });
+
+    $("#donut").innerHTML = donut(slices, 170);
+    $("#legend").innerHTML = slices.map(function (s) {
+      return '<div class="bt__leg"><span class="bt__dot" style="background:' + esc(s.colour) + '"></span>'
+        + '<span class="bt__legname">' + esc(s.name) + "</span>"
+        + '<span class="bt__legval">' + money(s.value) + " · " + Math.round(s.value / spend * 100) + "%</span></div>";
+    }).join("") || '<p class="empty">No spending this month.</p>';
+
+    $("#bars").innerHTML = bars();
+
+    // Budgets
+    $("#budgets").innerHTML = cats.filter(function (c) { return c.budget > 0; }).map(function (c) {
+      var used = byCat[c.name] || 0;
+      var pct = Math.min(100, used / c.budget * 100);
+      var cls = used > c.budget ? "over" : used > c.budget * 0.85 ? "near" : "";
+      return '<div class="bt__budget"><div class="bt__bhead"><span>' + esc(c.name) + "</span>"
+        + '<span class="mono" style="font-size:12px;color:var(--steel)">' + money(used) + " / " + money(c.budget) + "</span></div>"
+        + '<div class="bt__bbar"><i class="' + cls + '" style="width:' + pct.toFixed(1) + '%"></i></div></div>';
+    }).join("") || '<p class="empty">No budgets set.</p>';
+
+    // Table
+    var q = $("#q").value.trim().toLowerCase();
+    var shown = list.filter(function (t) {
+      return !q || (t.desc + " " + t.cat).toLowerCase().indexOf(q) !== -1;
+    }).sort(function (a, b) { return a.date < b.date ? 1 : -1; });
+
+    $("#rows").innerHTML = shown.map(function (t) {
+      var i = txns.indexOf(t);
+      return "<tr><td class='mono' style='white-space:nowrap'>" + esc(t.date.slice(8) + "/" + t.date.slice(5, 7))
+        + "</td><td>" + esc(t.desc) + "</td><td><span class='chip' style='border-color:" + esc(catOf(t.cat).colour) + "'>"
+        + esc(t.cat) + "</span></td><td class='num " + (t.type === "income" ? "bt__pos" : "") + "'>"
+        + (t.type === "income" ? "+" : "−") + money(t.cents).replace("−", "")
+        + "</td><td><button class='bt__ico' data-del='" + i + "' aria-label='Delete " + esc(t.desc) + "'>✕</button></td></tr>";
+    }).join("") || "<tr><td colspan='5'><span class='empty'>Nothing this month.</span></td></tr>";
+
+    $("#t-cat").innerHTML = cats.map(function (c) { return "<option>" + esc(c.name) + "</option>"; }).join("");
+    save();
+  }
+
+  /* --- events ------------------------------------------------------------ */
+
+  $("#prev").addEventListener("click", function () { view.setMonth(view.getMonth() - 1); render(); });
+  $("#next").addEventListener("click", function () { view.setMonth(view.getMonth() + 1); render(); });
+  Bench.live($("#q"), Bench.debounce(render, 120));
+
+  $("#form").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var cents = Math.round((Number($("#t-amt").value) || 0) * 100);
+    if (cents <= 0) { Bench.toast("Enter an amount above zero", "bad"); return; }
+    txns.push({
+      date: $("#t-date").value || key(new Date()),
+      desc: $("#t-desc").value.trim() || "Transaction",
+      cents: cents, type: $("#t-type").value, cat: $("#t-cat").value
+    });
+    $("#t-amt").value = ""; $("#t-desc").value = "";
+    render();
+  });
+
+  $("#rows").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-del]");
+    if (!b) return;
+    txns.splice(+b.dataset.del, 1);
+    render();
+  });
+
+  $("#exp-csv").addEventListener("click", function () {
+    var rows = [["date", "description", "category", "type", "amount"]].concat(txns.map(function (t) {
+      return [t.date, t.desc, t.cat, t.type, (t.cents / 100).toFixed(2)];
+    }));
+    Bench.download("transactions.csv", rows.map(function (r) {
+      return r.map(function (v) { return /[",\n]/.test(v) ? '"' + String(v).replace(/"/g, '""') + '"' : v; }).join(",");
+    }).join("\n"), "text/csv");
+  });
+
+  $("#imp").addEventListener("click", function () { $("#imp-file").click(); });
+  $("#imp-file").addEventListener("change", function () {
+    var f = this.files[0];
+    this.value = "";
+    if (!f) return;
+    Bench.readFile(f).then(function (text) {
+      var lines = text.replace(/\r\n?/g, "\n").split("\n").filter(function (l) { return l.trim(); });
+      if (lines.length < 2) { Bench.toast("That CSV has no rows", "bad"); return; }
+      var head = lines[0].toLowerCase().split(",").map(function (s) { return s.trim(); });
+      var ix = {
+        date: head.indexOf("date"), desc: head.findIndex(function (h) { return /desc/.test(h); }),
+        cat: head.indexOf("category"), type: head.indexOf("type"),
+        amt: head.findIndex(function (h) { return /amount|value/.test(h); })
+      };
+      if (ix.date === -1 || ix.amt === -1) { Bench.toast("Need at least date and amount columns", "bad"); return; }
+      var added = 0;
+      lines.slice(1).forEach(function (l) {
+        var cells = [], cur = "", q = false;
+        for (var i = 0; i < l.length; i++) {
+          var ch = l[i];
+          if (q) { if (ch === '"') { if (l[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += ch; }
+          else if (ch === '"') q = true;
+          else if (ch === ",") { cells.push(cur); cur = ""; }
+          else cur += ch;
+        }
+        cells.push(cur);
+        var amt = Number(String(cells[ix.amt]).replace(/[^0-9.-]/g, ""));
+        if (!isFinite(amt) || !cells[ix.date]) return;
+        txns.push({
+          date: cells[ix.date].trim(),
+          desc: (ix.desc !== -1 ? cells[ix.desc] : "Imported").trim() || "Imported",
+          cents: Math.round(Math.abs(amt) * 100),
+          type: ix.type !== -1 ? (/inc/i.test(cells[ix.type]) ? "income" : "expense") : (amt >= 0 ? "income" : "expense"),
+          cat: (ix.cat !== -1 && cells[ix.cat] ? cells[ix.cat].trim() : "Other")
+        });
+        added++;
+      });
+      render();
+      Bench.toast("Imported " + Bench.plural(added, "transaction"));
+    });
+  });
+
+  $("#sample").addEventListener("click", function () { txns = seed(); render(); });
+
+  $("#wipe").addEventListener("click", function () {
+    var b = $("#wipe");
+    if (b.dataset.armed) { txns = []; render(); b.textContent = "Clear"; delete b.dataset.armed; return; }
+    b.dataset.armed = "1";
+    b.textContent = "Really clear?";
+    setTimeout(function () { if (b.dataset.armed) { b.textContent = "Clear"; delete b.dataset.armed; } }, 3500);
+  });
+
+  $("#t-date").value = key(new Date());
+  render();
+});
+</script>
+
+</body>
+</html>
