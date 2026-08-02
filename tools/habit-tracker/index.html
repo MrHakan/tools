@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Habit Tracker — Bench</title>
+<meta name="description" content="Mark habits off daily and watch the streaks build, on a grid of the last ten weeks.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/css/bench.css">
+<style>
+  .ht__scroll { overflow-x: auto; }
+  .ht__grid { display: grid; gap: 3px; min-width: max-content; }
+  .ht__name {
+    font-size: 13px; font-weight: 600; padding-right: 10px; white-space: nowrap;
+    display: flex; align-items: center; gap: 7px; position: sticky; left: 0;
+    background: var(--card); z-index: 1; padding-left: 2px;
+  }
+  .ht__dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+  .ht__cell {
+    width: 15px; height: 15px; border-radius: 3px; border: 1px solid var(--edge);
+    background: var(--sunk); padding: 0;
+  }
+  .ht__cell:hover { border-color: var(--signal); }
+  .ht__cell--today { box-shadow: 0 0 0 2px var(--signal); }
+  .ht__cell--future { opacity: .3; pointer-events: none; }
+  .ht__mon { font-family: var(--mono); font-size: 9px; color: var(--steel); height: 12px; }
+  .ht__hab { border-bottom: 1px solid var(--edge); padding: 10px 0; }
+  .ht__hab:last-child { border-bottom: 0; }
+  .ht__stats { display: flex; gap: 14px; font-family: var(--mono); font-size: 11px; color: var(--steel); margin-top: 5px; flex-wrap: wrap; }
+  .ht__ico { width: 24px; height: 24px; display: grid; place-items: center; background: none; border: 1px solid transparent; border-radius: var(--r); color: var(--steel); font-size: 11px; }
+  .ht__ico:hover { border-color: var(--signal); color: var(--signal); }
+  .ht__ico--del:hover { border-color: var(--fault); color: var(--fault); }
+  .ht__todo { display: flex; align-items: center; gap: 10px; padding: 9px 11px; border: 1px solid var(--edge); border-radius: var(--r); background: var(--card); margin-bottom: 7px; }
+  .ht__todo--done { opacity: .55; }
+  .ht__check { width: 22px; height: 22px; border-radius: 5px; border: 1.5px solid var(--edge-2); background: none; flex: none; display: grid; place-items: center; font-size: 12px; color: #fff; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__home" href="../../index.html"><span class="topbar__mark">▚</span> bench</a>
+  <span class="topbar__sep">/</span>
+  <span class="topbar__here">Habit Tracker</span>
+  <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
+</header>
+
+<main class="wrap">
+
+  <div class="toolhead">
+    <p class="toolhead__spec mono">▮▮▮▮▮▯▮</p>
+    <h1 class="toolhead__title">Habit Tracker</h1>
+    <p class="toolhead__desc">Mark things off as you do them and watch the streaks build. Everything stays in this browser.</p>
+  </div>
+
+  <div class="split split--narrow">
+
+    <section class="panel">
+      <h2 class="panel__title">The last ten weeks</h2>
+      <div class="ht__scroll">
+        <div id="grid"></div>
+      </div>
+      <p class="empty" id="grid-empty" hidden>No habits yet. Add one on the right.</p>
+    </section>
+
+    <div class="stack">
+
+      <section class="panel">
+        <h2 class="panel__title">Today</h2>
+        <div id="today"></div>
+        <div id="today-note" style="margin-top:10px"></div>
+      </section>
+
+      <section class="panel">
+        <h2 class="panel__title">Add a habit</h2>
+        <form id="form">
+          <div class="field">
+            <label class="label" for="f-name">Name</label>
+            <input class="input" id="f-name" placeholder="Read for 20 minutes" autocomplete="off">
+          </div>
+          <div class="split" style="gap:12px">
+            <div class="field">
+              <label class="label" for="f-target">Target</label>
+              <select class="select" id="f-target">
+                <option value="7">Every day</option>
+                <option value="5">5 times a week</option>
+                <option value="3">3 times a week</option>
+                <option value="2">Twice a week</option>
+                <option value="1">Once a week</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="label" for="f-colour">Colour</label>
+              <input type="color" id="f-colour" value="#e0521a" style="width:100%">
+            </div>
+          </div>
+          <button class="btn btn--primary" type="submit">Add habit</button>
+        </form>
+      </section>
+
+      <section class="panel">
+        <h2 class="panel__title">Data</h2>
+        <div class="row">
+          <button class="btn btn--sm" id="exp">Export JSON</button>
+          <button class="btn btn--sm" id="imp">Import</button>
+          <input type="file" id="imp-file" accept=".json" hidden>
+          <button class="btn btn--sm btn--danger" id="wipe">Clear all</button>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <footer class="foot">
+    <a href="../../index.html">← All tools</a>
+    <span>·</span>
+    <span>Runs entirely in your browser</span>
+  </footer>
+
+</main>
+
+<script src="../../assets/js/bench.js" defer></script>
+<script defer>
+document.addEventListener("DOMContentLoaded", function () {
+  "use strict";
+  var $ = Bench.$, $$ = Bench.$$, esc = Bench.esc;
+  var store = Bench.store("habit-tracker");
+
+  var WEEKS = 10;
+
+  // Local calendar dates only. toISOString() shifts the day for anyone behind
+  // UTC, which would file an evening tick under tomorrow.
+  function key(d) {
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0")
+      + "-" + String(d.getDate()).padStart(2, "0");
+  }
+  function addDays(d, n) { var x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() + n); return x; }
+
+  function seed() {
+    var out = [
+      { id: "h1", name: "Read for 20 minutes", colour: "#e0521a", target: 7, done: {} },
+      { id: "h2", name: "Walk outside", colour: "#0f7a5a", target: 5, done: {} }
+    ];
+    var today = new Date();
+    for (var i = 0; i < 40; i++) {
+      var d = addDays(today, -i);
+      if (i % 7 !== 3) out[0].done[key(d)] = true;
+      if (i % 3 !== 0 && i % 7 !== 5) out[1].done[key(d)] = true;
+    }
+    return out;
+  }
+
+  var habits = store.get("habits", null) || seed();
+
+  function save() { store.set("habits", habits); }
+
+  /* --- maths ----------------------------------------------------------- */
+
+  function streak(h) {
+    var n = 0;
+    var d = new Date();
+    // Today not yet ticked shouldn't break a run that is still live.
+    if (!h.done[key(d)]) d = addDays(d, -1);
+    while (h.done[key(d)]) { n++; d = addDays(d, -1); }
+    return n;
+  }
+
+  function longest(h) {
+    var keys = Object.keys(h.done).filter(function (k) { return h.done[k]; }).sort();
+    var best = 0, run = 0, prev = null;
+    keys.forEach(function (k) {
+      var d = new Date(k + "T00:00:00");
+      if (prev && Math.round((d - prev) / 86400000) === 1) run++;
+      else run = 1;
+      if (run > best) best = run;
+      prev = d;
+    });
+    return best;
+  }
+
+  function rate(h) {
+    var hits = 0, total = 0;
+    var today = new Date();
+    for (var i = 0; i < WEEKS * 7; i++) {
+      var d = addDays(today, -i);
+      total++;
+      if (h.done[key(d)]) hits++;
+    }
+    var expected = total / 7 * h.target;
+    return expected ? Math.min(999, Math.round(hits / expected * 100)) : 0;
+  }
+
+  /* --- render ---------------------------------------------------------- */
+
+  function render() {
+    $("#grid-empty").hidden = habits.length > 0;
+
+    var today = new Date();
+    // Start on the Monday of the week WEEKS-1 weeks ago.
+    var dow = (today.getDay() + 6) % 7;
+    var start = addDays(today, -(dow + (WEEKS - 1) * 7));
+
+    var cols = WEEKS + 1;
+    var html = '<div class="ht__grid" style="grid-template-columns: auto repeat(' + (cols * 7) + ', 15px)">';
+
+    // Month ruler
+    html += '<div class="ht__mon"></div>';
+    var lastMonth = -1;
+    for (var c = 0; c < cols * 7; c++) {
+      var d0 = addDays(start, c);
+      var show = d0.getMonth() !== lastMonth && d0.getDate() <= 7;
+      if (show) lastMonth = d0.getMonth();
+      html += '<div class="ht__mon">' + (show ? d0.toLocaleDateString(undefined, { month: "short" }).slice(0, 3) : "") + "</div>";
+    }
+
+    habits.forEach(function (h) {
+      html += '<div class="ht__name"><span class="ht__dot" style="background:' + esc(h.colour) + '"></span>'
+        + esc(h.name) + "</div>";
+      for (var i = 0; i < cols * 7; i++) {
+        var d = addDays(start, i);
+        var k = key(d);
+        var on = !!h.done[k];
+        var future = d > today;
+        var isToday = k === key(today);
+        html += '<button class="ht__cell' + (isToday ? " ht__cell--today" : "") + (future ? " ht__cell--future" : "")
+          + '" data-h="' + h.id + '" data-d="' + k + '"'
+          + (on ? ' style="background:' + esc(h.colour) + ';border-color:' + esc(h.colour) + '"' : "")
+          + ' title="' + esc(h.name + " — " + d.toDateString() + (on ? " ✓" : "")) + '"'
+          + ' aria-label="' + esc(h.name + " on " + d.toDateString()) + ', ' + (on ? "done" : "not done") + '"'
+          + (future ? " disabled" : "") + "></button>";
+      }
+    });
+
+    $("#grid").innerHTML = html + "</div>";
+
+    // Per-habit stats and today's list
+    var todayKey = key(today);
+    var outstanding = 0;
+
+    $("#today").innerHTML = habits.map(function (h) {
+      var on = !!h.done[todayKey];
+      if (!on) outstanding++;
+      return '<div class="ht__todo' + (on ? " ht__todo--done" : "") + '">'
+        + '<button class="ht__check" data-toggle="' + h.id + '" aria-label="'
+        + (on ? "Unmark" : "Mark") + " " + esc(h.name) + '"'
+        + (on ? ' style="background:' + esc(h.colour) + ';border-color:' + esc(h.colour) + '"' : "") + ">"
+        + (on ? "✓" : "") + "</button>"
+        + '<span class="grow"><span style="font-size:14px;font-weight:600">' + esc(h.name) + "</span>"
+        + '<span class="ht__stats"><span>' + Bench.plural(streak(h), "day") + " streak</span>"
+        + "<span>best " + longest(h) + "</span>"
+        + "<span>" + rate(h) + "% of target</span></span></span>"
+        + '<button class="ht__ico ht__ico--del" data-del="' + h.id + '" aria-label="Delete ' + esc(h.name) + '">✕</button>'
+        + "</div>";
+    }).join("") || '<p class="empty">Add a habit to get started.</p>';
+
+    $("#today-note").innerHTML = habits.length
+      ? (outstanding
+        ? '<div class="note note--warn"><span class="note__mark">!</span><span>'
+          + Bench.plural(outstanding, "habit") + " still to do today.</span></div>"
+        : '<div class="note note--ok"><span class="note__mark">✓</span><span>Everything done today.</span></div>')
+      : "";
+
+    save();
+  }
+
+  /* --- events ---------------------------------------------------------- */
+
+  function toggle(id, k) {
+    var h = habits.filter(function (x) { return x.id === id; })[0];
+    if (!h) return;
+    if (h.done[k]) delete h.done[k]; else h.done[k] = true;
+    render();
+  }
+
+  $("#grid").addEventListener("click", function (e) {
+    var c = e.target.closest("[data-h]");
+    if (c) toggle(c.dataset.h, c.dataset.d);
+  });
+
+  $("#today").addEventListener("click", function (e) {
+    var t = e.target.closest("[data-toggle]");
+    if (t) { toggle(t.dataset.toggle, key(new Date())); return; }
+    var d = e.target.closest("[data-del]");
+    if (!d) return;
+    if (d.dataset.armed) {
+      habits = habits.filter(function (h) { return h.id !== d.dataset.del; });
+      render();
+      return;
+    }
+    d.dataset.armed = "1";
+    d.textContent = "?";
+    setTimeout(function () { if (d.isConnected) { d.textContent = "✕"; delete d.dataset.armed; } }, 3000);
+  });
+
+  $("#form").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var name = $("#f-name").value.trim();
+    if (!name) return;
+    habits.push({
+      id: Date.now().toString(36) + Bench.randInt(1e6).toString(36),
+      name: name, colour: $("#f-colour").value,
+      target: Number($("#f-target").value), done: {}
+    });
+    $("#f-name").value = "";
+    render();
+  });
+
+  $("#exp").addEventListener("click", function () {
+    Bench.download("habits.json", JSON.stringify(habits, null, 2), "application/json");
+  });
+
+  $("#imp").addEventListener("click", function () { $("#imp-file").click(); });
+  $("#imp-file").addEventListener("change", function () {
+    var f = this.files[0];
+    this.value = "";
+    if (!f) return;
+    Bench.readFile(f).then(function (t) {
+      var data;
+      try { data = JSON.parse(t); } catch (e) { Bench.toast("That file is not valid JSON", "bad"); return; }
+      if (!Array.isArray(data)) { Bench.toast("That JSON is not a habit list", "bad"); return; }
+      habits = data.filter(function (h) { return h && h.name; }).map(function (h) {
+        return { id: String(h.id || Date.now().toString(36) + Bench.randInt(1e6).toString(36)),
+          name: String(h.name), colour: /^#[0-9a-f]{6}$/i.test(h.colour) ? h.colour : "#e0521a",
+          target: Number(h.target) || 7, done: (h.done && typeof h.done === "object") ? h.done : {} };
+      });
+      render();
+      Bench.toast("Imported " + Bench.plural(habits.length, "habit"));
+    });
+  });
+
+  $("#wipe").addEventListener("click", function () {
+    var b = $("#wipe");
+    if (b.dataset.armed) { habits = []; render(); b.textContent = "Clear all"; delete b.dataset.armed; return; }
+    b.dataset.armed = "1";
+    b.textContent = "Really clear everything?";
+    setTimeout(function () { if (b.dataset.armed) { b.textContent = "Clear all"; delete b.dataset.armed; } }, 3500);
+  });
+
+  render();
+});
+</script>
+
+</body>
+</html>
