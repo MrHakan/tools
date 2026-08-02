@@ -125,7 +125,7 @@ window.BENCH_TOOLS = [
     blurb: "A local AES-GCM vault behind one master password.", keys: "password manager encrypt secret store aes export" },
   { slug: "http-status", cat: "Media & misc", spec: "404 Not Found", name: "HTTP Status Codes",
     blurb: "Every status code, searchable, with when to use it.", keys: "http response code reference rest api 200 500 301" },
-  { soon: true, slug: "git-cheatsheet", cat: "Media & misc", spec: "git rebase -i", name: "Git Cheat Sheet",
+  { slug: "git-cheatsheet", cat: "Media & misc", spec: "git rebase -i", name: "Git Cheat Sheet",
     blurb: "Common commands with worked scenarios.", keys: "version control reference rebase merge reset stash undo" },
   { slug: "whiteboard", cat: "Media & misc", spec: "▭ ○ ⟋ ✎", name: "Whiteboard",
     blurb: "Sketch boxes, arrows and notes, export as PNG.", keys: "draw diagram excalidraw canvas sketch shapes export" },

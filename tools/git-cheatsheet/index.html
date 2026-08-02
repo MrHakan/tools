@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Git Cheat Sheet — Bench</title>
+<meta name="description" content="Common git commands with click-to-copy, plus worked steps for the situations people actually get stuck in.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/css/bench.css">
+<style>
+  .git__cmd {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 3px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--edge);
+  }
+  .git__cmd:last-child { border-bottom: 0; }
+  .git__cmd:hover { background: var(--signal-soft); }
+  .git__code {
+    display: block;
+    width: 100%;
+    text-align: left;
+    font-family: var(--mono);
+    font-size: 13px;
+    background: none;
+    border: 0;
+    padding: 0;
+    color: var(--ink);
+    overflow-wrap: anywhere;
+  }
+  .git__code:hover { color: var(--signal); }
+  .git__code::after { content: " ⧉"; color: var(--steel); font-size: 11px; }
+  .git__what { font-size: 12.5px; color: var(--steel); line-height: 1.45; }
+  .git__danger { color: var(--fault); font-size: 11.5px; font-family: var(--mono); }
+
+  .git__group { border: 1px solid var(--edge); border-radius: var(--r); background: var(--card); margin-bottom: 12px; overflow: hidden; }
+  .git__grouphead {
+    font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: .09em;
+    color: var(--steel); background: var(--sunk); padding: 7px 12px; border-bottom: 1px solid var(--edge);
+    display: flex; justify-content: space-between;
+  }
+
+  .git__cols { columns: 2; column-gap: 12px; }
+  .git__cols > * { break-inside: avoid; }
+  @media (max-width: 900px) { .git__cols { columns: 1; } }
+
+  .git__fix { border: 1px solid var(--edge); border-radius: var(--r); background: var(--card); margin-bottom: 10px; overflow: hidden; }
+  .git__fixq {
+    width: 100%; text-align: left; background: none; border: 0;
+    padding: 12px 14px; font-size: 14.5px; font-weight: 600; color: var(--ink);
+    display: flex; gap: 10px; align-items: baseline;
+  }
+  .git__fixq:hover { color: var(--signal); }
+  .git__fixq::before { content: "▸"; color: var(--signal); font-family: var(--mono); flex: none; }
+  .git__fix[open] .git__fixq::before { content: "▾"; }
+  .git__fixbody { padding: 0 14px 14px 34px; }
+  .git__step { margin-bottom: 10px; }
+  .git__step p { font-size: 13px; color: var(--steel); margin-bottom: 4px; line-height: 1.45; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__home" href="../../index.html"><span class="topbar__mark">▚</span> bench</a>
+  <span class="topbar__sep">/</span>
+  <span class="topbar__here">Git Cheat Sheet</span>
+  <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
+</header>
+
+<main class="wrap">
+
+  <div class="toolhead">
+    <p class="toolhead__spec mono">git rebase -i</p>
+    <h1 class="toolhead__title">Git Cheat Sheet</h1>
+    <p class="toolhead__desc">Click any command to copy it. The second half covers the situations people actually get stuck in.</p>
+  </div>
+
+  <section class="panel">
+    <label class="sr-only" for="q">Search commands</label>
+    <input class="input input--mono" id="q" type="search" placeholder="Search — try rebase, undo, stash, remote…" autocomplete="off" spellcheck="false">
+    <div class="chips" id="cats" style="margin-top:12px"></div>
+  </section>
+
+  <div id="list" style="margin-top:var(--gap)"></div>
+  <p class="noresult" id="none" hidden>Nothing matches <b id="noneq"></b>.</p>
+
+  <h2 class="cat__name" style="margin:36px 0 14px">When things go wrong</h2>
+  <div id="fixes"></div>
+
+  <footer class="foot">
+    <a href="../../index.html">← All tools</a>
+    <span>·</span>
+    <span>Runs entirely in your browser</span>
+  </footer>
+
+</main>
+
+<script src="../../assets/js/bench.js" defer></script>
+<script defer>
+document.addEventListener("DOMContentLoaded", function () {
+  "use strict";
+  var $ = Bench.$, $$ = Bench.$$, esc = Bench.esc;
+
+  // [command, what it does, danger note?]
+  var GROUPS = [
+    ["Setting up", [
+      ["git init", "Start tracking the current folder."],
+      ["git clone <url>", "Copy a remote repository, with its full history."],
+      ["git clone --depth 1 <url>", "Copy only the latest commit — much faster for a big repo you only want to read."],
+      ["git config --global user.name \"Your Name\"", "Set the name attached to your commits."],
+      ["git config --global user.email \"you@example.com\"", "Set the email attached to your commits."],
+      ["git config --global init.defaultBranch main", "Name the first branch main in new repositories."],
+      ["git config --list --show-origin", "Show every setting and which file it came from."]
+    ]],
+
+    ["Looking around", [
+      ["git status", "What has changed, what is staged, what branch you are on."],
+      ["git status -sb", "The same, in two compact columns."],
+      ["git log --oneline --graph --decorate --all", "The whole history as a readable graph."],
+      ["git log -p <file>", "Every change ever made to one file, with diffs."],
+      ["git log --since=\"2 weeks ago\" --author=\"name\"", "Filter history by date and author."],
+      ["git diff", "Changes you have not staged yet."],
+      ["git diff --staged", "Changes that are staged and will go in the next commit."],
+      ["git diff main...feature", "What feature adds, compared to where it branched off main."],
+      ["git show <commit>", "The full contents of one commit."],
+      ["git blame <file>", "Who last touched each line, and in which commit."],
+      ["git reflog", "Every position HEAD has been in. This is how you recover from almost anything."]
+    ]],
+
+    ["Staging and committing", [
+      ["git add <file>", "Stage one file for the next commit."],
+      ["git add -p", "Step through each change and choose what to stage. The habit that produces clean commits."],
+      ["git add -A", "Stage everything, including deletions."],
+      ["git restore --staged <file>", "Unstage a file but keep the edit."],
+      ["git restore <file>", "Throw away uncommitted changes to a file.", "This deletes work that was never committed. It cannot be recovered."],
+      ["git commit -m \"message\"", "Commit what is staged."],
+      ["git commit -am \"message\"", "Stage all tracked files and commit in one step."],
+      ["git commit --amend", "Fold new changes into the previous commit, or reword it.", "Rewrites the last commit. Do not amend anything you have already pushed and shared."],
+      ["git commit --amend --no-edit", "Add to the last commit without changing its message."]
+    ]],
+
+    ["Branching", [
+      ["git switch <branch>", "Move to an existing branch. (Older git: git checkout.)"],
+      ["git switch -c <branch>", "Create a branch and move to it. (Older git: git checkout -b.)"],
+      ["git switch -", "Jump back to the branch you were just on."],
+      ["git branch", "List local branches."],
+      ["git branch -vv", "List branches with their upstream and how far ahead or behind they are."],
+      ["git branch -d <branch>", "Delete a branch that has been merged."],
+      ["git branch -D <branch>", "Delete a branch whether or not it was merged.", "Unmerged commits become unreachable. git reflog can still find them for a while."],
+      ["git branch -m <old> <new>", "Rename a branch."]
+    ]],
+
+    ["Merging and rebasing", [
+      ["git merge <branch>", "Bring another branch's commits into this one."],
+      ["git merge --no-ff <branch>", "Merge and always create a merge commit, so the branch stays visible in history."],
+      ["git merge --abort", "Give up on a merge that is going badly and return to where you started."],
+      ["git rebase <branch>", "Replay your commits on top of another branch, so history stays linear.", "Rewrites your commits. Only rebase work you have not shared."],
+      ["git rebase -i HEAD~5", "Reorder, squash, reword or drop the last five commits.", "Rewrites history. Fine on your own branch, disruptive on a shared one."],
+      ["git rebase --continue", "Carry on after resolving a conflict."],
+      ["git rebase --abort", "Undo the whole rebase and go back to where you started."],
+      ["git cherry-pick <commit>", "Copy one commit from anywhere onto the current branch."],
+      ["git revert <commit>", "Make a new commit that undoes an old one. Safe on shared branches."]
+    ]],
+
+    ["Remotes", [
+      ["git remote -v", "List remotes and their URLs."],
+      ["git remote add origin <url>", "Point this repository at a remote."],
+      ["git fetch", "Download new commits without changing your working files."],
+      ["git pull", "Fetch and merge the upstream branch."],
+      ["git pull --rebase", "Fetch, then replay your local commits on top. Avoids a merge commit on every pull."],
+      ["git push", "Send your commits to the remote."],
+      ["git push -u origin <branch>", "Push and remember the upstream, so later pushes need no arguments."],
+      ["git push --force-with-lease", "Overwrite the remote branch, but refuse if someone else pushed first.", "Still rewrites shared history. Always prefer this over --force, which skips that safety check."],
+      ["git push origin --delete <branch>", "Delete a branch on the remote."]
+    ]],
+
+    ["Stashing", [
+      ["git stash", "Put uncommitted changes aside and return to a clean tree."],
+      ["git stash -u", "Stash untracked files too."],
+      ["git stash push -m \"note\" <file>", "Stash specific files, with a label."],
+      ["git stash list", "Show everything you have stashed."],
+      ["git stash pop", "Restore the newest stash and remove it from the list."],
+      ["git stash apply stash@{2}", "Restore a specific stash and keep it in the list."],
+      ["git stash drop stash@{0}", "Delete a stash entry.", "The stashed changes are gone unless you can still find the commit in the reflog."]
+    ]],
+
+    ["Undoing", [
+      ["git restore <file>", "Discard uncommitted changes to a file.", "Uncommitted work cannot be recovered."],
+      ["git reset --soft HEAD~1", "Undo the last commit, keeping everything staged."],
+      ["git reset HEAD~1", "Undo the last commit, keeping the changes but unstaged."],
+      ["git reset --hard HEAD~1", "Undo the last commit and delete its changes.", "Destroys uncommitted work outright. The commit itself is still in the reflog."],
+      ["git clean -n", "List untracked files that git clean would delete. Always run this first."],
+      ["git clean -fd", "Delete untracked files and folders.", "These files were never in git, so nothing can bring them back."],
+      ["git revert <commit>", "Undo a commit with a new commit, leaving history intact."]
+    ]],
+
+    ["Tags and releases", [
+      ["git tag", "List tags."],
+      ["git tag -a v1.2.0 -m \"Release 1.2.0\"", "Create an annotated tag, which records who made it and when."],
+      ["git tag -d v1.2.0", "Delete a local tag."],
+      ["git push origin v1.2.0", "Push one tag."],
+      ["git push --tags", "Push every local tag."],
+      ["git describe --tags", "Name the current commit relative to the nearest tag."]
+    ]],
+
+    ["Submodules and worktrees", [
+      ["git submodule add <url> <path>", "Embed another repository at a path."],
+      ["git submodule update --init --recursive", "Fetch and check out every submodule. Run this after cloning."],
+      ["git worktree add ../hotfix <branch>", "Check out a second branch in a separate folder, sharing one history."],
+      ["git worktree list", "Show every working tree attached to this repository."],
+      ["git worktree remove ../hotfix", "Detach a working tree when you are finished with it."]
+    ]]
+  ];
+
+  var FIXES = [
+    ["I committed to the wrong branch", [
+      ["Note the commit you want to move.", "git log --oneline -1"],
+      ["Move to the branch it belongs on. Create it if it does not exist yet.", "git switch -c the-right-branch"],
+      ["Copy the commit across.", "git cherry-pick <commit>"],
+      ["Go back and drop it from the branch it should not be on.", "git switch the-wrong-branch"],
+      ["Remove the last commit there, keeping nothing behind. Check git log first.", "git reset --hard HEAD~1"]
+    ], "If you have not committed yet, git stash, switch branch, git stash pop is simpler."],
+
+    ["I need to undo the last commit but keep my changes", [
+      ["Undo the commit and leave everything staged, ready to re-commit.", "git reset --soft HEAD~1"],
+      ["Or undo it and leave the changes unstaged, so you can re-split them.", "git reset HEAD~1"]
+    ], "Neither of these touches your files. Only --hard deletes work."],
+
+    ["I committed a secret", [
+      ["If it is not pushed yet, and it was the last commit: remove the file, then amend.", "git rm --cached path/to/secret"],
+      ["Amend the commit so the file was never in it.", "git commit --amend --no-edit"],
+      ["If it is already pushed, or buried in older commits, rewrite every commit that touched it. git-filter-repo is the supported tool.", "git filter-repo --path path/to/secret --invert-paths"],
+      ["Then force the rewritten history up, refusing if someone else pushed meanwhile.", "git push --force-with-lease --all"]
+    ], "Rewriting history does not un-leak the secret. Anyone may have already fetched it, and hosting providers keep unreachable objects for a while. Rotate the credential first — that is the only step that actually protects you. Then clean the history."],
+
+    ["I need to change an old commit message", [
+      ["Start an interactive rebase covering the commit, plus a little room.", "git rebase -i HEAD~5"],
+      ["Change pick to reword on the line for that commit, save, and git will reopen the editor for its message.", ""],
+      ["When you are done.", "git rebase --continue"],
+      ["If the branch was already pushed, update it.", "git push --force-with-lease"]
+    ], "This gives every rewritten commit a new hash, so anyone else working on the branch will have to reset onto it."],
+
+    ["My rebase is a mess and I want out", [
+      ["Abandon the rebase and return to exactly where you started.", "git rebase --abort"],
+      ["If you already finished it and want the old state back, find it in the reflog.", "git reflog"],
+      ["Reset onto the entry from before the rebase.", "git reset --hard HEAD@{5}"]
+    ], "The reflog keeps unreachable commits for 90 days by default, so a finished rebase is almost always recoverable."],
+
+    ["I deleted a branch I still needed", [
+      ["Find the tip of the deleted branch. Its commits are unreachable, not gone.", "git reflog"],
+      ["Recreate the branch at that commit.", "git branch recovered <commit>"],
+      ["Or if you know the hash already.", "git switch -c recovered <commit>"]
+    ], "This works for as long as the commits survive garbage collection — 90 days by default."],
+
+    ["Git says my branch and origin have diverged", [
+      ["See exactly how far apart they are.", "git log --oneline --graph --left-right HEAD...@{u}"],
+      ["Usually you want your commits on top of theirs.", "git pull --rebase"],
+      ["If a conflict stops it, fix the files, stage them, and carry on.", "git rebase --continue"]
+    ], "Reach for git push --force only when you are certain nobody else has the old commits, and use --force-with-lease even then."]
+  ];
+
+  /* --- render --------------------------------------------------------- */
+
+  var active = "";
+
+  function cmdHTML(c) {
+    return '<div class="git__cmd" data-hay="' + esc((c[0] + " " + c[1]).toLowerCase()) + '">'
+      + '<button class="git__code" type="button">' + esc(c[0]) + "</button>"
+      + '<span class="git__what">' + esc(c[1]) + "</span>"
+      + (c[2] ? '<span class="git__danger">⚠ ' + esc(c[2]) + "</span>" : "")
+      + "</div>";
+  }
+
+  function render() {
+    var q = $("#q").value.trim().toLowerCase();
+    var terms = q ? q.split(/\s+/) : [];
+    var shown = 0;
+
+    $("#list").innerHTML = '<div class="git__cols">' + GROUPS.map(function (g) {
+      if (active && g[0] !== active) return "";
+      var cmds = g[1].filter(function (c) {
+        var hay = (c[0] + " " + c[1] + " " + g[0]).toLowerCase();
+        return terms.every(function (t) { return hay.indexOf(t) !== -1; });
+      });
+      if (!cmds.length) return "";
+      shown += cmds.length;
+      return '<div class="git__group"><div class="git__grouphead"><span>' + esc(g[0])
+        + "</span><span>" + cmds.length + "</span></div>"
+        + cmds.map(cmdHTML).join("") + "</div>";
+    }).join("") + "</div>";
+
+    $("#none").hidden = shown > 0;
+    if (!shown) $("#noneq").textContent = '"' + $("#q").value.trim() + '"';
+  }
+
+  $("#cats").innerHTML = '<button class="chip chip--on" data-cat="">All</button>'
+    + GROUPS.map(function (g) {
+        return '<button class="chip" data-cat="' + esc(g[0]) + '">' + esc(g[0]) + "</button>";
+      }).join("");
+
+  $("#cats").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-cat]");
+    if (!b) return;
+    active = b.dataset.cat;
+    $$("#cats .chip").forEach(function (c) { c.classList.toggle("chip--on", c === b); });
+    render();
+  });
+
+  $("#list").addEventListener("click", function (e) {
+    var b = e.target.closest(".git__code");
+    if (b) Bench.copy(b.textContent, b);
+  });
+
+  Bench.live($("#q"), Bench.debounce(render, 100));
+
+  $("#fixes").innerHTML = FIXES.map(function (f) {
+    return '<details class="git__fix"><summary class="git__fixq">' + esc(f[0]) + "</summary>"
+      + '<div class="git__fixbody">'
+      + f[1].map(function (s) {
+          return '<div class="git__step"><p>' + esc(s[0]) + "</p>"
+            + (s[1] ? '<button class="git__code" type="button">' + esc(s[1]) + "</button>" : "")
+            + "</div>";
+        }).join("")
+      + (f[2] ? '<div class="note note--warn" style="margin-top:10px"><span class="note__mark">!</span><span>' + esc(f[2]) + "</span></div>" : "")
+      + "</div></details>";
+  }).join("");
+
+  $("#fixes").addEventListener("click", function (e) {
+    var b = e.target.closest(".git__code");
+    if (b) Bench.copy(b.textContent, b);
+  });
+
+  render();
+});
+</script>
+
+</body>
+</html>

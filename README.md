@@ -8,9 +8,9 @@ Each tool does one thing. Open the page, paste something in, get something out. 
 
 ## Status
 
-**39 of a planned 59 tools are built and working.** The hub shows the full set: finished tools are live links, the rest render as dashed "building" cards so the shape of the collection stays legible. Nothing links to a page that doesn't exist.
+**40 of a planned 59 tools are built and working.** The hub shows the full set: finished tools are live links, the rest render as dashed "building" cards so the shape of the collection stays legible. Nothing links to a page that doesn't exist.
 
-Built so far: Kanban Board · Diff Checker · JSON Formatter · Regex Tester · Encoder & Hasher · CSV Viewer · JWT Decoder · ID Generator · Timestamp Converter · Number Base Converter · Text Case Converter · .gitignore Generator · License Picker · .env Builder · Rate Limit Calculator · SemVer Calculator · Patch Generator · Word-level Diff · HTML Entity Converter · Cron Explainer · CSS Generator · Contrast Checker · Palette Extractor · Clamp Calculator · Aspect Ratio Calculator · Favicon Generator · Placeholder Image · Markdown Editor · Markdown Table Builder · Text Analyser · Word Counter · Keyword Highlighter · Placeholder Data · Random Generators · QR Code Studio · Image ⇄ Base64 · Meta Tag Preview · HTTP Status Codes · Whiteboard
+Built so far: Kanban Board · Diff Checker · JSON Formatter · Regex Tester · Encoder & Hasher · CSV Viewer · JWT Decoder · ID Generator · Timestamp Converter · Number Base Converter · Text Case Converter · .gitignore Generator · License Picker · .env Builder · Rate Limit Calculator · SemVer Calculator · Patch Generator · Word-level Diff · HTML Entity Converter · Cron Explainer · CSS Generator · Contrast Checker · Palette Extractor · Clamp Calculator · Aspect Ratio Calculator · Favicon Generator · Placeholder Image · Markdown Editor · Markdown Table Builder · Text Analyser · Word Counter · Keyword Highlighter · Placeholder Data · Random Generators · QR Code Studio · Image ⇄ Base64 · Meta Tag Preview · HTTP Status Codes · Git Cheat Sheet · Whiteboard
 
 ## The full plan
 
