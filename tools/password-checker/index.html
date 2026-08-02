@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Password Strength — Bench</title>
+<meta name="description" content="Measure how strong a password really is, see which patterns weaken it, and generate a better one. Nothing is sent anywhere.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/css/bench.css">
+<style>
+  .pw__input { font-family: var(--mono); font-size: 17px; padding: 13px 14px; letter-spacing: .02em; }
+  .pw__meter { height: 8px; background: var(--sunk); border-radius: 4px; overflow: hidden; margin: 14px 0 8px; }
+  .pw__meter i { display: block; height: 100%; transition: width .2s ease, background .2s ease; }
+  @media (prefers-reduced-motion: reduce) { .pw__meter i { transition: none; } }
+  .pw__verdict { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.02em; }
+  .pw__bits { font-family: var(--mono); font-size: 13px; color: var(--steel); }
+  .pw__find {
+    display: flex; gap: 10px; align-items: baseline;
+    padding: 8px 11px; border-left: 3px solid var(--fault);
+    background: var(--fault-soft); border-radius: var(--r); margin-bottom: 6px; font-size: 13px;
+  }
+  .pw__find code { font-family: var(--mono); color: var(--fault); }
+  .pw__cost { margin-left: auto; font-family: var(--mono); font-size: 11.5px; color: var(--steel); white-space: nowrap; }
+  .pw__gen { font-family: var(--mono); font-size: 14px; background: var(--sunk); border: 1px solid var(--edge);
+    border-radius: var(--r); padding: 10px 12px; overflow-wrap: anywhere; user-select: all; margin-bottom: 6px; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__home" href="../../index.html"><span class="topbar__mark">▚</span> bench</a>
+  <span class="topbar__sep">/</span>
+  <span class="topbar__here">Password Strength</span>
+  <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
+</header>
+
+<main class="wrap">
+
+  <div class="toolhead">
+    <p class="toolhead__spec mono">entropy 78 bits</p>
+    <h1 class="toolhead__title">Password Strength</h1>
+    <p class="toolhead__desc">See what a password is really worth, and which patterns are giving it away.</p>
+  </div>
+
+  <div class="note note--info" style="margin-bottom:var(--gap)">
+    <span class="note__mark">i</span>
+    <span>What you type stays in this tab. There is no request to check it against a breach
+    database — doing that would mean sending your password somewhere, which is the one thing a
+    tool like this should never do.</span>
+  </div>
+
+  <div class="split split--narrow">
+
+    <section class="panel">
+      <h2 class="panel__title">Check a password</h2>
+
+      <div class="field">
+        <label class="sr-only" for="pw">Password to check</label>
+        <input class="input pw__input" id="pw" type="text" autocomplete="off" autocapitalize="off"
+               spellcheck="false" placeholder="Type or paste a password" value="Summer2024!">
+      </div>
+
+      <div class="row">
+        <label class="check"><input type="checkbox" id="mask"> Hide what I type</label>
+        <span class="grow"></span>
+        <button class="btn btn--sm" id="clear">Clear</button>
+      </div>
+
+      <div class="pw__meter"><i id="meter"></i></div>
+      <div class="row row--between">
+        <span class="pw__verdict" id="verdict">—</span>
+        <span class="pw__bits" id="bits"></span>
+      </div>
+
+      <h3 class="panel__title" style="margin-top:20px">What weakens it</h3>
+      <div id="findings"></div>
+
+      <h3 class="panel__title" style="margin-top:20px">Time to crack</h3>
+      <div class="tablewrap">
+        <table class="table">
+          <thead><tr><th>Attack</th><th>Guesses / second</th><th>Time</th></tr></thead>
+          <tbody id="crack"></tbody>
+        </table>
+      </div>
+      <p class="empty" style="margin-top:10px; line-height:1.5">
+        Times assume the attacker must search half the keyspace implied by the patterns found
+        above, not the full character space — which is why a long password made of ordinary
+        words can score worse than a short random one.
+      </p>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel__title">Make a better one</h2>
+
+      <div class="row" style="margin-bottom:12px">
+        <button class="btn btn--on" data-gen="random">Random</button>
+        <button class="btn" data-gen="phrase">Passphrase</button>
+      </div>
+
+      <div id="gen-random">
+        <div class="field">
+          <label class="label" for="g-len">Length <span class="mono" id="g-len-n">20</span></label>
+          <input type="range" id="g-len" min="8" max="64" value="20">
+        </div>
+        <div class="row" style="margin-bottom:12px">
+          <label class="check"><input type="checkbox" id="g-upper" checked> A–Z</label>
+          <label class="check"><input type="checkbox" id="g-digit" checked> 0–9</label>
+          <label class="check"><input type="checkbox" id="g-sym" checked> symbols</label>
+          <label class="check"><input type="checkbox" id="g-amb"> no look-alikes</label>
+        </div>
+      </div>
+
+      <div id="gen-phrase" hidden>
+        <div class="field">
+          <label class="label" for="g-words">Words <span class="mono" id="g-words-n">6</span></label>
+          <input type="range" id="g-words" min="3" max="12" value="6">
+        </div>
+        <div class="row" style="margin-bottom:12px">
+          <label class="check"><input type="checkbox" id="g-cap" checked> Capitalise</label>
+          <label class="check"><input type="checkbox" id="g-num" checked> Add digits</label>
+        </div>
+      </div>
+
+      <div class="row" style="margin-bottom:12px">
+        <button class="btn btn--primary" id="g-go">Generate five</button>
+      </div>
+
+      <div id="gen-out"></div>
+      <p class="empty" style="margin-top:10px; line-height:1.5">
+        Generated with <code class="mono">crypto.getRandomValues</code>. Click one to load it into
+        the checker above.
+      </p>
+    </section>
+
+  </div>
+
+  <footer class="foot">
+    <a href="../../index.html">← All tools</a>
+    <span>·</span>
+    <span>Runs entirely in your browser</span>
+  </footer>
+
+</main>
+
+<script src="../../assets/js/bench.js" defer></script>
+<script defer>
+document.addEventListener("DOMContentLoaded", function () {
+  "use strict";
+  var $ = Bench.$, $$ = Bench.$$, esc = Bench.esc;
+
+  /* --- data ----------------------------------------------------------- */
+
+  // The passwords that actually turn up at the top of every breach dump. A
+  // short list catches the overwhelming majority of terrible choices.
+  var COMMON = ("123456 password 123456789 12345678 12345 qwerty 1234567 111111 1234567890 123123 "
+    + "abc123 1234 password1 iloveyou 000000 monkey dragon letmein sunshine princess football "
+    + "welcome shadow master 666666 qwertyuiop 123321 mustang 121212 starwars admin login passw0rd "
+    + "zaq12wsx trustno1 jordan harley hunter buster soccer batman andrew tigger charlie michael "
+    + "jennifer thomas jessica pepper daniel summer ashley bailey passion ginger hammer "
+    + "silver 222222 88888888 anthony justin freedom whatever qazwsx 654321 superman asshole "
+    + "fuckyou computer michelle jesus ninja mickey chelsea samantha access flower hello "
+    + "amanda matrix cookie maggie biteme please yankees joshua nicole hunter2 killer "
+    + "george sexy andrea taylor pussy 1qaz2wsx nothing test guest oracle changeme secret "
+    + "internet service canada hockey ranger jordan23 pass qwerty123 dragon1 letmein1").split(/\s+/);
+
+  // Ordinary words that make a password guessable when they are the whole of it.
+  var WORDS = ("love money happy family friend school house water music green black white light "
+    + "night morning winter spring summer autumn orange purple yellow silver golden dream heart "
+    + "smile angel devil magic power super mega ultra alpha bravo delta echo tango victor "
+    + "north south east west river ocean mountain forest garden flower coffee sugar honey "
+    + "apple banana orange cherry lemon grape peach melon berry candy chocolate cookie "
+    + "table chair window door floor wall roof garden street city town village country world "
+    + "phone laptop screen mouse keyboard printer camera speaker button window server client "
+    + "january february march april may june july august september october november december "
+    + "monday tuesday wednesday thursday friday saturday sunday "
+    + "horse battery staple correct simple secure random secret private public common "
+    + "little great small large long short young old right wrong first last next best "
+    + "brown yellow purple silver golden bright dark quiet loud fast slow warm cold "
+    + "bread cheese butter pepper garlic potato tomato carrot onion salad pasta pizza "
+    + "tiger eagle shark whale panda koala zebra horse mouse rabbit turtle spider "
+    + "guitar violin drums piano trumpet banjo flute cello harp organ").split(/\s+/);
+
+  var GEN_WORDS = ("amber anchor apple arrow autumn beacon birch bishop bottle branch bridge bronze "
+    + "candle canyon carbon cedar cherry cobalt copper coral cotton crimson crystal dagger delta "
+    + "denim desert diamond dolphin dragon ember falcon feather forest fossil garden granite harbor "
+    + "harvest hazel hollow indigo island ivory jasmine jungle kettle lagoon lantern laurel lemon "
+    + "lilac lunar maple marble meadow meteor mineral monsoon mosaic nectar nimbus noble oasis "
+    + "olive onyx opal orbit orchid otter oyster pebble pepper phoenix pigment pillar pine planet "
+    + "plaza pocket pollen poplar prairie prism quartz quiver rabbit radiant raven reef ribbon "
+    + "ridge river rocket rustic saffron sage sandal sapphire scarlet shadow silver socket solar "
+    + "sparrow spruce stone summit sunset thicket thistle thunder timber topaz torch tundra "
+    + "turquoise umber valley velvet vessel violet walnut willow window winter yarrow zenith").split(/\s+/);
+
+  var WALKS = ["qwertyuiop", "asdfghjkl", "zxcvbnm", "1234567890", "qazwsxedc", "1qaz2wsx", "!@#$%^&*()"];
+
+  var LEET = { "@": "a", "4": "a", "8": "b", "(": "c", "3": "e", "6": "g", "1": "l", "!": "i",
+               "0": "o", "$": "s", "5": "s", "7": "t", "+": "t", "2": "z", "9": "g" };
+
+  /* --- analysis -------------------------------------------------------- */
+
+  function unleet(s) {
+    return s.toLowerCase().split("").map(function (c) { return LEET[c] || c; }).join("");
+  }
+
+  function poolSize(pw) {
+    var pool = 0;
+    if (/[a-z]/.test(pw)) pool += 26;
+    if (/[A-Z]/.test(pw)) pool += 26;
+    if (/[0-9]/.test(pw)) pool += 10;
+    if (/[^a-zA-Z0-9]/.test(pw)) pool += 33;
+    return pool;
+  }
+
+  function analyse(pw) {
+    var findings = [];
+    var lower = pw.toLowerCase();
+    var flat = unleet(pw);
+
+    // Raw pool entropy — the number people usually quote, and usually an overestimate.
+    var pool = poolSize(pw);
+    var raw = pw.length ? Math.log2(pool) * pw.length : 0;
+
+    // Effective entropy starts from raw and is docked for each pattern that
+    // shrinks the real search space.
+    var effective = raw;
+
+    function dock(bits, label, detail) {
+      if (bits <= 0) return;
+      effective -= bits;
+      findings.push({ label: label, detail: detail, cost: bits });
+    }
+
+    if (COMMON.indexOf(lower) !== -1 || COMMON.indexOf(flat) !== -1) {
+      // A top-list password is found in the first few thousand guesses whatever
+      // its length, so collapse the estimate rather than merely docking it.
+      effective = Math.log2(COMMON.length * 20);
+      findings.push({ label: "On every breach list",
+        detail: "This is one of the most-guessed passwords there is. Length and symbols do not help — it is tried first.",
+        cost: raw - effective });
+      return finish(pw, raw, effective, findings);
+    }
+
+    COMMON.concat(WORDS).forEach(function (w) {
+      if (w.length < 4) return;
+      var at = flat.indexOf(w);
+      if (at === -1) return;
+      if (findings.some(function (f) { return f.word === w; })) return;
+      // A dictionary word costs roughly its length in random characters,
+      // less the ~11 bits it takes to pick the word from the list.
+      var saved = Math.log2(pool) * w.length - Math.log2(WORDS.length + COMMON.length);
+      var f = { label: "Contains a common word",
+        detail: "“" + w + "” is an ordinary word, and swapping letters for lookalikes does not hide it from a cracker.",
+        cost: Math.max(0, saved), word: w };
+      effective -= f.cost;
+      findings.push(f);
+    });
+
+    WALKS.forEach(function (walk) {
+      for (var len = Math.min(walk.length, lower.length); len >= 4; len--) {
+        for (var i = 0; i + len <= walk.length; i++) {
+          var run = walk.slice(i, i + len);
+          if (lower.indexOf(run) !== -1 || lower.indexOf(run.split("").reverse().join("")) !== -1) {
+            dock(Math.log2(pool) * len - 6, "Keyboard run",
+              "“" + run + "” follows the keyboard. These are in every cracking wordlist.");
+            return;
+          }
+        }
+      }
+    });
+
+    var seq = /(?:abcdefghijklmnopqrstuvwxyz|0123456789)/;
+    for (var L = Math.min(6, pw.length); L >= 4; L--) {
+      var found = false;
+      for (var s = 0; s + L <= 26; s++) {
+        var run2 = "abcdefghijklmnopqrstuvwxyz".slice(s, s + L);
+        if (lower.indexOf(run2) !== -1) { found = true; break; }
+      }
+      for (var d = 0; d + L <= 10 && !found; d++) {
+        var run3 = "0123456789".slice(d, d + L);
+        if (lower.indexOf(run3) !== -1) { found = true; break; }
+      }
+      if (found) { dock(Math.log2(pool) * L - 5, "Sequential characters",
+        "A run of " + L + " characters in order is guessed almost immediately."); break; }
+    }
+
+    var rep = /(.)\1{2,}/.exec(pw);
+    if (rep) dock(Math.log2(pool) * (rep[0].length - 1) - 2, "Repeated characters",
+      "“" + rep[0] + "” repeats, which adds length without adding difficulty.");
+
+    var year = /(19[5-9]\d|20[0-4]\d)/.exec(pw);
+    if (year) dock(Math.log2(pool) * 4 - Math.log2(95), "Contains a year",
+      "“" + year[0] + "” is one of about 95 plausible years, not four random characters.");
+
+    // The classic shape: Word + digits + one symbol at the end.
+    if (/^[A-Z][a-z]+\d{1,4}[!@#$%^&*.]?$/.test(pw)) {
+      dock(8, "A very predictable shape",
+        "Capital, word, digits, one symbol on the end is the first structure crackers try.");
+    }
+
+    if (pw.length && pw.length < 8) {
+      dock(0, "Too short",
+        pw.length + " characters can be brute-forced regardless of what is in them.");
+    }
+
+    return finish(pw, raw, effective, findings);
+  }
+
+  function finish(pw, raw, effective, findings) {
+    effective = Math.max(0, Math.min(raw, effective));
+    if (!pw.length) { raw = 0; effective = 0; }
+    return { raw: raw, bits: effective, findings: findings };
+  }
+
+  /* --- presentation ---------------------------------------------------- */
+
+  var ATTACKS = [
+    ["Online, rate limited", 10, "A login form that locks out after repeated failures."],
+    ["Online, unthrottled", 1e3, "An API with no lockout."],
+    ["Offline, slow hash", 1e4, "A leaked database using bcrypt or argon2."],
+    ["Offline, fast hash", 1e11, "A leaked database using unsalted SHA-1, cracked on GPUs."]
+  ];
+
+  function humanTime(seconds) {
+    if (seconds < 1) return "instantly";
+    var units = [[60, "second"], [60, "minute"], [24, "hour"], [365.25, "day"], [1000, "year"]];
+    var v = seconds, i = 0;
+    while (i < units.length && v >= units[i][0]) { v /= units[i][0]; i++; }
+    var name = i === 0 ? "second" : units[i - 1][1];
+    if (name === "year" && v >= 1000) {
+      var y = v * 1000;
+      if (y > 1e12) return "longer than the universe has existed";
+      return Bench.num(Math.round(y)) + " years";
+    }
+    return Bench.num(Math.round(v)) + " " + name + (Math.round(v) === 1 ? "" : "s");
+  }
+
+  function render() {
+    var pw = $("#pw").value;
+    var r = analyse(pw);
+
+    var bits = r.bits;
+    var pct = Math.max(0, Math.min(100, bits / 100 * 100));
+
+    var tier = bits >= 90 ? ["Excellent", "var(--verify)"]
+      : bits >= 70 ? ["Strong", "var(--verify)"]
+      : bits >= 50 ? ["Reasonable", "var(--signal)"]
+      : bits >= 30 ? ["Weak", "var(--signal)"]
+      : ["Very weak", "var(--fault)"];
+
+    if (!pw.length) { tier = ["—", "var(--edge)"]; pct = 0; }
+
+    $("#meter").style.width = pct + "%";
+    $("#meter").style.background = tier[1];
+    $("#verdict").textContent = tier[0];
+    $("#verdict").style.color = tier[1];
+
+    $("#bits").textContent = pw.length
+      ? Math.round(bits) + " bits effective · " + Math.round(r.raw) + " raw · " + pw.length + " chars"
+      : "";
+
+    var host = $("#findings");
+    if (!pw.length) {
+      host.innerHTML = '<p class="empty">Type a password to see what a cracker would notice.</p>';
+    } else if (!r.findings.length) {
+      host.innerHTML = '<div class="note note--ok"><span class="note__mark">✓</span><span>'
+        + "No dictionary words, keyboard runs, sequences, repeats or predictable shapes found.</span></div>"
+        + '<div class="note note--info" style="margin-top:6px"><span class="note__mark">i</span><span>'
+        + "This checks against a few hundred common passwords and words that ship with the page, "
+        + "not a real cracking dictionary. A long password built from ordinary words a real "
+        + "attacker would know will score higher here than it deserves — if yours is words you "
+        + "chose yourself rather than picked at random, treat the number as optimistic.</span></div>";
+    } else {
+      host.innerHTML = r.findings.map(function (f) {
+        return '<div class="pw__find"><span><b>' + esc(f.label) + "</b> — " + esc(f.detail) + "</span>"
+          + '<span class="pw__cost">−' + Math.round(f.cost) + " bits</span></div>";
+      }).join("");
+    }
+
+    // Half the keyspace on average.
+    var guesses = Math.pow(2, Math.max(0, bits - 1));
+    $("#crack").innerHTML = ATTACKS.map(function (a) {
+      return "<tr><td><b>" + esc(a[0]) + "</b><br><span class='empty' style='font-size:12px'>"
+        + esc(a[2]) + "</span></td><td class='num'>" + Bench.num(a[1]) + "</td><td class='num'>"
+        + (pw.length ? esc(humanTime(guesses / a[1])) : "—") + "</td></tr>";
+    }).join("");
+  }
+
+  Bench.live($("#pw"), Bench.debounce(render, 90));
+  $("#mask").addEventListener("change", function () { $("#pw").type = this.checked ? "password" : "text"; });
+  $("#clear").addEventListener("click", function () { $("#pw").value = ""; render(); $("#pw").focus(); });
+
+  /* --- generator ------------------------------------------------------- */
+
+  var mode = "random";
+
+  $$("[data-gen]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      mode = b.dataset.gen;
+      $$("[data-gen]").forEach(function (x) { x.classList.toggle("btn--on", x === b); });
+      $("#gen-random").hidden = mode !== "random";
+      $("#gen-phrase").hidden = mode !== "phrase";
+      generate();
+    });
+  });
+
+  Bench.live($("#g-len"), function () { $("#g-len-n").textContent = $("#g-len").value; });
+  Bench.live($("#g-words"), function () { $("#g-words-n").textContent = $("#g-words").value; });
+
+  function makeRandom() {
+    var sets = ["abcdefghijklmnopqrstuvwxyz"];
+    if ($("#g-upper").checked) sets.push("ABCDEFGHIJKLMNOPQRSTUVWXYZ");
+    if ($("#g-digit").checked) sets.push("0123456789");
+    if ($("#g-sym").checked) sets.push("!#$%&()*+,-./:;<=>?@[]^_{|}~");
+    if ($("#g-amb").checked) {
+      sets = sets.map(function (s) {
+        return s.split("").filter(function (c) { return "0O1lI|".indexOf(c) === -1; }).join("");
+      });
+    }
+    var pool = sets.join("");
+    var len = Number($("#g-len").value);
+    var chars = sets.map(function (s) { return s[Bench.randInt(s.length)]; });
+    while (chars.length < len) chars.push(pool[Bench.randInt(pool.length)]);
+    for (var i = chars.length - 1; i > 0; i--) {
+      var j = Bench.randInt(i + 1);
+      var t = chars[i]; chars[i] = chars[j]; chars[j] = t;
+    }
+    return chars.slice(0, len).join("");
+  }
+
+  function makePhrase() {
+    var n = Number($("#g-words").value);
+    var out = [];
+    for (var i = 0; i < n; i++) {
+      var w = Bench.randPick(GEN_WORDS);
+      if ($("#g-cap").checked) w = w.charAt(0).toUpperCase() + w.slice(1);
+      out.push(w);
+    }
+    var s = out.join("-");
+    if ($("#g-num").checked) s += "-" + Bench.randInt(100);
+    return s;
+  }
+
+  function generate() {
+    var list = [];
+    for (var i = 0; i < 5; i++) list.push(mode === "phrase" ? makePhrase() : makeRandom());
+    $("#gen-out").innerHTML = list.map(function (s) {
+      var bits = mode === "phrase"
+        ? Math.log2(GEN_WORDS.length) * Number($("#g-words").value) + ($("#g-num").checked ? Math.log2(100) : 0)
+        : Math.log2(poolSize(s)) * s.length;
+      return '<button class="pw__gen" data-pw="' + esc(s) + '" title="Load into the checker">'
+        + esc(s) + ' <span style="color:var(--steel);font-size:11.5px">· ' + Math.round(bits) + " bits</span></button>";
+    }).join("");
+  }
+
+  $("#gen-out").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-pw]");
+    if (!b) return;
+    $("#pw").value = b.dataset.pw;
+    render();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  });
+
+  $("#g-go").addEventListener("click", generate);
+  ["g-len", "g-upper", "g-digit", "g-sym", "g-amb", "g-words", "g-cap", "g-num"].forEach(function (id) {
+    $("#" + id).addEventListener("change", generate);
+  });
+
+  render();
+  generate();
+});
+</script>
+
+</body>
+</html>
