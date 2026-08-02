@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meta Tag Preview — Bench</title>
+<meta name="description" content="Preview how a link will look when shared on Google, Facebook, X, Slack and Discord, and copy the meta tags.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/css/bench.css">
+<style>
+  .mp__card {
+    border: 1px solid var(--edge);
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--card);
+    max-width: 480px;
+  }
+  .mp__card + .mp__label { margin-top: 22px; }
+  .mp__label {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    color: var(--steel);
+    margin-bottom: 8px;
+  }
+  /* The image is a URL the user typed. Loading it would be an outbound
+     request, so the card shows a labelled stand-in at the right ratio. */
+  .mp__img {
+    aspect-ratio: 1.91 / 1;
+    background: var(--sunk);
+    border-bottom: 1px solid var(--edge);
+    display: grid;
+    place-items: center;
+    padding: 14px;
+    text-align: center;
+    gap: 4px;
+    background-image: repeating-linear-gradient(45deg, transparent, transparent 9px, var(--edge) 9px, var(--edge) 10px);
+  }
+  .mp__img span { font-family: var(--mono); font-size: 11px; color: var(--steel); overflow-wrap: anywhere; }
+  .mp__img b { font-family: var(--mono); font-size: 12px; color: var(--signal); font-weight: 500; }
+  .mp__body { padding: 11px 13px; }
+  .mp__host { font-family: var(--mono); font-size: 11px; color: var(--steel); text-transform: uppercase; letter-spacing: .04em; }
+  .mp__title { font-size: 15px; font-weight: 600; line-height: 1.3; margin-top: 3px; overflow-wrap: anywhere; }
+  .mp__desc { font-size: 13px; color: var(--steel); line-height: 1.4; margin-top: 4px; overflow-wrap: anywhere; }
+
+  /* Google result */
+  .mp__serp { max-width: 600px; }
+  .mp__serp-url { font-size: 12.5px; color: var(--steel); }
+  .mp__serp-title { font-size: 19px; color: #1a0dab; line-height: 1.3; margin-top: 2px; overflow-wrap: anywhere; }
+  .mp__serp-desc { font-size: 13.5px; color: var(--steel); line-height: 1.5; margin-top: 3px; }
+  :root[data-theme="dark"] .mp__serp-title { color: #8ab4f8; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .mp__serp-title { color: #8ab4f8; }
+  }
+
+  /* Slack / Discord use a coloured rail rather than a big image */
+  .mp__rail { border-left: 4px solid var(--signal); border-radius: 4px; padding: 10px 13px; background: var(--card); max-width: 480px; border-top: 1px solid var(--edge); border-right: 1px solid var(--edge); border-bottom: 1px solid var(--edge); }
+
+  .mp__count { font-family: var(--mono); font-size: 11px; color: var(--steel); float: right; font-variant-numeric: tabular-nums; }
+  .mp__count--over { color: var(--fault); }
+  .mp__count--near { color: var(--signal); }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__home" href="../../index.html"><span class="topbar__mark">▚</span> bench</a>
+  <span class="topbar__sep">/</span>
+  <span class="topbar__here">Meta Tag Preview</span>
+  <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
+</header>
+
+<main class="wrap">
+
+  <div class="toolhead">
+    <p class="toolhead__spec mono">og:title</p>
+    <h1 class="toolhead__title">Meta Tag Preview</h1>
+    <p class="toolhead__desc">See how a link will look when it is shared, and copy the tags that make it happen.</p>
+  </div>
+
+  <div class="split split--narrow">
+
+    <section class="panel">
+      <h2 class="panel__title">Page details</h2>
+
+      <div class="field">
+        <label class="label" for="f-title">Title <span class="mp__count" id="c-title"></span></label>
+        <input class="input" id="f-title" value="Bench — tools that run in your browser">
+      </div>
+
+      <div class="field">
+        <label class="label" for="f-desc">Description <span class="mp__count" id="c-desc"></span></label>
+        <textarea class="textarea textarea--prose" id="f-desc" style="min-height:80px">A workbench of small, single-purpose tools for developers, designers and writers. Everything runs client-side.</textarea>
+      </div>
+
+      <div class="field">
+        <label class="label" for="f-url">Canonical URL</label>
+        <input class="input input--mono" id="f-url" value="https://mrhakan.github.io/tools/">
+      </div>
+
+      <div class="split" style="gap:12px">
+        <div class="field">
+          <label class="label" for="f-site">Site name</label>
+          <input class="input" id="f-site" value="Bench">
+        </div>
+        <div class="field">
+          <label class="label" for="f-locale">Locale</label>
+          <input class="input input--mono" id="f-locale" value="en_GB">
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="label" for="f-img">Share image URL</label>
+        <input class="input input--mono" id="f-img" value="https://mrhakan.github.io/tools/share.png">
+      </div>
+
+      <div class="field">
+        <label class="label" for="f-alt">Image alt text</label>
+        <input class="input" id="f-alt" value="The Bench tool index">
+      </div>
+
+      <div class="split" style="gap:12px">
+        <div class="field">
+          <label class="label" for="f-card">X / Twitter card</label>
+          <select class="select" id="f-card">
+            <option value="summary_large_image">summary_large_image</option>
+            <option value="summary">summary</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="label" for="f-theme">Theme colour</label>
+          <input type="color" id="f-theme" value="#e0521a" style="width:100%">
+        </div>
+      </div>
+
+      <div class="split" style="gap:12px">
+        <div class="field">
+          <label class="label" for="f-author">Author</label>
+          <input class="input" id="f-author" value="MrHakan">
+        </div>
+        <div class="field">
+          <label class="label" for="f-type">og:type</label>
+          <select class="select" id="f-type">
+            <option>website</option>
+            <option>article</option>
+            <option>profile</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="warn" style="margin-top:6px"></div>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel__title">How it will look</h2>
+
+      <p class="mp__label">Google result</p>
+      <div class="mp__card mp__serp" style="border:0;background:none">
+        <div class="mp__serp-url" id="p-serp-url"></div>
+        <div class="mp__serp-title" id="p-serp-title"></div>
+        <div class="mp__serp-desc" id="p-serp-desc"></div>
+      </div>
+
+      <p class="mp__label">Facebook &amp; LinkedIn</p>
+      <div class="mp__card">
+        <div class="mp__img" id="p-og-img"></div>
+        <div class="mp__body">
+          <div class="mp__host" id="p-og-host"></div>
+          <div class="mp__title" id="p-og-title"></div>
+          <div class="mp__desc" id="p-og-desc"></div>
+        </div>
+      </div>
+
+      <p class="mp__label">X / Twitter</p>
+      <div class="mp__card" id="p-tw-card">
+        <div class="mp__img" id="p-tw-img"></div>
+        <div class="mp__body">
+          <div class="mp__title" id="p-tw-title"></div>
+          <div class="mp__desc" id="p-tw-desc"></div>
+          <div class="mp__host" id="p-tw-host" style="margin-top:5px"></div>
+        </div>
+      </div>
+
+      <p class="mp__label">Slack &amp; Discord</p>
+      <div class="mp__rail" id="p-rail">
+        <div class="mp__host" id="p-rail-site"></div>
+        <div class="mp__title" id="p-rail-title" style="font-size:14px"></div>
+        <div class="mp__desc" id="p-rail-desc"></div>
+      </div>
+    </section>
+
+  </div>
+
+  <div class="split" style="margin-top:var(--gap)">
+
+    <section class="panel">
+      <h2 class="panel__title">Tags for your &lt;head&gt;</h2>
+      <div class="row" style="margin-bottom:12px">
+        <button class="btn btn--sm" id="copy">Copy</button>
+        <button class="btn btn--sm" id="save">Save as HTML</button>
+      </div>
+      <div class="out" id="out"></div>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel__title">Import an existing &lt;head&gt;</h2>
+      <label class="sr-only" for="imp">Existing head markup</label>
+      <textarea class="textarea" id="imp" spellcheck="false" placeholder="Paste a page's &lt;head&gt; markup here and the fields above will fill in…"></textarea>
+      <div class="row" style="margin-top:12px">
+        <button class="btn btn--primary" id="imp-go">Read the tags</button>
+      </div>
+      <div id="imp-note" style="margin-top:12px"></div>
+      <p class="empty" style="margin-top:10px; line-height:1.5">
+        The markup is parsed into an inert document, so nothing in it runs and
+        no image or script is fetched.
+      </p>
+    </section>
+
+  </div>
+
+  <footer class="foot">
+    <a href="../../index.html">← All tools</a>
+    <span>·</span>
+    <span>Runs entirely in your browser</span>
+  </footer>
+
+</main>
+
+<script src="../../assets/js/bench.js" defer></script>
+<script defer>
+document.addEventListener("DOMContentLoaded", function () {
+  "use strict";
+  var $ = Bench.$, $$ = Bench.$$, esc = Bench.esc;
+
+  var F = {
+    title: $("#f-title"), desc: $("#f-desc"), url: $("#f-url"), site: $("#f-site"),
+    locale: $("#f-locale"), img: $("#f-img"), alt: $("#f-alt"), card: $("#f-card"),
+    theme: $("#f-theme"), author: $("#f-author"), type: $("#f-type")
+  };
+
+  // Practical display limits, not hard rules — search and social both truncate
+  // by pixel width, so these are the widely used approximations.
+  var LIMITS = { title: 60, desc: 160 };
+
+  function clip(s, n) {
+    s = s.trim();
+    return s.length > n ? s.slice(0, n - 1).trimEnd() + "…" : s;
+  }
+
+  function host(u) {
+    try { return new URL(u).host.replace(/^www\./, ""); }
+    catch (e) { return u.replace(/^https?:\/\//, "").split("/")[0] || "example.com"; }
+  }
+
+  function prettyUrl(u) {
+    try {
+      var p = new URL(u);
+      var path = decodeURIComponent(p.pathname).replace(/\/$/, "");
+      return p.host.replace(/^www\./, "") + (path ? " › " + path.split("/").filter(Boolean).join(" › ") : "");
+    } catch (e) { return u; }
+  }
+
+  function counter(el, value, limit) {
+    var n = value.trim().length;
+    el.textContent = n + " / " + limit;
+    el.className = "mp__count" + (n > limit ? " mp__count--over" : n > limit * 0.9 ? " mp__count--near" : "");
+    return n;
+  }
+
+  function imgBox(el, ratio) {
+    var url = F.img.value.trim();
+    el.innerHTML = url
+      ? "<b>" + esc(ratio) + "</b><span>" + esc(url) + "</span>"
+        + '<span style="opacity:.7">not loaded — this page makes no outside requests</span>'
+      : '<b>No share image</b><span>Links without one get a small, text-only card</span>';
+  }
+
+  function render() {
+    var title = F.title.value.trim();
+    var desc = F.desc.value.trim();
+    var url = F.url.value.trim();
+    var site = F.site.value.trim();
+
+    var tn = counter($("#c-title"), F.title.value, LIMITS.title);
+    var dn = counter($("#c-desc"), F.desc.value, LIMITS.desc);
+
+    // Google
+    $("#p-serp-url").textContent = prettyUrl(url);
+    $("#p-serp-title").textContent = clip(title, LIMITS.title) || "Untitled page";
+    $("#p-serp-desc").textContent = clip(desc, LIMITS.desc) || "No description — search engines will pick their own snippet from the page.";
+
+    // Open Graph
+    $("#p-og-host").textContent = host(url);
+    $("#p-og-title").textContent = clip(title, 88) || "Untitled page";
+    $("#p-og-desc").textContent = clip(desc, 200);
+    imgBox($("#p-og-img"), "1200 × 630 · 1.91∶1");
+
+    // X / Twitter
+    var large = F.card.value === "summary_large_image";
+    $("#p-tw-img").style.aspectRatio = large ? "1.91 / 1" : "1 / 1";
+    $("#p-tw-img").style.maxWidth = large ? "" : "120px";
+    $("#p-tw-title").textContent = clip(title, 70) || "Untitled page";
+    $("#p-tw-desc").textContent = clip(desc, 200);
+    $("#p-tw-host").textContent = "From " + host(url);
+    imgBox($("#p-tw-img"), large ? "1200 × 630 · 1.91∶1" : "600 × 600 · 1∶1");
+
+    // Slack / Discord
+    $("#p-rail").style.borderLeftColor = F.theme.value;
+    $("#p-rail-site").textContent = site || host(url);
+    $("#p-rail-title").textContent = clip(title, 70) || "Untitled page";
+    $("#p-rail-desc").textContent = clip(desc, 180);
+
+    // Warnings
+    var problems = [];
+    if (!title) problems.push("The page has no title.");
+    else if (tn > LIMITS.title) problems.push("The title is " + tn + " characters — Google usually cuts around " + LIMITS.title + ".");
+    if (!desc) problems.push("There is no description, so search engines will invent a snippet.");
+    else if (dn > LIMITS.desc) problems.push("The description is " + dn + " characters and will be truncated near " + LIMITS.desc + ".");
+    if (!F.img.value.trim()) problems.push("Without an og:image the card is text-only and much easier to scroll past.");
+    if (F.img.value.trim() && !/^https:\/\//i.test(F.img.value.trim())) problems.push("The share image should be an absolute https:// URL — relative paths are not resolved by most crawlers.");
+    if (url && !/^https?:\/\//i.test(url)) problems.push("The canonical URL should be absolute, including the scheme.");
+
+    $("#warn").innerHTML = problems.length
+      ? '<div class="note note--warn"><span class="note__mark">!</span><span>' + problems.map(esc).join("<br>") + "</span></div>"
+      : '<div class="note note--ok"><span class="note__mark">✓</span><span>Title, description and image are all set and within the usual limits.</span></div>';
+
+    renderTags();
+  }
+
+  function renderTags() {
+    var v = {};
+    Object.keys(F).forEach(function (k) { v[k] = F[k].value.trim(); });
+
+    var lines = [
+      "<title>" + esc(v.title) + "</title>",
+      '<meta name="description" content="' + esc(v.desc) + '">',
+      v.url ? '<link rel="canonical" href="' + esc(v.url) + '">' : "",
+      v.author ? '<meta name="author" content="' + esc(v.author) + '">' : "",
+      '<meta name="theme-color" content="' + esc(v.theme) + '">',
+      "",
+      "<!-- Open Graph: Facebook, LinkedIn, Slack, Discord -->",
+      '<meta property="og:type" content="' + esc(v.type) + '">',
+      '<meta property="og:title" content="' + esc(v.title) + '">',
+      '<meta property="og:description" content="' + esc(v.desc) + '">',
+      v.url ? '<meta property="og:url" content="' + esc(v.url) + '">' : "",
+      v.site ? '<meta property="og:site_name" content="' + esc(v.site) + '">' : "",
+      v.locale ? '<meta property="og:locale" content="' + esc(v.locale) + '">' : "",
+      v.img ? '<meta property="og:image" content="' + esc(v.img) + '">' : "",
+      v.img ? '<meta property="og:image:width" content="1200">' : "",
+      v.img ? '<meta property="og:image:height" content="630">' : "",
+      v.img && v.alt ? '<meta property="og:image:alt" content="' + esc(v.alt) + '">' : "",
+      "",
+      "<!-- X / Twitter -->",
+      '<meta name="twitter:card" content="' + esc(v.card) + '">',
+      '<meta name="twitter:title" content="' + esc(v.title) + '">',
+      '<meta name="twitter:description" content="' + esc(v.desc) + '">',
+      v.img ? '<meta name="twitter:image" content="' + esc(v.img) + '">' : "",
+      v.img && v.alt ? '<meta name="twitter:image:alt" content="' + esc(v.alt) + '">' : ""
+    ];
+
+    $("#out").textContent = lines.filter(function (l, i) {
+      // Drop blanks that would double up once optional tags are removed.
+      return l !== "" || (lines[i + 1] && lines[i + 1] !== "");
+    }).join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  }
+
+  Object.keys(F).forEach(function (k) {
+    F[k].addEventListener("input", render);
+    F[k].addEventListener("change", render);
+  });
+
+  $("#copy").addEventListener("click", function (e) { Bench.copy($("#out").textContent, e.currentTarget); });
+  $("#save").addEventListener("click", function () { Bench.download("meta-tags.html", $("#out").textContent, "text/html"); });
+
+  /* --- import -------------------------------------------------------- */
+
+  $("#imp-go").addEventListener("click", function () {
+    var src = $("#imp").value.trim();
+    var noteHost = $("#imp-note");
+
+    if (!src) {
+      noteHost.innerHTML = '<div class="note note--bad"><span class="note__mark">✕</span><span>Paste some markup first.</span></div>';
+      return;
+    }
+
+    // DOMParser builds an inert document: no scripts run and no subresources
+    // are fetched, which is what makes reading arbitrary pasted markup safe.
+    var doc = new DOMParser().parseFromString(src, "text/html");
+
+    function meta(sel) {
+      var el = doc.querySelector(sel);
+      return el ? (el.getAttribute("content") || "").trim() : "";
+    }
+
+    var found = 0;
+    function set(field, value) {
+      if (!value) return;
+      F[field].value = value;
+      found++;
+    }
+
+    set("title", meta('meta[property="og:title"]') || (doc.querySelector("title") ? doc.querySelector("title").textContent.trim() : ""));
+    set("desc", meta('meta[property="og:description"]') || meta('meta[name="description"]'));
+    set("url", meta('meta[property="og:url"]') || (doc.querySelector('link[rel="canonical"]') ? doc.querySelector('link[rel="canonical"]').getAttribute("href") : ""));
+    set("site", meta('meta[property="og:site_name"]'));
+    set("locale", meta('meta[property="og:locale"]'));
+    set("img", meta('meta[property="og:image"]') || meta('meta[name="twitter:image"]'));
+    set("alt", meta('meta[property="og:image:alt"]') || meta('meta[name="twitter:image:alt"]'));
+    set("author", meta('meta[name="author"]'));
+
+    var card = meta('meta[name="twitter:card"]');
+    if (card === "summary" || card === "summary_large_image") { F.card.value = card; found++; }
+
+    var type = meta('meta[property="og:type"]');
+    if (type) {
+      var opt = Array.prototype.slice.call(F.type.options).filter(function (o) { return o.value === type; });
+      if (opt.length) { F.type.value = type; found++; }
+    }
+
+    var theme = meta('meta[name="theme-color"]');
+    if (/^#[0-9a-f]{6}$/i.test(theme)) { F.theme.value = theme; found++; }
+
+    render();
+
+    noteHost.innerHTML = found
+      ? '<div class="note note--ok"><span class="note__mark">✓</span><span>Filled in ' + Bench.plural(found, "field") + " from that markup.</span></div>"
+      : '<div class="note note--warn"><span class="note__mark">!</span><span>No title, description or Open Graph tags were found in that markup.</span></div>';
+  });
+
+  render();
+});
+</script>
+
+</body>
+</html>
