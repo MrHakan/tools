@@ -129,7 +129,7 @@ window.BENCH_TOOLS = [
     blurb: "Common commands with worked scenarios.", keys: "version control reference rebase merge reset stash undo" },
   { slug: "whiteboard", cat: "Media & misc", spec: "▭ ○ ⟋ ✎", name: "Whiteboard",
     blurb: "Sketch boxes, arrows and notes, export as PNG.", keys: "draw diagram excalidraw canvas sketch shapes export" },
-  { soon: true, slug: "url-shortener", cat: "Media & misc", spec: "/x/9fK2a", name: "Link Keeper",
+  { slug: "url-shortener", cat: "Media & misc", spec: "/x/9fK2a", name: "Link Keeper",
     blurb: "Short codes for long links, stored in this browser.", keys: "url shortener link bookmark alias redirect save" },
   { soon: true, slug: "games", cat: "Media & misc", spec: "2048 · Wordle", name: "Game Corner",
     blurb: "2048, a word guesser and Sudoku for a quiet moment.", keys: "2048 wordle sudoku puzzle play break fun" },

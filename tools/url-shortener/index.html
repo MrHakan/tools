@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Link Keeper — Bench</title>
+<meta name="description" content="Give long links short codes and keep them in a searchable library in this browser. No server, no tracking.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/css/bench.css">
+<style>
+  .lk__item {
+    border: 1px solid var(--edge); border-radius: var(--r); background: var(--card);
+    padding: 12px 14px; margin-bottom: 8px;
+  }
+  .lk__top { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+  .lk__code { font-family: var(--mono); font-size: 13px; color: var(--signal); font-weight: 500; white-space: nowrap; }
+  .lk__title { font-size: 14.5px; font-weight: 600; flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .lk__url { font-family: var(--mono); font-size: 12px; color: var(--steel); overflow-wrap: anywhere; margin-top: 4px; display: block; }
+  .lk__url:hover { color: var(--signal); }
+  .lk__meta { font-family: var(--mono); font-size: 11px; color: var(--steel); margin-top: 6px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  .lk__acts { display: flex; gap: 4px; }
+  .lk__ico {
+    width: 26px; height: 26px; display: grid; place-items: center;
+    background: transparent; border: 1px solid transparent; border-radius: var(--r);
+    color: var(--steel); font-size: 12px;
+  }
+  .lk__ico:hover { border-color: var(--signal); color: var(--signal); }
+  .lk__ico--del:hover { border-color: var(--fault); color: var(--fault); }
+  .lk__go {
+    border: 1px solid var(--signal); border-left-width: 3px; border-radius: var(--r);
+    background: var(--signal-soft); padding: 18px 20px; margin-bottom: var(--gap);
+  }
+  .lk__dest {
+    font-family: var(--mono); font-size: 14px; overflow-wrap: anywhere;
+    background: var(--card); border: 1px solid var(--edge); border-radius: var(--r);
+    padding: 10px 12px; margin: 12px 0;
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__home" href="../../index.html"><span class="topbar__mark">▚</span> bench</a>
+  <span class="topbar__sep">/</span>
+  <span class="topbar__here">Link Keeper</span>
+  <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
+</header>
+
+<main class="wrap">
+
+  <div class="toolhead">
+    <p class="toolhead__spec mono">/x/9fK2a</p>
+    <h1 class="toolhead__title">Link Keeper</h1>
+    <p class="toolhead__desc">Short codes for long links, kept in this browser.</p>
+  </div>
+
+  <div id="interstitial"></div>
+
+  <div class="note note--info" style="margin-bottom:var(--gap)">
+    <span class="note__mark">i</span>
+    <span><b>This is not a URL shortener, and it cannot be one.</b> There is no server here, so a
+    code only resolves in the browser that created it — send someone a
+    <code class="mono">#/x/abc</code> link and it will not find anything. What it is good for is a
+    personal library: give the links you keep re-pasting a short handle you can actually remember,
+    and search them later.</span>
+  </div>
+
+  <div class="split split--narrow">
+
+    <section class="panel">
+      <h2 class="panel__title">Add a link</h2>
+
+      <form id="form">
+        <div class="field">
+          <label class="label" for="f-url">Destination</label>
+          <input class="input input--mono" id="f-url" placeholder="https://example.com/a/very/long/path" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="field">
+          <label class="label" for="f-title">Title</label>
+          <input class="input" id="f-title" placeholder="What is this link?" autocomplete="off">
+        </div>
+        <div class="split" style="gap:12px">
+          <div class="field">
+            <label class="label" for="f-code">Short code (optional)</label>
+            <input class="input input--mono" id="f-code" placeholder="auto" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="field">
+            <label class="label" for="f-tags">Tags, comma separated</label>
+            <input class="input" id="f-tags" placeholder="docs, work" autocomplete="off">
+          </div>
+        </div>
+        <div class="field">
+          <label class="label" for="f-notes">Notes</label>
+          <textarea class="textarea textarea--prose" id="f-notes" style="min-height:70px"></textarea>
+        </div>
+        <div class="row">
+          <button class="btn btn--primary" type="submit" id="submit">Save link</button>
+          <button class="btn" type="button" id="cancel" hidden>Cancel</button>
+        </div>
+      </form>
+
+      <div id="form-note" style="margin-top:12px"></div>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel__title">Library</h2>
+
+      <div class="row" style="margin-bottom:10px">
+        <label class="sr-only" for="q">Search links</label>
+        <input class="input grow" id="q" type="search" placeholder="Search titles, URLs, tags, notes…" autocomplete="off">
+        <label class="sr-only" for="sort">Sort by</label>
+        <select class="select" id="sort" style="width:auto">
+          <option value="added">Newest</option>
+          <option value="title">Title</option>
+          <option value="visits">Most opened</option>
+        </select>
+      </div>
+
+      <div class="chips" id="tags" style="margin-bottom:12px"></div>
+      <div id="list"></div>
+      <p class="empty" id="empty" hidden></p>
+
+      <div class="row" style="margin-top:14px">
+        <button class="btn btn--sm" id="exp-json">Export JSON</button>
+        <button class="btn btn--sm" id="exp-md">Export Markdown</button>
+        <button class="btn btn--sm" id="imp">Import JSON</button>
+        <input type="file" id="imp-file" accept=".json,application/json" hidden>
+      </div>
+    </section>
+
+  </div>
+
+  <footer class="foot">
+    <a href="../../index.html">← All tools</a>
+    <span>·</span>
+    <span>Runs entirely in your browser</span>
+  </footer>
+
+</main>
+
+<script src="../../assets/js/bench.js" defer></script>
+<script defer>
+document.addEventListener("DOMContentLoaded", function () {
+  "use strict";
+  var $ = Bench.$, $$ = Bench.$$, esc = Bench.esc;
+  var store = Bench.store("url-shortener");
+
+  var links = store.get("links", null) || [
+    { code: "bench", url: "https://github.com/MrHakan/tools", title: "Bench source",
+      tags: ["code"], notes: "The repository behind this site.", added: Date.now() - 86400000, visits: 0 },
+    { code: "mdn-url", url: "https://developer.mozilla.org/en-US/docs/Web/API/URL", title: "MDN — the URL API",
+      tags: ["docs", "web"], notes: "", added: Date.now() - 3600000, visits: 0 }
+  ];
+
+  var editing = null;
+  var tagFilter = "";
+
+  var ALPHABET = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no l/I/O/0/1
+  var CODE_RE = /^[A-Za-z0-9_-]{1,32}$/;
+
+  function save() { store.set("links", links); }
+
+  function newCode() {
+    var code;
+    do {
+      code = "";
+      for (var i = 0; i < 5; i++) code += ALPHABET[Bench.randInt(ALPHABET.length)];
+    } while (byCode(code));
+    return code;
+  }
+
+  function byCode(c) {
+    return links.filter(function (l) { return l.code.toLowerCase() === String(c).toLowerCase(); })[0];
+  }
+
+  /**
+   * Only http and https are allowed. javascript: and data: URLs are the reason
+   * link stores get turned into an XSS vector, and a stored "link" that runs
+   * script when clicked is not a link.
+   */
+  function checkURL(raw) {
+    var text = raw.trim();
+    if (!text) return { ok: false, why: "Enter a destination URL." };
+    if (!/^[a-z][a-z0-9+.-]*:/i.test(text)) text = "https://" + text;
+
+    var u;
+    try { u = new URL(text); }
+    catch (e) { return { ok: false, why: "That is not a URL this browser can parse." }; }
+
+    if (u.protocol !== "http:" && u.protocol !== "https:") {
+      return { ok: false, why: "Only http and https links are kept. A <code class=\"mono\">"
+        + esc(u.protocol) + "</code> URL can run code when it is opened, so it is refused." };
+    }
+    if (!u.hostname) return { ok: false, why: "That URL has no host." };
+    return { ok: true, url: u.href };
+  }
+
+  function note(host, html, kind) {
+    host.innerHTML = '<div class="note note--' + kind + '"><span class="note__mark">'
+      + (kind === "bad" ? "✕" : kind === "ok" ? "✓" : "i") + "</span><span>" + html + "</span></div>";
+  }
+
+  /* --- form ----------------------------------------------------------- */
+
+  $("#form").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var host = $("#form-note");
+
+    var v = checkURL($("#f-url").value);
+    if (!v.ok) { note(host, v.why, "bad"); return; }
+
+    var code = $("#f-code").value.trim();
+    if (code) {
+      if (!CODE_RE.test(code)) {
+        note(host, "A code can hold letters, digits, hyphens and underscores, up to 32 characters.", "bad");
+        return;
+      }
+      var clash = byCode(code);
+      if (clash && clash.code !== editing) {
+        note(host, "The code <code class=\"mono\">" + esc(code) + "</code> is already used by "
+          + esc(clash.title || clash.url) + ".", "bad");
+        return;
+      }
+    } else {
+      code = editing || newCode();
+    }
+
+    var tags = $("#f-tags").value.split(",").map(function (t) { return t.trim(); })
+      .filter(function (t) { return t; });
+
+    var rec = {
+      code: code,
+      url: v.url,
+      title: $("#f-title").value.trim() || v.url.replace(/^https?:\/\//, "").slice(0, 60),
+      tags: tags,
+      notes: $("#f-notes").value.trim(),
+      added: Date.now(),
+      visits: 0
+    };
+
+    if (editing) {
+      var i = links.map(function (l) { return l.code; }).indexOf(editing);
+      rec.added = links[i].added;
+      rec.visits = links[i].visits;
+      links[i] = rec;
+      note(host, "Updated <code class=\"mono\">" + esc(code) + "</code>.", "ok");
+    } else {
+      links.unshift(rec);
+      note(host, "Saved as <code class=\"mono\">#/x/" + esc(code) + "</code>.", "ok");
+    }
+
+    stopEditing();
+    save();
+    render();
+  });
+
+  function stopEditing() {
+    editing = null;
+    $("#form").reset();
+    $("#submit").textContent = "Save link";
+    $("#cancel").hidden = true;
+  }
+
+  $("#cancel").addEventListener("click", function () { stopEditing(); $("#form-note").innerHTML = ""; });
+
+  /* --- list ----------------------------------------------------------- */
+
+  function shareLine(l) {
+    return location.origin + location.pathname + "#/x/" + l.code;
+  }
+
+  function render() {
+    var q = $("#q").value.trim().toLowerCase();
+    var terms = q ? q.split(/\s+/) : [];
+
+    var all = links.slice();
+    var sort = $("#sort").value;
+    all.sort(function (a, b) {
+      if (sort === "title") return a.title.localeCompare(b.title);
+      if (sort === "visits") return (b.visits || 0) - (a.visits || 0);
+      return b.added - a.added;
+    });
+
+    var shown = all.filter(function (l) {
+      if (tagFilter && l.tags.indexOf(tagFilter) === -1) return false;
+      var hay = (l.code + " " + l.title + " " + l.url + " " + l.tags.join(" ") + " " + l.notes).toLowerCase();
+      return terms.every(function (t) { return hay.indexOf(t) !== -1; });
+    });
+
+    // Tag chips
+    var counts = {};
+    links.forEach(function (l) { l.tags.forEach(function (t) { counts[t] = (counts[t] || 0) + 1; }); });
+    var names = Object.keys(counts).sort();
+    $("#tags").innerHTML = names.length
+      ? '<button class="chip' + (tagFilter ? "" : " chip--on") + '" data-tag="">All ' + links.length + "</button>"
+        + names.map(function (t) {
+            return '<button class="chip' + (tagFilter === t ? " chip--on" : "") + '" data-tag="' + esc(t) + '">'
+              + esc(t) + " " + counts[t] + "</button>";
+          }).join("")
+      : "";
+
+    $("#list").innerHTML = shown.map(function (l) {
+      return '<div class="lk__item">'
+        + '<div class="lk__top">'
+          + '<span class="lk__code">/x/' + esc(l.code) + "</span>"
+          + '<span class="lk__title">' + esc(l.title) + "</span>"
+          + '<span class="lk__acts">'
+            + '<button class="lk__ico" data-act="open" data-code="' + esc(l.code) + '" title="Open" aria-label="Open ' + esc(l.title) + '">↗</button>'
+            + '<button class="lk__ico" data-act="copy" data-code="' + esc(l.code) + '" title="Copy the destination" aria-label="Copy the URL for ' + esc(l.title) + '">⧉</button>'
+            + '<button class="lk__ico" data-act="edit" data-code="' + esc(l.code) + '" title="Edit" aria-label="Edit ' + esc(l.title) + '">✎</button>'
+            + '<button class="lk__ico lk__ico--del" data-act="del" data-code="' + esc(l.code) + '" title="Delete" aria-label="Delete ' + esc(l.title) + '">✕</button>'
+          + "</span>"
+        + "</div>"
+        + '<span class="lk__url">' + esc(l.url) + "</span>"
+        + (l.notes ? '<div class="lk__meta" style="color:var(--steel)">' + esc(l.notes) + "</div>" : "")
+        + '<div class="lk__meta">'
+          + "<span>" + Bench.plural(l.visits || 0, "open") + "</span>"
+          + "<span>" + new Date(l.added).toLocaleDateString() + "</span>"
+          + (l.tags.length ? "<span>" + l.tags.map(esc).join(" · ") + "</span>" : "")
+        + "</div>"
+        + "</div>";
+    }).join("");
+
+    var e = $("#empty");
+    e.hidden = shown.length > 0;
+    e.textContent = links.length === 0
+      ? "No links yet. Add one above."
+      : "Nothing matches that search.";
+  }
+
+  $("#tags").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-tag]");
+    if (!b) return;
+    tagFilter = b.dataset.tag;
+    render();
+  });
+
+  $("#list").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-act]");
+    if (!b) return;
+    var l = byCode(b.dataset.code);
+    if (!l) return;
+
+    if (b.dataset.act === "copy") {
+      Bench.copy(l.url, b);
+    } else if (b.dataset.act === "open") {
+      l.visits = (l.visits || 0) + 1;
+      save();
+      render();
+      window.open(l.url, "_blank", "noopener,noreferrer");
+    } else if (b.dataset.act === "edit") {
+      editing = l.code;
+      $("#f-url").value = l.url;
+      $("#f-title").value = l.title;
+      $("#f-code").value = l.code;
+      $("#f-tags").value = l.tags.join(", ");
+      $("#f-notes").value = l.notes;
+      $("#submit").textContent = "Update link";
+      $("#cancel").hidden = false;
+      $("#f-url").focus();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } else if (b.dataset.act === "del") {
+      if (b.dataset.armed) {
+        links = links.filter(function (x) { return x.code !== l.code; });
+        save();
+        render();
+        Bench.toast("Deleted /x/" + l.code);
+        return;
+      }
+      b.dataset.armed = "1";
+      b.textContent = "?";
+      b.title = "Click again to delete";
+      setTimeout(function () { if (b.isConnected) { b.textContent = "✕"; delete b.dataset.armed; } }, 3000);
+    }
+  });
+
+  Bench.live($("#q"), Bench.debounce(render, 100));
+  $("#sort").addEventListener("change", render);
+
+  /* --- resolving #/x/CODE --------------------------------------------- */
+
+  function resolve() {
+    var host = $("#interstitial");
+    var m = /^#\/x\/(.+)$/.exec(location.hash);
+    if (!m) { host.innerHTML = ""; return; }
+
+    var code = decodeURIComponent(m[1]);
+    var l = byCode(code);
+
+    if (!l) {
+      host.innerHTML = '<div class="note note--bad" style="margin-bottom:var(--gap)"><span class="note__mark">✕</span>'
+        + "<span>No link here has the code <code class=\"mono\">" + esc(code) + "</code>. "
+        + "Codes live only in the browser that created them, so a link shared from another machine will not resolve.</span></div>";
+      return;
+    }
+
+    // Never redirect on its own. Show where it goes and let the person decide —
+    // a page that silently sends you to an arbitrary URL is a bad pattern
+    // whoever wrote the URL.
+    host.innerHTML = '<div class="lk__go">'
+      + '<div class="mono" style="font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--steel)">/x/'
+      + esc(l.code) + " goes to</div>"
+      + '<div style="font-size:1.15rem;font-weight:600;margin-top:6px">' + esc(l.title) + "</div>"
+      + '<div class="lk__dest">' + esc(l.url) + "</div>"
+      + '<div class="row"><button class="btn btn--primary" id="go">Open this link</button>'
+      + '<button class="btn" id="go-copy">Copy the URL</button>'
+      + '<button class="btn btn--ghost" id="go-close">Stay here</button></div></div>';
+
+    $("#go").addEventListener("click", function () {
+      l.visits = (l.visits || 0) + 1;
+      save();
+      render();
+      window.open(l.url, "_blank", "noopener,noreferrer");
+    });
+    $("#go-copy").addEventListener("click", function (e) { Bench.copy(l.url, e.currentTarget); });
+    $("#go-close").addEventListener("click", function () {
+      history.replaceState(null, "", location.pathname);
+      host.innerHTML = "";
+    });
+  }
+
+  window.addEventListener("hashchange", resolve);
+
+  /* --- import & export ------------------------------------------------ */
+
+  $("#exp-json").addEventListener("click", function () {
+    Bench.download("links.json", JSON.stringify(links, null, 2), "application/json");
+  });
+
+  $("#exp-md").addEventListener("click", function () {
+    var md = "# Links\n\n" + links.map(function (l) {
+      return "- [" + l.title.replace(/[\[\]]/g, "") + "](" + l.url + ")"
+        + (l.tags.length ? " — " + l.tags.join(", ") : "")
+        + (l.notes ? "\n  " + l.notes.replace(/\n/g, " ") : "");
+    }).join("\n");
+    Bench.download("links.md", md, "text/markdown");
+  });
+
+  $("#imp").addEventListener("click", function () { $("#imp-file").click(); });
+
+  $("#imp-file").addEventListener("change", function () {
+    var f = this.files[0];
+    this.value = "";
+    if (!f) return;
+    Bench.readFile(f).then(function (text) {
+      var data;
+      try { data = JSON.parse(text); }
+      catch (e) { note($("#form-note"), "That file is not valid JSON.", "bad"); return; }
+      if (!Array.isArray(data)) { note($("#form-note"), "That JSON is not a list of links.", "bad"); return; }
+
+      var added = 0, skipped = 0;
+      data.forEach(function (r) {
+        if (!r || typeof r.url !== "string") { skipped++; return; }
+        var v = checkURL(r.url);
+        if (!v.ok) { skipped++; return; }
+        var code = CODE_RE.test(String(r.code || "")) && !byCode(r.code) ? r.code : newCode();
+        links.unshift({
+          code: code, url: v.url,
+          title: String(r.title || v.url).slice(0, 200),
+          tags: Array.isArray(r.tags) ? r.tags.map(String).slice(0, 20) : [],
+          notes: String(r.notes || "").slice(0, 2000),
+          added: Number(r.added) || Date.now(),
+          visits: Number(r.visits) || 0
+        });
+        added++;
+      });
+      save();
+      render();
+      note($("#form-note"), "Imported " + Bench.plural(added, "link")
+        + (skipped ? ", skipped " + skipped + " that had no usable http or https URL" : "") + ".",
+        added ? "ok" : "bad");
+    }).catch(function (e) { note($("#form-note"), esc(e.message), "bad"); });
+  });
+
+  render();
+  resolve();
+});
+</script>
+
+</body>
+</html>
