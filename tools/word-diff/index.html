@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Word-level Diff — Bench</title>
+<meta name="description" content="Compare prose by word rather than by character, for editing and revision. Runs entirely in your browser.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/css/bench.css">
+<style>
+  /* Page-specific CSS only. Everything is prefixed .wd- (word-diff). */
+
+  .wd-toolbar { margin-bottom: 14px; }
+  .wd-opts { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--edge); }
+
+  /* The output is prose, not code — comfortable serif-free reading type,
+     generous line-height, wraps normally. Deliberately NOT .out (which is
+     monospace); this is the one place on the site that reads like a document. */
+  .wd-out {
+    font-family: var(--display);
+    font-size: 1.05rem;
+    line-height: 1.8;
+    background: var(--sunk);
+    border: 1px solid var(--edge);
+    border-radius: var(--r);
+    padding: 20px 22px;
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+    min-height: 190px;
+    max-height: 62vh;
+    overflow-y: auto;
+  }
+  .wd-out .empty { font-family: var(--display); font-size: 1rem; font-style: normal; }
+
+  .hl-del { text-decoration-thickness: 1.5px; }
+
+  @media (max-width: 600px) {
+    .wd-out { font-size: 1rem; padding: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__home" href="../../index.html"><span class="topbar__mark">▚</span> bench</a>
+  <span class="topbar__sep">/</span>
+  <span class="topbar__here">Word-level Diff</span>
+  <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
+</header>
+
+<main class="wrap">
+
+  <div class="toolhead">
+    <p class="toolhead__spec mono">~~was~~ **is**</p>
+    <h1 class="toolhead__title">Word-level Diff</h1>
+    <p class="toolhead__desc">Compare prose by word rather than by character, for editing and revision. Nothing you paste here leaves the tab.</p>
+  </div>
+
+  <section class="panel">
+    <h2 class="panel__title">Input</h2>
+    <div class="row wd-toolbar">
+      <button class="btn btn--sm" id="sample">Load sample</button>
+      <button class="btn btn--sm" id="swap">Swap sides</button>
+      <button class="btn btn--sm btn--danger" id="clear">Clear</button>
+    </div>
+
+    <div class="split">
+      <div class="field">
+        <label class="label" for="old">Original</label>
+        <textarea class="textarea textarea--prose" id="old" spellcheck="false" placeholder="Paste the first revision"></textarea>
+      </div>
+      <div class="field">
+        <label class="label" for="new">Revised</label>
+        <textarea class="textarea textarea--prose" id="new" spellcheck="false" placeholder="Paste the second revision"></textarea>
+      </div>
+    </div>
+
+    <div class="row wd-opts">
+      <label class="check"><input type="checkbox" id="opt-case"> Ignore case</label>
+      <label class="check"><input type="checkbox" id="opt-punct"> Ignore punctuation</label>
+      <label class="check"><input type="checkbox" id="opt-changes"> Changes only</label>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2 class="panel__title">Comparison</h2>
+    <div class="row row--between" style="margin-bottom:12px">
+      <span></span>
+      <button class="btn btn--sm" id="copy-md">Copy as Markdown</button>
+    </div>
+
+    <div id="warn"></div>
+    <div class="wd-out" id="out"><span class="empty">Paste two revisions of a passage above to see what changed, word by word.</span></div>
+
+    <div class="stats" id="stats" style="margin-top:12px" hidden>
+      <div class="stat"><span class="stat__n" id="s-add">0</span><span class="stat__k">Words added</span></div>
+      <div class="stat"><span class="stat__n" id="s-del">0</span><span class="stat__k">Words removed</span></div>
+      <div class="stat"><span class="stat__n" id="s-eq">0</span><span class="stat__k">Unchanged</span></div>
+      <div class="stat"><span class="stat__n" id="s-pct">0%</span><span class="stat__k">Changed</span></div>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <a href="../../index.html">← All tools</a>
+    <span>·</span>
+    <span>Runs entirely in your browser</span>
+  </footer>
+
+</main>
+
+<script src="../../assets/js/bench.js" defer></script>
+<script defer>
+document.addEventListener("DOMContentLoaded", function () {
+  "use strict";
+  var $ = Bench.$, esc = Bench.esc;
+
+  /* ==========================================================================
+     Diff engine — Myers O(ND) over token arrays, plus a prefix/suffix trim
+     wrapper that makes the common case (mostly-identical text) fast. Same
+     shape as diff-checker and patch-generator; duplicated here on purpose so
+     every tool page stays a single self-contained file.
+     ========================================================================== */
+
+  var MAX_TOKENS = 6000; // guard against pathological input
+
+  function myers(a, b) {
+    var n = a.length, m = b.length;
+    var max = n + m;
+    if (max === 0) return [];
+
+    var offset = max;
+    var v = new Int32Array(2 * max + 1);
+    v[offset + 1] = 0;
+    var trace = [];
+
+    for (var d = 0; d <= max; d++) {
+      for (var k = -d; k <= d; k += 2) {
+        var x, y;
+        if (k === -d || (k !== d && v[offset + k - 1] < v[offset + k + 1])) {
+          x = v[offset + k + 1];
+        } else {
+          x = v[offset + k - 1] + 1;
+        }
+        y = x - k;
+        while (x < n && y < m && a[x] === b[y]) { x++; y++; }
+        v[offset + k] = x;
+        if (x >= n && y >= m) {
+          trace.push(v.slice());
+          return backtrack(trace, a, b, offset);
+        }
+      }
+      trace.push(v.slice());
+    }
+    return backtrack(trace, a, b, offset); // unreachable: Myers always finds d <= max
+  }
+
+  function backtrack(trace, a, b, offset) {
+    var x = a.length, y = b.length;
+    var ops = [];
+    for (var d = trace.length - 1; d >= 0; d--) {
+      var v = trace[d];
+      var k = x - y;
+      var prevK;
+      if (k === -d || (k !== d && v[offset + k - 1] < v[offset + k + 1])) prevK = k + 1;
+      else prevK = k - 1;
+      var prevX = d === 0 ? 0 : v[offset + prevK];
+      var prevY = prevX - prevK;
+      while (x > prevX && y > prevY) { ops.push({ type: "eq", a: x - 1, b: y - 1 }); x--; y--; }
+      if (d > 0) {
+        if (x === prevX) ops.push({ type: "add", a: null, b: y - 1 });
+        else ops.push({ type: "del", a: x - 1, b: null });
+      }
+      x = prevX; y = prevY;
+    }
+    ops.reverse();
+    return ops;
+  }
+
+  /** Trim common prefix/suffix, then run Myers on the shrunken middle. */
+  function diffArrays(a, b) {
+    var prefix = 0, minLen = Math.min(a.length, b.length);
+    while (prefix < minLen && a[prefix] === b[prefix]) prefix++;
+    var suffix = 0, maxSuffix = minLen - prefix;
+    while (suffix < maxSuffix && a[a.length - 1 - suffix] === b[b.length - 1 - suffix]) suffix++;
+
+    var midOps = myers(a.slice(prefix, a.length - suffix), b.slice(prefix, b.length - suffix));
+    var ops = [];
+    var i, j;
+    for (i = 0; i < prefix; i++) ops.push({ type: "eq", a: i, b: i });
+    midOps.forEach(function (op) {
+      ops.push({ type: op.type, a: op.a == null ? null : op.a + prefix, b: op.b == null ? null : op.b + prefix });
+    });
+    var aBase = a.length - suffix, bBase = b.length - suffix;
+    for (j = 0; j < suffix; j++) ops.push({ type: "eq", a: aBase + j, b: bBase + j });
+    return ops;
+  }
+
+  /* ==========================================================================
+     Word tokeniser — a token is either a maximal run of non-whitespace
+     (a "word", with any attached punctuation like commas or quotes riding
+     along as part of the same token) or a maximal run of whitespace. Joining
+     the tokens back together with no separator reproduces the input exactly,
+     which is what lets the diff read as flowing prose instead of a word list.
+     ========================================================================== */
+
+  function tokenize(text) {
+    return text.match(/\S+|\s+/g) || [];
+  }
+
+  function isWordTok(t) { return t.charAt(0) !== " " && !/^\s/.test(t); }
+
+  // Punctuation stripped for the "ignore punctuation" comparison. Deliberately
+  // not tied to \w (which would also eat accented letters) — just the marks.
+  var PUNCT_RE = /[!"#$%&'()*+,\-./:;<=>?@[\]^_`{|}~“”‘’…—–]+/g;
+
+  function normToken(t, ignorePunct, ignoreCase) {
+    var s = t;
+    if (ignorePunct) s = s.replace(PUNCT_RE, "");
+    if (ignoreCase) s = s.toLowerCase();
+    return s;
+  }
+
+  /* Merge consecutive del/add tokens between two eq boundaries into a single
+     "chg" segment, so a multi-word replacement reads as one struck-through
+     run followed by one inserted run rather than word-by-word ping-pong. */
+  function buildSegments(ops, oldToks, newToks) {
+    var segs = [];
+    var i = 0;
+    while (i < ops.length) {
+      if (ops[i].type === "eq") {
+        var buf = "";
+        while (i < ops.length && ops[i].type === "eq") { buf += oldToks[ops[i].a]; i++; }
+        segs.push({ type: "eq", text: buf });
+      } else {
+        var delBuf = "", addBuf = "";
+        while (i < ops.length && ops[i].type !== "eq") {
+          if (ops[i].type === "del") delBuf += oldToks[ops[i].a];
+          else addBuf += newToks[ops[i].b];
+          i++;
+        }
+        segs.push({ type: "chg", del: delBuf, add: addBuf });
+      }
+    }
+    return segs;
+  }
+
+  function computeStats(ops, oldToks, newToks) {
+    var added = 0, removed = 0, unchanged = 0;
+    ops.forEach(function (op) {
+      if (op.type === "eq") { if (isWordTok(oldToks[op.a])) unchanged++; }
+      else if (op.type === "del") { if (isWordTok(oldToks[op.a])) removed++; }
+      else { if (isWordTok(newToks[op.b])) added++; }
+    });
+    var total = added + removed + unchanged;
+    var pct = total ? Math.round((added + removed) / total * 1000) / 10 : 0;
+    return { added: added, removed: removed, unchanged: unchanged, pct: pct };
+  }
+
+  /* --- "changes only": collapse long unchanged runs to an ellipsis --------- */
+
+  var CTX_WORDS = 10;
+
+  function collapseSegments(segs) {
+    return segs.map(function (seg, idx) {
+      if (seg.type !== "eq") return seg;
+      var toks = seg.text.match(/\S+|\s+/g) || [];
+      var wordPos = [];
+      toks.forEach(function (t, i) { if (isWordTok(t)) wordPos.push(i); });
+      if (wordPos.length <= CTX_WORDS * 2) return seg;
+
+      var isFirst = idx === 0, isLast = idx === segs.length - 1;
+      var headEnd = wordPos[CTX_WORDS - 1];
+      var tailStart = wordPos[wordPos.length - CTX_WORDS];
+      var out;
+      if (isFirst && !isLast) out = "… " + toks.slice(tailStart).join("");
+      else if (isLast && !isFirst) out = toks.slice(0, headEnd + 1).join("") + " …";
+      else out = toks.slice(0, headEnd + 1).join("") + " … " + toks.slice(tailStart).join("");
+      return { type: "eq", text: out };
+    });
+  }
+
+  /* --- rendering ------------------------------------------------------------ */
+
+  function renderHTML(segs) {
+    return segs.map(function (s) {
+      if (s.type === "eq") return esc(s.text);
+      var html = "";
+      if (s.del) html += '<span class="hl-del">' + esc(s.del) + "</span>";
+      if (s.del && s.add) html += " ";
+      if (s.add) html += '<span class="hl-add">' + esc(s.add) + "</span>";
+      return html;
+    }).join("");
+  }
+
+  // The markdown export always reflects the FULL diff, ignoring the
+  // "changes only" display collapse — a copy button should never hand back
+  // less than what was actually compared.
+  function renderMarkdown(segs) {
+    return segs.map(function (s) {
+      if (s.type === "eq") return s.text;
+      var out = "";
+      if (s.del) out += "~~" + s.del + "~~";
+      if (s.del && s.add) out += " ";
+      if (s.add) out += "**" + s.add + "**";
+      return out;
+    }).join("");
+  }
+
+  /* ==========================================================================
+     Tool wiring
+     ========================================================================== */
+
+  var oldTa = $("#old"), newTa = $("#new");
+  var optCase = $("#opt-case"), optPunct = $("#opt-punct"), optChanges = $("#opt-changes");
+  var out = $("#out"), warnBox = $("#warn"), stats = $("#stats");
+  var fullSegs = []; // the untrimmed diff, kept for the markdown export
+
+  var SAMPLE_OLD = "The quick brown fox jumps over the lazy dog. It was a calm morning in the "
+    + "forest, and every creature seemed to move slower than usual. The fox paused near the old "
+    + "oak tree, sniffed the air, and decided the day was safe enough to explore further.";
+
+  var SAMPLE_NEW = "The quick brown fox leaps over the lazy dog. It was a bright morning in the "
+    + "forest, and every creature seemed to move faster than usual. The fox paused beside the old "
+    + "oak tree, sniffed the air, and decided the afternoon was safe enough to explore further.";
+
+  function render() {
+    var oldText = oldTa.value, newText = newTa.value;
+
+    if (!oldText && !newText) {
+      out.innerHTML = '<span class="empty">Paste two revisions of a passage above to see what changed, word by word.</span>';
+      stats.hidden = true;
+      warnBox.innerHTML = "";
+      fullSegs = [];
+      return;
+    }
+
+    var oldToks = tokenize(oldText), newToks = tokenize(newText);
+    var truncated = oldToks.length > MAX_TOKENS || newToks.length > MAX_TOKENS;
+    if (truncated) { oldToks = oldToks.slice(0, MAX_TOKENS); newToks = newToks.slice(0, MAX_TOKENS); }
+
+    warnBox.innerHTML = truncated
+      ? '<div class="note note--warn" style="margin-bottom:12px"><span class="note__mark">!</span><span>Comparison truncated to the first '
+        + Bench.num(MAX_TOKENS) + " tokens per side for performance.</span></div>"
+      : "";
+
+    var ic = optCase.checked, ip = optPunct.checked;
+    var normOld = oldToks.map(function (t) { return normToken(t, ip, ic); });
+    var normNew = newToks.map(function (t) { return normToken(t, ip, ic); });
+    var ops = diffArrays(normOld, normNew);
+
+    fullSegs = buildSegments(ops, oldToks, newToks);
+    var s = computeStats(ops, oldToks, newToks);
+
+    $("#s-add").textContent = Bench.num(s.added);
+    $("#s-del").textContent = Bench.num(s.removed);
+    $("#s-eq").textContent = Bench.num(s.unchanged);
+    $("#s-pct").textContent = s.pct + "%";
+    stats.hidden = false;
+
+    if (s.added === 0 && s.removed === 0) {
+      out.innerHTML = '<div class="note note--ok"><span class="note__mark">✓</span><span>No differences'
+        + (truncated ? " in the compared portion." : ".") + "</span></div>";
+      return;
+    }
+
+    var displaySegs = optChanges.checked ? collapseSegments(fullSegs) : fullSegs;
+    out.innerHTML = renderHTML(displaySegs);
+  }
+
+  Bench.live(oldTa, Bench.debounce(render, 150));
+  Bench.live(newTa, Bench.debounce(render, 150));
+  [optCase, optPunct, optChanges].forEach(function (el) { el.addEventListener("change", render); });
+
+  $("#sample").addEventListener("click", function () {
+    oldTa.value = SAMPLE_OLD; newTa.value = SAMPLE_NEW; render();
+  });
+  $("#swap").addEventListener("click", function () {
+    var t = oldTa.value; oldTa.value = newTa.value; newTa.value = t; render();
+  });
+  $("#clear").addEventListener("click", function () {
+    oldTa.value = ""; newTa.value = ""; render(); oldTa.focus();
+  });
+  $("#copy-md").addEventListener("click", function (e) {
+    if (!fullSegs.length) { Bench.toast("Nothing to copy yet", "bad"); return; }
+    Bench.copy(renderMarkdown(fullSegs), e.currentTarget);
+  });
+
+  render();
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,1131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>.gitignore Generator — Bench</title>
+<meta name="description" content="Pick your languages and tools and get the ignore rules for them.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/css/bench.css">
+<style>
+  /* Page-specific CSS only, prefixed .gi__ */
+
+  .gi__hint {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--steel);
+  }
+
+  .gi__group + .gi__group { margin-top: 16px; }
+
+  .gi__cathead {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--steel);
+    margin-bottom: 7px;
+  }
+
+  #gi-selected:empty::after,
+  #gi-selected.gi__empty::after {
+    content: "Nothing selected yet — pick templates below.";
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--steel);
+  }
+
+  .gi__out {
+    min-height: 220px;
+    max-height: 46vh;
+  }
+
+  .gi__testrow {
+    margin-bottom: 8px;
+  }
+
+  .gi__testrow:last-child { margin-bottom: 0; }
+
+  .gi__testrow code { font-size: 12.5px; }
+
+  .gi__scroll { max-height: 46vh; overflow-y: auto; padding-right: 2px; }
+
+  @media (max-width: 480px) {
+    .gi__testrow .mono { word-break: break-all; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__home" href="../../index.html"><span class="topbar__mark">▚</span> bench</a>
+  <span class="topbar__sep">/</span>
+  <span class="topbar__here">.gitignore Generator</span>
+  <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
+</header>
+
+<main class="wrap">
+
+  <div class="toolhead">
+    <p class="toolhead__spec mono">node_modules/</p>
+    <h1 class="toolhead__title">.gitignore Generator</h1>
+    <p class="toolhead__desc">Pick your languages and tools and get the ignore rules for them. Composed and tested entirely in your browser.</p>
+  </div>
+
+  <div class="split">
+
+    <section class="panel">
+      <h2 class="panel__title">Pick languages &amp; tools</h2>
+      <div class="row" style="margin-bottom:12px">
+        <label class="sr-only" for="gi-q">Search templates</label>
+        <input class="input grow" id="gi-q" type="text" placeholder="Search templates — try “python” or “docker”" autocomplete="off">
+        <button class="btn btn--sm btn--danger" id="gi-clear-sel">Clear selection</button>
+      </div>
+      <div class="chips" id="gi-selected" style="margin-bottom:16px"></div>
+      <div class="gi__scroll" id="gi-groups"></div>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel__title">Your .gitignore</h2>
+      <div class="row row--between" style="margin-bottom:12px">
+        <span class="gi__hint mono" id="gi-summary"></span>
+        <div class="row">
+          <button class="btn btn--sm" id="gi-copy">Copy</button>
+          <button class="btn btn--sm" id="gi-download">Download</button>
+        </div>
+      </div>
+      <div class="out out--auto gi__out" id="gi-out"></div>
+      <div class="field" style="margin-top:14px">
+        <label class="label" for="gi-custom">Custom rules — appended at the end</label>
+        <textarea class="textarea" id="gi-custom" style="min-height:96px" placeholder="# anything project-specific&#10;.local/&#10;secrets.json" spellcheck="false"></textarea>
+      </div>
+    </section>
+
+  </div>
+
+  <section class="panel" style="margin-top:var(--gap)">
+    <h2 class="panel__title">Rule tester</h2>
+    <p class="gi__hint" style="margin-bottom:14px">Paste paths below and see which ones your current <span class="mono">.gitignore</span> above would exclude — leading <span class="mono">/</span> anchors to the root, a trailing <span class="mono">/</span> means directory-only, <span class="mono">*</span> stays within one path segment, <span class="mono">**</span> crosses segments, and <span class="mono">!</span> re-includes (unless a parent directory is already excluded — git never lets you re-include inside an ignored directory).</p>
+
+    <div class="split">
+      <div>
+        <label class="label" for="gi-test-input">Paths to test — one per line, end with / for a directory</label>
+        <textarea class="textarea" id="gi-test-input" style="min-height:200px" spellcheck="false"></textarea>
+        <div class="row" style="margin-top:10px">
+          <button class="btn btn--sm" id="gi-test-sample">Load sample paths</button>
+          <button class="btn btn--sm btn--danger" id="gi-test-clear">Clear</button>
+        </div>
+      </div>
+      <div>
+        <div class="stats" id="gi-test-stats" style="margin-bottom:14px">
+          <div class="stat"><span class="stat__n" id="gi-t-total">0</span><span class="stat__k">Paths</span></div>
+          <div class="stat"><span class="stat__n" id="gi-t-ignored">0</span><span class="stat__k">Ignored</span></div>
+          <div class="stat"><span class="stat__n" id="gi-t-kept">0</span><span class="stat__k">Tracked</span></div>
+        </div>
+        <div class="gi__scroll" id="gi-test-results"></div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <a href="../../index.html">← All tools</a>
+    <span>·</span>
+    <span>Runs entirely in your browser</span>
+  </footer>
+
+</main>
+
+<script src="../../assets/js/bench.js" defer></script>
+<script defer>
+document.addEventListener("DOMContentLoaded", function () {
+  "use strict";
+  var $ = Bench.$, $$ = Bench.$$, esc = Bench.esc;
+  var store = Bench.store("gitignore-generator");
+
+  /* --- the catalogue --------------------------------------------------------
+     Each template's `rules` is the real content of that ecosystem's ignore
+     file (trimmed to the parts that matter). `cat` groups templates in the
+     picker. Comment lines (#...) inside a template are kept as section
+     dividers in the composed output; everything else is a rule line and is
+     deduplicated across templates that share it. */
+
+  var TEMPLATES = [
+    { id: "node", name: "Node", cat: "Languages", rules:
+`# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Dependencies
+node_modules/
+jspm_packages/
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage
+lib-cov/
+coverage/
+*.lcov
+.nyc_output/
+
+# Env files
+.env
+.env.local
+.env.*.local
+
+# Build output
+dist/
+build/
+out/
+
+# Caches
+.npm/
+.eslintcache
+.cache/
+
+# Yarn v2+
+.yarn/cache/
+.yarn/unplugged/
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*` },
+
+    { id: "python", name: "Python", cat: "Languages", rules:
+`__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+wheels/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Testing
+.pytest_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+nosetests.xml
+coverage.xml
+
+# Type checkers
+.mypy_cache/
+.pyre/
+.pytype/
+
+# Jupyter
+.ipynb_checkpoints/
+
+.env
+.python-version` },
+
+    { id: "java", name: "Java", cat: "Languages", rules:
+`*.class
+*.jar
+*.war
+*.ear
+*.nar
+
+# Build output
+target/
+build/
+
+# Logs & crash dumps
+*.log
+hs_err_pid*
+replay_pid*` },
+
+    { id: "go", name: "Go", cat: "Languages", rules:
+`*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Dependency directories
+vendor/
+
+# Go workspace files
+go.work
+go.work.sum
+
+# Coverage
+*.cover
+coverage.out` },
+
+    { id: "rust", name: "Rust", cat: "Languages", rules:
+`/target/
+**/*.rs.bk
+*.pdb` },
+
+    { id: "ruby", name: "Ruby", cat: "Languages", rules:
+`*.gem
+*.rbc
+/.config
+/coverage/
+/InstalledFiles
+/pkg/
+/spec/reports/
+/spec/examples.txt
+/test/tmp/
+/test/version_tmp/
+/tmp/
+
+# Bundler
+.bundle/
+vendor/bundle/
+lib/bundler/man/
+
+.rvmrc
+.rspec_status
+
+.env` },
+
+    { id: "php", name: "PHP", cat: "Languages", rules:
+`/vendor/
+composer.phar
+.env
+.env.local
+.phpunit.result.cache
+/build/
+*.cache` },
+
+    { id: "c", name: "C", cat: "Languages", rules:
+`*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+*.exe
+*.out
+*.i*86
+*.x86_64
+*.hex
+
+# Debug files
+*.dSYM/
+*.su
+*.idb
+*.pdb` },
+
+    { id: "cpp", name: "C++", cat: "Languages", rules:
+`*.o
+*.obj
+*.slo
+*.lo
+*.la
+*.al
+*.libs
+*.so
+*.so.*
+*.dylib
+*.dll
+*.a
+*.lib
+*.exe
+*.out
+*.app
+*.ilk
+*.map
+*.exp
+
+# CMake
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+build/` },
+
+    { id: "csharp", name: "C#/.NET", cat: "Languages", rules:
+`bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+[Dd]ebug/
+[Rr]elease/
+[Xx]64/
+[Xx]86/
+*.dll
+*.exe
+*.pdb
+packages/
+*.nupkg
+project.lock.json
+artifacts/` },
+
+    { id: "swift", name: "Swift", cat: "Languages", rules:
+`.build/
+*.xcodeproj/*
+!*.xcodeproj/project.pbxproj
+.swiftpm/
+DerivedData/
+*.moved-aside
+*.xcuserstate
+Package.resolved` },
+
+    { id: "kotlin", name: "Kotlin", cat: "Languages", rules:
+`*.class
+.gradle/
+build/
+out/
+.kotlin/` },
+
+    { id: "dart", name: "Dart/Flutter", cat: "Languages", rules:
+`.dart_tool/
+.packages
+.pub-cache/
+.pub/
+build/
+*.g.dart
+*.freezed.dart
+
+**/ios/Flutter/.last_build_id
+.flutter-plugins
+.flutter-plugins-dependencies
+.metadata
+android/local.properties
+ios/Runner.xcworkspace/xcshareddata/` },
+
+    { id: "elixir", name: "Elixir", cat: "Languages", rules:
+`/_build/
+/cover/
+/deps/
+/doc/
+/.fetch
+erl_crash.dump
+*.ez
+*.beam
+/config/*.secret.exs
+.elixir_ls/` },
+
+    { id: "haskell", name: "Haskell", cat: "Languages", rules:
+`dist/
+dist-newstyle/
+.stack-work/
+cabal.project.local
+cabal.project.local~
+.ghc.environment.*
+*.hi
+*.o` },
+
+    { id: "scala", name: "Scala", cat: "Languages", rules:
+`*.class
+target/
+.bloop/
+.metals/
+.bsp/
+project/project/
+project/target/` },
+
+    { id: "r", name: "R", cat: "Languages", rules:
+`.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+*.Rproj
+/packrat/lib*/
+/renv/library/
+/renv/python/
+/renv/staging/` },
+
+    { id: "latex", name: "LaTeX", cat: "Languages", rules:
+`*.aux
+*.bbl
+*.blg
+*.log
+*.out
+*.toc
+*.lof
+*.lot
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.nav
+*.snm
+*.vrb
+*.bcf
+*.run.xml
+*.xdv` },
+
+    { id: "unity", name: "Unity", cat: "Mobile & game engines", rules:
+`[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Mm]emoryCaptures/
+[Uu]serSettings/
+[Aa]ssets/AssetStoreTools*
+*.pidb.meta
+*.pdb.meta
+*.mdb.meta
+sysinfo.txt
+*.apk
+*.aab
+*.unitypackage
+crashlytics-build.properties` },
+
+    { id: "unreal", name: "Unreal", cat: "Mobile & game engines", rules:
+`Binaries/
+Build/
+Saved/
+Intermediate/
+DerivedDataCache/
+*.sln
+*.suo
+*.opensdf
+*.sdf
+*.VC.db
+*.VC.opendb` },
+
+    { id: "android", name: "Android", cat: "Mobile & game engines", rules:
+`*.apk
+*.aab
+*.ap_
+*.dex
+local.properties
+.gradle/
+build/
+captures/
+.externalNativeBuild/
+.cxx/
+*.jks
+*.keystore` },
+
+    { id: "xcode", name: "Xcode", cat: "Mobile & game engines", rules:
+`build/
+DerivedData/
+*.moved-aside
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+!default.pbxuser
+!default.mode1v3
+!default.mode2v3
+!default.perspectivev3
+xcuserdata/
+*.xccheckout
+*.xcscmblueprint` },
+
+    { id: "gradle", name: "Gradle", cat: "Build tools", rules:
+`.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+gradle-app.setting
+!**/src/main/**/build/
+!**/src/test/**/build/` },
+
+    { id: "maven", name: "Maven", cat: "Build tools", rules:
+`target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties` },
+
+    { id: "terraform", name: "Terraform", cat: "Infrastructure", rules:
+`**/.terraform/*
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+*.tfvars
+*.tfvars.json
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc` },
+
+    { id: "ansible", name: "Ansible", cat: "Infrastructure", rules:
+`*.retry
+.vault_pass
+*.vault
+inventory/host_vars/*/vault*
+.ansible/` },
+
+    { id: "docker", name: "Docker", cat: "Infrastructure", rules:
+`docker-compose.override.yml
+.docker/
+*.pid
+.env` },
+
+    { id: "vagrant", name: "Vagrant", cat: "Infrastructure", rules:
+`.vagrant/
+*.box` },
+
+    { id: "jetbrains", name: "JetBrains", cat: "Editors & IDEs", rules:
+`.idea/
+*.iml
+*.ipr
+*.iws
+out/
+.idea_modules/
+cmake-build-*/
+.shelf/` },
+
+    { id: "vscode", name: "VS Code", cat: "Editors & IDEs", rules:
+`.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+.history/` },
+
+    { id: "visualstudio", name: "Visual Studio", cat: "Editors & IDEs", rules:
+`.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+bld/
+[Oo]bj/
+[Bb]in/` },
+
+    { id: "sublime", name: "Sublime Text", cat: "Editors & IDEs", rules:
+`*.sublime-workspace
+*.sublime-project
+sftp-config.json
+Package Control.last-run
+Package Control.ca-list
+Package Control.ca-bundle
+oscrypto-ca-bundle.crt` },
+
+    { id: "vim", name: "Vim", cat: "Editors & IDEs", rules:
+`[._]*.s[a-v][a-z]
+[._]*.sw[a-p]
+[._]s[a-rt-v][a-z]
+[._]ss[a-gi-z]
+[._]sw[a-p]
+Session.vim
+Sessionx.vim
+.netrwhist
+tags
+*.swp
+*.swo` },
+
+    { id: "emacs", name: "Emacs", cat: "Editors & IDEs", rules:
+`*~
+\\#*\\#
+.\\#*
+.emacs.desktop
+.emacs.desktop.lock
+auto-save-list
+tramp
+.projectile
+.dir-locals.el` },
+
+    { id: "macos", name: "macOS", cat: "Operating systems", rules:
+`.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk` },
+
+    { id: "windows", name: "Windows", cat: "Operating systems", rules:
+`Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk` },
+
+    { id: "linux", name: "Linux", cat: "Operating systems", rules:
+`*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*` },
+
+    { id: "laravel", name: "Laravel", cat: "Frameworks", rules:
+`/vendor/
+/node_modules/
+/public/hot
+/public/storage
+/storage/*.key
+.env
+.env.backup
+.phpunit.result.cache
+Homestead.json
+Homestead.yaml
+npm-debug.log
+yarn-error.log
+/.idea
+/.vscode` },
+
+    { id: "rails", name: "Rails", cat: "Frameworks", rules:
+`/log/*
+/tmp/*
+!/log/.keep
+!/tmp/.keep
+/db/*.sqlite3
+/db/*.sqlite3-journal
+/public/assets
+/public/packs
+/public/packs-test
+/node_modules/
+/yarn-error.log
+.byebug_history
+/config/master.key
+/storage/*
+!/storage/.keep
+.env` },
+
+    { id: "django", name: "Django", cat: "Frameworks", rules:
+`*.pyc
+__pycache__/
+db.sqlite3
+db.sqlite3-journal
+/media/
+/staticfiles/
+.env
+local_settings.py` },
+
+    { id: "nextjs", name: "Next.js", cat: "Frameworks", rules:
+`.next/
+out/
+next-env.d.ts
+.vercel/` },
+
+    { id: "nuxt", name: "Nuxt", cat: "Frameworks", rules:
+`.nuxt/
+.output/
+.nitro/
+dist/` },
+
+    { id: "svelte", name: "Svelte", cat: "Frameworks", rules:
+`.svelte-kit/
+/build/
+/package/` },
+
+    { id: "vue", name: "Vue", cat: "Frameworks", rules:
+`dist/
+*.local
+.env.local
+.env.*.local` },
+
+    { id: "reactnative", name: "React Native", cat: "Frameworks", rules:
+`node_modules/
+/ios/build/
+/ios/Pods/
+/android/app/build/
+/android/.gradle/
+*.jsbundle
+.expo/
+.expo-shared/` },
+
+    { id: "wordpress", name: "WordPress", cat: "Frameworks", rules:
+`wp-config.php
+/wp-content/uploads/
+/wp-content/cache/
+/wp-content/upgrade/
+/wp-content/backup-db/
+/wp-content/advanced-cache.php
+*.log
+sitemap.xml
+sitemap.xml.gz` },
+
+    { id: "jekyll", name: "Jekyll", cat: "Frameworks", rules:
+`_site/
+.sass-cache/
+.jekyll-cache/
+.jekyll-metadata
+vendor/bundle/` },
+
+    { id: "hugo", name: "Hugo", cat: "Frameworks", rules:
+`public/
+resources/_gen/
+.hugo_build.lock` },
+
+    { id: "general", name: "Archives, logs & env", cat: "General", rules:
+`*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.rar
+*.7z
+*.log
+logs/
+.env
+.env.*
+!.env.example
+*.bak
+*.tmp
+*.swp` }
+  ];
+
+  var CAT_ORDER = ["Languages", "Mobile & game engines", "Build tools", "Infrastructure", "Editors & IDEs", "Operating systems", "Frameworks", "General"];
+  var BY_ID = {};
+  TEMPLATES.forEach(function (t) { BY_ID[t.id] = t; });
+
+  /* --- gitignore matching engine --------------------------------------------
+     Translates one gitignore pattern into a regex following the documented
+     rules: a slash anywhere but the very end anchors the pattern to the root;
+     a trailing slash means directory-only; `*` matches within one path
+     segment; `**` may span segments (leading, trailing or in the middle);
+     `!` negates, and later rules override earlier ones. Ancestor directories
+     are resolved first because git will never re-include a path whose parent
+     directory is already excluded. */
+
+  function escRe(ch) { return ch.replace(/[.^$+(){}|\\]/g, "\\$&"); }
+
+  function segToRegex(seg) {
+    var out = "", i = 0;
+    while (i < seg.length) {
+      var c = seg[i];
+      if (c === "*") { out += "[^/]*"; i++; }
+      else if (c === "?") { out += "[^/]"; i++; }
+      else if (c === "[") {
+        var j = i + 1, neg = false;
+        if (seg[j] === "!" || seg[j] === "^") { neg = true; j++; }
+        var start = j;
+        while (j < seg.length && seg[j] !== "]") j++;
+        if (j >= seg.length) { out += "\\["; i++; continue; }
+        var cls = seg.slice(start, j).replace(/\\/g, "\\\\");
+        out += "[" + (neg ? "^" : "") + cls + "]";
+        i = j + 1;
+      } else { out += escRe(c); i++; }
+    }
+    return out;
+  }
+
+  function buildRegexCore(core) {
+    var segs = core.split("/");
+    var out = "";
+    for (var j = 0; j < segs.length; j++) {
+      var seg = segs[j];
+      if (seg === "**") {
+        if (segs.length === 1) out = ".*";
+        else if (j === 0) out += "(?:.*/)?";
+        else if (j === segs.length - 1) out += "/.*";
+        else out += "/(?:.*/)?";
+      } else {
+        if (j > 0 && segs[j - 1] !== "**") out += "/";
+        out += segToRegex(seg);
+      }
+    }
+    return out;
+  }
+
+  function compileRule(raw) {
+    var line = raw;
+    if (line.trim() === "") return null;
+    if (/^\s*#/.test(line)) return null;
+    line = line.trim();
+    var negate = false;
+    if (line[0] === "!") { negate = true; line = line.slice(1); }
+    else if (line[0] === "\\" && (line[1] === "!" || line[1] === "#")) { line = line.slice(1); }
+    if (line === "") return null;
+    var dirOnly = false;
+    if (line.length > 1 && line[line.length - 1] === "/") { dirOnly = true; line = line.slice(0, -1); }
+    var anchored = line.indexOf("/") !== -1;
+    if (line[0] === "/") line = line.slice(1);
+    if (line === "") return null;
+    var core = buildRegexCore(line);
+    var pattern = anchored ? ("^" + core + "$") : ("^(?:.*/)?" + core + "$");
+    var re;
+    try { re = new RegExp(pattern); } catch (e) { return null; }
+    return { raw: raw.trim(), negate: negate, dirOnly: dirOnly, regex: re };
+  }
+
+  function parseRules(text) {
+    return text.split("\n").map(compileRule).filter(Boolean);
+  }
+
+  function evalPath(path, isDir, rules) {
+    var ignored = null, hit = null;
+    rules.forEach(function (r) {
+      if (r.dirOnly && !isDir) return;
+      if (r.regex.test(path)) { ignored = !r.negate; hit = r; }
+    });
+    return { ignored: ignored, rule: hit };
+  }
+
+  /** Walk from the root down so a parent directory that's already excluded
+   *  can lock in the result — git never lets a deeper `!` rule re-include a
+   *  path inside an already-ignored directory. */
+  function isIgnored(fullPath, isDirFinal, rules) {
+    var segs = fullPath.split("/").filter(Boolean);
+    var ignored = false, matchedRule = null;
+    for (var i = 1; i <= segs.length; i++) {
+      var isLast = i === segs.length;
+      var sub = segs.slice(0, i).join("/");
+      var res = evalPath(sub, isLast ? isDirFinal : true, rules);
+      if (res.ignored === true) { ignored = true; matchedRule = res.rule; }
+      else if (res.ignored === false) { ignored = false; matchedRule = res.rule; }
+      if (!isLast && ignored) break;
+    }
+    return { ignored: ignored, rule: matchedRule };
+  }
+
+  /* --- state ------------------------------------------------------------- */
+
+  var savedSelection = store.get("selected", null);
+  var selected = {};
+  if (savedSelection === null) {
+    // First visit — start with a small, recognisable stack so the page
+    // demonstrates composition and dedup instead of arriving empty.
+    ["node", "macos", "jetbrains"].forEach(function (id) { selected[id] = true; });
+  } else {
+    savedSelection.forEach(function (id) { if (BY_ID[id]) selected[id] = true; });
+  }
+
+  var qEl = $("#gi-q"), groupsEl = $("#gi-groups"), selectedEl = $("#gi-selected");
+  var customEl = $("#gi-custom"), outEl = $("#gi-out"), summaryEl = $("#gi-summary");
+  var testInput = $("#gi-test-input"), testResults = $("#gi-test-results");
+
+  customEl.value = store.get("custom", "");
+  testInput.value = store.get("testPaths", SAMPLE_PATHS());
+
+  function SAMPLE_PATHS() {
+    return ["node_modules/", "node_modules/lodash/index.js", "src/index.js", "src/index.test.js",
+      ".env", ".env.example", "dist/bundle.js", "build/output.css", ".DS_Store",
+      "logs/error.log", "coverage/lcov.info", ".vscode/settings.json", ".idea/workspace.xml", "README.md"].join("\n");
+  }
+
+  var currentOutput = "";
+
+  /* --- picker rendering ---------------------------------------------------- */
+
+  function chipHTML(t) {
+    return '<button type="button" class="chip' + (selected[t.id] ? " chip--on" : "") + '" data-id="' + t.id + '">' + esc(t.name) + "</button>";
+  }
+
+  function renderGroups() {
+    var needle = qEl.value.trim().toLowerCase();
+    var byCat = {};
+    TEMPLATES.forEach(function (t) { (byCat[t.cat] || (byCat[t.cat] = [])).push(t); });
+
+    var html = CAT_ORDER.map(function (cat) {
+      var items = (byCat[cat] || []).filter(function (t) { return !needle || t.name.toLowerCase().indexOf(needle) !== -1; });
+      if (!items.length) return "";
+      return '<div class="gi__group"><h3 class="gi__cathead">' + esc(cat) + "</h3>"
+        + '<div class="chips">' + items.map(chipHTML).join("") + "</div></div>";
+    }).join("");
+
+    groupsEl.innerHTML = html || '<p class="empty">No template matches “' + esc(qEl.value.trim()) + '”.</p>';
+  }
+
+  function renderSelected() {
+    var ids = TEMPLATES.filter(function (t) { return selected[t.id]; });
+    if (!ids.length) {
+      selectedEl.className = "chips gi__empty";
+      selectedEl.innerHTML = "";
+      return;
+    }
+    selectedEl.className = "chips";
+    selectedEl.innerHTML = ids.map(function (t) {
+      return '<button type="button" class="chip chip--on" data-id="' + t.id + '" title="Remove ' + esc(t.name) + '">'
+        + esc(t.name) + ' <span aria-hidden="true">×</span></button>';
+    }).join("");
+  }
+
+  /* --- compose the file ----------------------------------------------------
+     Fixed catalogue order keeps the output deterministic regardless of the
+     order templates were picked in. A rule line already emitted by an
+     earlier section is skipped — comments and blank lines are never
+     deduplicated, only real rules. */
+
+  function compose() {
+    var seen = {};
+    var parts = [];
+
+    TEMPLATES.forEach(function (t) {
+      if (!selected[t.id]) return;
+      var kept = [];
+      t.rules.split("\n").forEach(function (line) {
+        var trimmed = line.trim();
+        if (trimmed === "") { kept.push(""); return; }
+        if (trimmed[0] === "#") { kept.push(line); return; }
+        if (seen[trimmed]) return;
+        seen[trimmed] = true;
+        kept.push(line);
+      });
+      while (kept.length && kept[0] === "") kept.shift();
+      while (kept.length && kept[kept.length - 1] === "") kept.pop();
+      parts.push("### " + t.name + " ###" + (kept.length ? "\n" + kept.join("\n") : "\n# (all rules already covered above)"));
+    });
+
+    var custom = customEl.value.replace(/\r\n/g, "\n").trim();
+    if (custom) parts.push("### Custom ###\n" + custom);
+
+    return parts.length ? parts.join("\n\n") + "\n" : "";
+  }
+
+  function renderOutput() {
+    currentOutput = compose();
+    if (!currentOutput) {
+      outEl.innerHTML = '<span class="empty">Pick at least one template on the left, or add custom rules below, to see your .gitignore.</span>';
+      summaryEl.textContent = "";
+    } else {
+      outEl.textContent = currentOutput;
+      var lineCount = currentOutput.split("\n").filter(function (l) { return l.trim() && l.trim()[0] !== "#"; }).length;
+      var n = Object.keys(selected).filter(function (id) { return selected[id]; }).length;
+      summaryEl.textContent = Bench.plural(n, "template") + " · " + Bench.plural(lineCount, "rule") + " · " + Bench.bytes(new Blob([currentOutput]).size);
+    }
+    renderTester();
+  }
+
+  /* --- rule tester ----------------------------------------------------------- */
+
+  function renderTester() {
+    var rules = parseRules(currentOutput);
+    var lines = testInput.value.split("\n").map(function (l) { return l.trim(); }).filter(function (l) { return l && l[0] !== "#"; });
+
+    if (!lines.length) {
+      testResults.innerHTML = '<p class="empty">Paste some paths above to see which ones your .gitignore would exclude.</p>';
+      $("#gi-t-total").textContent = "0"; $("#gi-t-ignored").textContent = "0"; $("#gi-t-kept").textContent = "0";
+      return;
+    }
+
+    var ignoredN = 0, keptN = 0;
+    var html = lines.map(function (raw) {
+      var isDir = raw[raw.length - 1] === "/";
+      var path = raw.replace(/^\/+/, "").replace(/\/+$/, "");
+      if (!path) return "";
+      var res = isIgnored(path, isDir, rules);
+      if (res.ignored) ignoredN++; else keptN++;
+      var cls = res.ignored ? "note note--warn" : "note note--ok";
+      var mark = res.ignored ? "✕" : "✓";
+      var label = res.ignored ? "Ignored" : "Tracked";
+      var why = res.rule
+        ? "matched <code class=\"mono\">" + esc(res.rule.raw) + "</code>" + (res.rule.negate ? " (negation)" : "")
+        : "no rule matched";
+      return '<div class="' + cls + ' gi__testrow"><span class="note__mark">' + mark + '</span>'
+        + "<span><b class=\"mono\">" + esc(raw) + "</b> — " + label + " · " + why + "</span></div>";
+    }).join("");
+
+    testResults.innerHTML = html;
+    $("#gi-t-total").textContent = Bench.num(ignoredN + keptN);
+    $("#gi-t-ignored").textContent = Bench.num(ignoredN);
+    $("#gi-t-kept").textContent = Bench.num(keptN);
+  }
+
+  /* --- wiring ---------------------------------------------------------------- */
+
+  function toggle(id) {
+    selected[id] = !selected[id];
+    if (!selected[id]) delete selected[id];
+    store.set("selected", Object.keys(selected));
+    renderGroups();
+    renderSelected();
+    renderOutput();
+  }
+
+  groupsEl.addEventListener("click", function (e) {
+    var btn = e.target.closest(".chip");
+    if (!btn) return;
+    toggle(btn.dataset.id);
+  });
+
+  selectedEl.addEventListener("click", function (e) {
+    var btn = e.target.closest(".chip");
+    if (!btn) return;
+    toggle(btn.dataset.id);
+  });
+
+  $("#gi-clear-sel").addEventListener("click", function () {
+    selected = {};
+    store.set("selected", []);
+    renderGroups(); renderSelected(); renderOutput();
+  });
+
+  Bench.live(qEl, Bench.debounce(renderGroups, 100));
+
+  Bench.live(customEl, Bench.debounce(function () {
+    store.set("custom", customEl.value);
+    renderOutput();
+  }, 200));
+
+  Bench.live(testInput, Bench.debounce(function () {
+    store.set("testPaths", testInput.value);
+    renderTester();
+  }, 150));
+
+  $("#gi-test-sample").addEventListener("click", function () {
+    testInput.value = SAMPLE_PATHS();
+    store.set("testPaths", testInput.value);
+    renderTester();
+  });
+
+  $("#gi-test-clear").addEventListener("click", function () {
+    testInput.value = "";
+    store.set("testPaths", "");
+    renderTester();
+    testInput.focus();
+  });
+
+  $("#gi-copy").addEventListener("click", function (e) {
+    if (!currentOutput) { Bench.toast("Nothing to copy yet", "bad"); return; }
+    Bench.copy(currentOutput, e.currentTarget);
+  });
+
+  $("#gi-download").addEventListener("click", function () {
+    if (!currentOutput) { Bench.toast("Nothing to save yet", "bad"); return; }
+    Bench.download(".gitignore", currentOutput, "text/plain");
+  });
+
+  renderGroups();
+  renderSelected();
+  renderOutput();
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clamp Calculator — Bench</title>
+<meta name="description" content="Turn a minimum and maximum size into one fluid clamp() value.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/css/bench.css">
+<style>
+  /* Page-specific CSS only, prefixed clc__ (clamp-calculator). */
+
+  .clc__unit-toggle { display: inline-flex; border: 1px solid var(--edge-2); border-radius: var(--r); overflow: hidden; }
+  .clc__unit-toggle button {
+    border: 0; border-radius: 0; padding: 8px 16px; background: var(--card); color: var(--steel);
+    font-family: var(--mono); font-size: 12.5px;
+  }
+  .clc__unit-toggle button + button { border-left: 1px solid var(--edge-2); }
+  .clc__unit-toggle button.btn--on { background: var(--signal-soft); color: var(--signal); }
+
+  .clc__grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 500px) { .clc__grid2 { grid-template-columns: 1fr; } }
+
+  .clc__real {
+    font-weight: 600; letter-spacing: -0.01em; line-height: 1.2;
+    overflow-wrap: break-word; margin: 0;
+  }
+  .clc__sim { font-weight: 600; letter-spacing: -0.01em; line-height: 1.2; overflow-wrap: break-word; margin: 0; }
+
+  .clc__hint { color: var(--steel); font-size: 12.5px; margin-top: 4px; }
+
+  .clc__slider-row { display: flex; align-items: center; gap: 12px; }
+  .clc__slider-row input[type="range"] { flex: 1; }
+  .clc__slider-readout {
+    flex: none; font-family: var(--mono); font-size: 12.5px; color: var(--steel);
+    min-width: 64px; text-align: right;
+  }
+
+  .clc__zone { font-family: var(--mono); font-size: 12px; }
+  .clc__zone--min, .clc__zone--max { color: var(--steel); }
+  .clc__zone--fluid { color: var(--signal); }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__home" href="../../index.html"><span class="topbar__mark">▚</span> bench</a>
+  <span class="topbar__sep">/</span>
+  <span class="topbar__here">Clamp Calculator</span>
+  <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
+</header>
+
+<main class="wrap">
+
+  <div class="toolhead">
+    <p class="toolhead__spec mono">clamp(1rem, 2vw, 2rem)</p>
+    <h1 class="toolhead__title">Clamp Calculator</h1>
+    <p class="toolhead__desc">Turn a minimum and maximum size into one fluid clamp() value. Everything is computed in this tab.</p>
+  </div>
+
+  <div class="stack" style="gap:20px">
+
+    <div class="split split--narrow">
+
+      <section class="panel">
+        <h2 class="panel__title">Inputs</h2>
+
+        <div class="field">
+          <span class="label">Type scale presets</span>
+          <div class="chips" id="presets"></div>
+        </div>
+
+        <div class="field">
+          <span class="label">Size unit</span>
+          <div class="clc__unit-toggle" role="group" aria-label="Size unit">
+            <button type="button" class="btn--on" data-unit="rem">rem</button>
+            <button type="button" data-unit="px">px</button>
+          </div>
+        </div>
+
+        <div class="clc__grid2">
+          <div class="field">
+            <label class="label" id="min-size-label" for="min-size">Minimum size (rem)</label>
+            <input class="input input--mono" type="number" id="min-size" value="1" step="0.01" min="0">
+          </div>
+          <div class="field">
+            <label class="label" id="max-size-label" for="max-size">Maximum size (rem)</label>
+            <input class="input input--mono" type="number" id="max-size" value="2" step="0.01" min="0">
+          </div>
+        </div>
+
+        <div class="clc__grid2">
+          <div class="field">
+            <label class="label" for="min-vw">Minimum viewport (px)</label>
+            <input class="input input--mono" type="number" id="min-vw" value="320" step="1" min="1">
+          </div>
+          <div class="field">
+            <label class="label" for="max-vw">Maximum viewport (px)</label>
+            <input class="input input--mono" type="number" id="max-vw" value="1280" step="1" min="1">
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="label" for="root-size">Root font size (px)</label>
+          <input class="input input--mono" type="number" id="root-size" value="16" step="1" min="1" style="max-width:140px">
+        </div>
+
+        <div id="input-error"></div>
+      </section>
+
+      <section class="panel">
+        <h2 class="panel__title">CSS</h2>
+        <div class="row row--between" style="margin-bottom:10px">
+          <span class="label" style="margin-bottom:0">Finished declaration</span>
+          <button class="btn btn--sm" data-copy="#css-out">Copy</button>
+        </div>
+        <div class="out out--wrap out--auto" id="css-out">font-size: clamp(1rem, 0.6667rem + 1.6667vw, 2rem);</div>
+        <div id="warn-note" style="margin-top:12px"></div>
+      </section>
+
+    </div>
+
+    <section class="panel">
+      <h2 class="panel__title">Live preview</h2>
+
+      <div class="field">
+        <span class="label">Real — resize your browser window to see this respond to the actual viewport</span>
+        <p class="clc__real" id="real-sample">The quick brown fox jumps over the lazy dog</p>
+      </div>
+
+      <div class="field" style="margin-top:22px">
+        <span class="label">Simulated — drag to preview any viewport width without resizing your window</span>
+        <div class="clc__slider-row">
+          <label class="sr-only" for="vw-slider">Simulated viewport width</label>
+          <input type="range" id="vw-slider" min="280" max="2200" value="800" step="10">
+          <span class="clc__slider-readout mono" id="vw-readout">800px</span>
+        </div>
+        <p class="clc__sim" id="sim-sample" style="margin-top:14px">The quick brown fox jumps over the lazy dog</p>
+        <p class="clc__hint mono" id="sim-readout"></p>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel__title">Computed size by viewport</h2>
+      <div class="tablewrap">
+        <table class="table">
+          <thead>
+            <tr><th>Viewport</th><th>Size</th><th>Zone</th></tr>
+          </thead>
+          <tbody id="size-table"></tbody>
+        </table>
+      </div>
+    </section>
+
+  </div>
+
+  <footer class="foot">
+    <a href="../../index.html">← All tools</a>
+    <span>·</span>
+    <span>Runs entirely in your browser</span>
+  </footer>
+
+</main>
+
+<script src="../../assets/js/bench.js" defer></script>
+<script defer>
+document.addEventListener("DOMContentLoaded", function () {
+  "use strict";
+  var $ = Bench.$, $$ = Bench.$$, esc = Bench.esc;
+
+  var minSizeInput = $("#min-size"), maxSizeInput = $("#max-size");
+  var minVwInput = $("#min-vw"), maxVwInput = $("#max-vw"), rootInput = $("#root-size");
+  var minSizeLabel = $("#min-size-label"), maxSizeLabel = $("#max-size-label");
+  var cssOut = $("#css-out"), warnNote = $("#warn-note"), inputError = $("#input-error");
+  var sizeTable = $("#size-table");
+  var realSample = $("#real-sample"), simSample = $("#sim-sample");
+  var vwSlider = $("#vw-slider"), vwReadout = $("#vw-readout"), simReadout = $("#sim-readout");
+
+  var unit = "rem"; // rem | px — which unit the size fields are currently shown in
+
+  var BREAKPOINTS = [320, 480, 768, 1024, 1280, 1440, 1920];
+
+  // A modest type scale, defined once in rem so it's independent of the
+  // current unit toggle and of root font size.
+  var PRESETS = [
+    { label: "Small", min: 0.8, max: 0.875 },
+    { label: "Body", min: 1, max: 1.125 },
+    { label: "Lead", min: 1.125, max: 1.375 },
+    { label: "H4", min: 1.25, max: 1.5 },
+    { label: "H3", min: 1.5, max: 1.875 },
+    { label: "H2", min: 1.875, max: 2.5 },
+    { label: "H1", min: 2.5, max: 3.5 },
+    { label: "Display", min: 3, max: 4.5 }
+  ];
+
+  /* --- number formatting ------------------------------------------------------ */
+
+  // Round to `d` decimals, then strip trailing zeros so "1.5000rem" reads "1.5rem".
+  function fmt(n, d) {
+    if (!isFinite(n)) return "0";
+    var s = n.toFixed(d == null ? 4 : d);
+    s = s.replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
+    return s === "-0" ? "0" : s;
+  }
+
+  /* --- unit toggle ------------------------------------------------------------- */
+
+  function setUnit(next) {
+    if (next === unit) return;
+    var root = parseFloat(rootInput.value) || 16;
+
+    [minSizeInput, maxSizeInput].forEach(function (input) {
+      var cur = parseFloat(input.value);
+      if (isNaN(cur)) return;
+      var px = unit === "rem" ? cur * root : cur;
+      var out = next === "rem" ? px / root : px;
+      input.value = fmt(out, next === "rem" ? 4 : 2);
+    });
+
+    unit = next;
+    minSizeInput.step = maxSizeInput.step = unit === "rem" ? "0.01" : "1";
+    minSizeLabel.textContent = "Minimum size (" + unit + ")";
+    maxSizeLabel.textContent = "Maximum size (" + unit + ")";
+    $$("[data-unit]").forEach(function (b) { b.classList.toggle("btn--on", b.dataset.unit === unit); });
+    compute();
+  }
+
+  $$("[data-unit]").forEach(function (btn) {
+    btn.addEventListener("click", function () { setUnit(btn.dataset.unit); });
+  });
+
+  /* --- presets ------------------------------------------------------------------ */
+
+  $("#presets").innerHTML = PRESETS.map(function (p, i) {
+    return '<button type="button" class="chip" data-preset="' + i + '" title="'
+      + esc(p.min + "rem → " + p.max + "rem") + '">' + esc(p.label) + "</button>";
+  }).join("");
+
+  $("#presets").addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-preset]");
+    if (!btn) return;
+    var p = PRESETS[Number(btn.dataset.preset)];
+    var root = parseFloat(rootInput.value) || 16;
+    var toDisplay = function (rem) { return unit === "rem" ? rem : rem * root; };
+    minSizeInput.value = fmt(toDisplay(p.min), unit === "rem" ? 4 : 2);
+    maxSizeInput.value = fmt(toDisplay(p.max), unit === "rem" ? 4 : 2);
+    compute();
+  });
+
+  /* --- core maths ---------------------------------------------------------------
+     Slope and intercept are computed in real px throughout — for both the sizes
+     AND the viewport widths — regardless of which unit the size fields are
+     currently displayed in. This matters: the vw coefficient in the output CSS
+     is only correct if it's derived from a true px/px ratio. Only the very last
+     step (dividing by the root font size) converts the constant "rem" term for
+     display; the "vw" coefficient never touches rootSize, because 1vw is always
+     1% of the viewport's physical width, independent of anyone's font-size. */
+
+  function compute() {
+    var root = parseFloat(rootInput.value) || 16;
+    var unitMul = unit === "rem" ? root : 1;
+
+    var minSizeRaw = parseFloat(minSizeInput.value);
+    var maxSizeRaw = parseFloat(maxSizeInput.value);
+    var minVw = parseFloat(minVwInput.value);
+    var maxVw = parseFloat(maxVwInput.value);
+
+    if ([minSizeRaw, maxSizeRaw, minVw, maxVw, root].some(function (n) { return isNaN(n) || n < 0; })) {
+      inputError.innerHTML = '<div class="note note--bad"><span class="note__mark">✕</span>'
+        + "<span>All fields need a positive number.</span></div>";
+      return;
+    }
+    if (maxVw <= minVw) {
+      inputError.innerHTML = '<div class="note note--bad"><span class="note__mark">✕</span>'
+        + "<span>Maximum viewport must be greater than minimum viewport.</span></div>";
+      return;
+    }
+    if (maxSizeRaw < minSizeRaw) {
+      inputError.innerHTML = '<div class="note note--bad"><span class="note__mark">✕</span>'
+        + "<span>Maximum size is smaller than minimum size — clamp() needs max ≥ min to behave predictably.</span></div>";
+      return;
+    }
+    inputError.innerHTML = "";
+
+    var minSizePx = minSizeRaw * unitMul;
+    var maxSizePx = maxSizeRaw * unitMul;
+
+    var slope = (maxSizePx - minSizePx) / (maxVw - minVw);   // px of size per px of viewport
+    var interceptPx = minSizePx - slope * minVw;             // px, the size at a (hypothetical) 0px viewport
+
+    var minRem = minSizePx / root, maxRem = maxSizePx / root;
+    var interceptRem = interceptPx / root;
+    var vwCoef = slope * 100;
+
+    var clampFn = "clamp(" + fmt(minRem) + "rem, " + fmt(interceptRem) + "rem + " + fmt(vwCoef) + "vw, " + fmt(maxRem) + "rem)";
+    cssOut.textContent = "font-size: " + clampFn + ";";
+
+    function sizeAtPx(vw) {
+      var raw = interceptPx + slope * vw;
+      return Math.max(minSizePx, Math.min(maxSizePx, raw));
+    }
+    function zoneAt(vw) {
+      var raw = interceptPx + slope * vw;
+      if (raw <= minSizePx) return "min";
+      if (raw >= maxSizePx) return "max";
+      return "fluid";
+    }
+
+    /* --- WCAG 1.4.4 heuristic ---------------------------------------------------
+       Text-only zoom / a browser's minimum-font-size setting rescales rem, but a
+       vw contribution is tied to the physical viewport and does not budge. At the
+       widest viewport, only the rem-anchored (intercept) part would double under
+       200% text zoom — if that alone falls well short of doubling the maximum
+       size, the text may not reach WCAG 1.4.4's 2× target for some users. */
+    var zoomedAtMax = 2 * interceptPx + slope * maxVw;
+    var zoomRatio = maxSizePx > 0 ? zoomedAtMax / maxSizePx : 2;
+    var vwSharePct = maxSizePx > 0 ? Math.max(0, (slope * maxVw) / maxSizePx * 100) : 0;
+
+    if (zoomRatio < 1.9) {
+      warnNote.innerHTML = '<div class="note note--warn"><span class="note__mark">!</span><span>'
+        + "About " + fmt(vwSharePct, 0) + "% of the maximum size comes from <code>vw</code>, which a text-only "
+        + "zoom or minimum-font-size setting can't rescale. Under 200% text zoom this would only reach roughly "
+        + fmt(zoomRatio, 2) + "× — short of the WCAG 1.4.4 target. Raise the minimum size or narrow the viewport range to fix it."
+        + "</span></div>";
+    } else {
+      warnNote.innerHTML = "";
+    }
+
+    // Real preview — an actual CSS clamp(), resolved by the browser against the
+    // true viewport. Resizing the window changes this line for real.
+    realSample.style.fontSize = clampFn;
+
+    // Simulated preview — same formula, evaluated in JS against a slider value,
+    // so the effect is visible without touching the window.
+    renderSim(sizeAtPx, root);
+
+    // Table
+    sizeTable.innerHTML = BREAKPOINTS.map(function (vw) {
+      var px = sizeAtPx(vw);
+      var rem = px / root;
+      var zone = zoneAt(vw);
+      var zoneLabel = zone === "min" ? "Clamped — min" : zone === "max" ? "Clamped — max" : "Fluid";
+      return "<tr><td class=\"num\">" + vw + "px</td>"
+        + "<td class=\"num\">" + fmt(rem, 3) + "rem (" + fmt(px, 1) + "px)</td>"
+        + "<td class=\"clc__zone clc__zone--" + zone + "\">" + zoneLabel + "</td></tr>";
+    }).join("");
+
+    return { sizeAtPx: sizeAtPx, root: root };
+  }
+
+  function renderSim(sizeAtPx, root) {
+    var vw = Number(vwSlider.value);
+    vwReadout.textContent = vw + "px";
+    var px = sizeAtPx(vw);
+    simSample.style.fontSize = px + "px";
+    simReadout.textContent = "At " + vw + "px viewport: " + fmt(px / root, 3) + "rem (" + fmt(px, 1) + "px)";
+  }
+
+  /* --- wiring -------------------------------------------------------------------- */
+
+  [minSizeInput, maxSizeInput, minVwInput, maxVwInput, rootInput].forEach(function (input) {
+    Bench.live(input, Bench.debounce(compute, 120));
+  });
+
+  vwSlider.addEventListener("input", function () {
+    var r = compute();
+    // compute() already redraws the sim sample using the slider's current value,
+    // but call again defensively if compute bailed out on bad input.
+    if (!r) return;
+  });
+
+  compute();
+});
+</script>
+
+</body>
+</html>

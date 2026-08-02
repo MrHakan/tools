@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aspect Ratio Calculator — Bench</title>
+<meta name="description" content="Resize while keeping the ratio, and work out crop dimensions.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/css/bench.css">
+<style>
+  .ar__canvas { width: 100%; height: 240px; display: block; border-radius: var(--r); }
+  .ar__caption { text-align: center; margin-top: 8px; font-size: 12px; color: var(--steel); }
+  .ar__dims { display: flex; gap: 14px; align-items: flex-end; flex-wrap: wrap; }
+  .ar__dims .field { max-width: 160px; margin-bottom: 0; }
+  .ar__lock { flex: none; }
+  @media (max-width: 460px) { .ar__dims .field { max-width: none; width: 100%; } }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__home" href="../../index.html"><span class="topbar__mark">▚</span> bench</a>
+  <span class="topbar__sep">/</span>
+  <span class="topbar__here">Aspect Ratio Calculator</span>
+  <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
+</header>
+
+<main class="wrap">
+
+  <div class="toolhead">
+    <p class="toolhead__spec mono">16 : 9</p>
+    <h1 class="toolhead__title">Aspect Ratio Calculator</h1>
+    <p class="toolhead__desc">Resize while keeping the ratio, and work out crop dimensions.</p>
+  </div>
+
+  <div class="stack">
+
+    <section class="panel">
+      <h2 class="panel__title">Resize</h2>
+
+      <div class="ar__dims">
+        <div class="field">
+          <label class="label" for="ar-w">Width</label>
+          <input class="input input--mono" id="ar-w" type="number" min="1" step="1" value="1920" inputmode="numeric">
+        </div>
+        <button class="btn ar__lock btn--on" id="ar-lock" type="button" aria-pressed="true">Lock ratio: On</button>
+        <div class="field">
+          <label class="label" for="ar-h">Height</label>
+          <input class="input input--mono" id="ar-h" type="number" min="1" step="1" value="1080" inputmode="numeric">
+        </div>
+      </div>
+      <div id="dims-note" style="margin-top:10px"></div>
+
+      <div class="stats" style="margin-top:16px">
+        <div class="stat"><span class="stat__n mono" id="ratio-int">16 : 9</span><span class="stat__k">Simplified ratio</span></div>
+        <div class="stat"><span class="stat__n mono" id="ratio-dec">1.7778</span><span class="stat__k">Decimal, W ÷ H</span></div>
+      </div>
+
+      <div class="field" style="margin-top:16px">
+        <label class="label">Presets</label>
+        <div class="chips">
+          <button class="chip" data-num="16" data-den="9" type="button">16:9</button>
+          <button class="chip" data-num="4" data-den="3" type="button">4:3</button>
+          <button class="chip" data-num="3" data-den="2" type="button">3:2</button>
+          <button class="chip" data-num="1" data-den="1" type="button">1:1</button>
+          <button class="chip" data-num="21" data-den="9" type="button">21:9</button>
+          <button class="chip" data-num="9" data-den="16" type="button">9:16</button>
+          <button class="chip" data-num="2.39" data-den="1" type="button">2.39:1</button>
+          <button class="chip" data-num="5" data-den="4" type="button">5:4</button>
+          <button class="chip" data-num="1.6180339887" data-den="1" type="button">Golden</button>
+        </div>
+      </div>
+
+      <canvas class="ar__canvas" id="ar-preview" style="margin-top:18px"></canvas>
+      <p class="ar__caption mono" id="preview-caption"></p>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel__title">Crop to ratio</h2>
+
+      <div class="ar__dims">
+        <div class="field">
+          <label class="label" for="src-w">Source width</label>
+          <input class="input input--mono" id="src-w" type="number" min="1" step="1" value="4000" inputmode="numeric">
+        </div>
+        <div class="field">
+          <label class="label" for="src-h">Source height</label>
+          <input class="input input--mono" id="src-h" type="number" min="1" step="1" value="3000" inputmode="numeric">
+        </div>
+      </div>
+      <div id="crop-note" style="margin-top:10px"></div>
+
+      <p class="toolhead__desc" style="margin:14px 0;font-size:0.95rem">
+        Target ratio comes from Resize, above — <span class="mono" id="crop-target-ratio">16 : 9</span>.
+      </p>
+
+      <div class="split split--narrow">
+        <div>
+          <canvas class="ar__canvas" id="crop-canvas" style="height:220px"></canvas>
+          <p class="ar__caption mono">Dimmed strips are what a cover fit crops away.</p>
+        </div>
+        <div class="tablewrap">
+          <table class="table">
+            <tbody>
+              <tr><th>Cover (crop to fill)</th><td class="mono" id="fit-cover"></td></tr>
+              <tr><th>Cropped away</th><td class="mono" id="fit-cover-removed"></td></tr>
+              <tr><th>Contain (fit inside)</th><td class="mono" id="fit-contain"></td></tr>
+              <tr><th>Padding added</th><td class="mono" id="fit-contain-added"></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel__title">Standard sizes at <span class="mono" id="sizes-ratio">16:9</span></h2>
+      <div class="tablewrap">
+        <table class="table">
+          <thead><tr><th>Width</th><th>Height</th><th></th></tr></thead>
+          <tbody id="sizes-body"></tbody>
+        </table>
+      </div>
+
+      <div class="field" style="margin-top:18px">
+        <label class="label" for="css-out">CSS</label>
+        <div class="row">
+          <input class="input input--mono grow" id="css-out" readonly>
+          <button class="btn btn--sm" data-copy="#css-out" type="button">Copy</button>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <footer class="foot">
+    <a href="../../index.html">← All tools</a>
+    <span>·</span>
+    <span>Runs entirely in your browser</span>
+  </footer>
+
+</main>
+
+<script src="../../assets/js/bench.js" defer></script>
+<script defer>
+document.addEventListener("DOMContentLoaded", function () {
+  "use strict";
+  var $ = Bench.$, $$ = Bench.$$, el = Bench.el;
+
+  var widthInput = $("#ar-w"), heightInput = $("#ar-h"), lockBtn = $("#ar-lock"), dimsNote = $("#dims-note");
+  var srcWInput = $("#src-w"), srcHInput = $("#src-h"), cropNote = $("#crop-note");
+  var previewCanvas = $("#ar-preview"), cropCanvas = $("#crop-canvas");
+  var sizesBody = $("#sizes-body");
+
+  var width = 1920, height = 1080;
+  var ratio = width / height;
+  var lockRatio = true;
+
+  /* --- helpers --------------------------------------------------------------- */
+
+  function positiveNumber(raw) {
+    var n = Number(raw);
+    return (isFinite(n) && n > 0) ? n : null;
+  }
+
+  function gcd(a, b) {
+    a = Math.round(Math.abs(a)); b = Math.round(Math.abs(b));
+    while (b) { var t = b; b = a % b; a = t; }
+    return a || 1;
+  }
+
+  function trimDecimal(n) { return String(Math.round(n * 10000) / 10000); }
+
+  function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+  /* --- canvas: draw a ratio box scaled to fill its element ------------------- */
+
+  function fitBox(cssW, cssH, pad, boxRatio) {
+    var availW = cssW - pad * 2, availH = cssH - pad * 2, w, h;
+    if (availW / availH > boxRatio) { h = availH; w = h * boxRatio; }
+    else { w = availW; h = w / boxRatio; }
+    return { x: (cssW - w) / 2, y: (cssH - h) / 2, w: w, h: h };
+  }
+
+  function prepCanvas(canvas) {
+    var cssW = canvas.clientWidth, cssH = canvas.clientHeight, dpr = window.devicePixelRatio || 1;
+    var pxW = Math.round(cssW * dpr), pxH = Math.round(cssH * dpr);
+    if (canvas.width !== pxW || canvas.height !== pxH) { canvas.width = pxW; canvas.height = pxH; }
+    var ctx = canvas.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cssW, cssH);
+    return { ctx: ctx, cssW: cssW, cssH: cssH };
+  }
+
+  function drawPreview(canvas, boxRatio) {
+    if (!canvas.clientWidth) return;
+    var p = prepCanvas(canvas), box = fitBox(p.cssW, p.cssH, 18, boxRatio);
+    p.ctx.fillStyle = cssVar("--signal-soft");
+    p.ctx.strokeStyle = cssVar("--signal");
+    p.ctx.lineWidth = 2;
+    p.ctx.fillRect(box.x, box.y, box.w, box.h);
+    p.ctx.strokeRect(box.x + 1, box.y + 1, box.w - 2, box.h - 2);
+  }
+
+  /** Draw the source frame with the cover crop revealed and the rest dimmed. */
+  function drawCropPreview(canvas, srcW, srcH, cover) {
+    if (!canvas.clientWidth) return;
+    var p = prepCanvas(canvas), box = fitBox(p.cssW, p.cssH, 16, srcW / srcH);
+    var scale = box.w / srcW;
+
+    p.ctx.fillStyle = cssVar("--sunk");
+    p.ctx.fillRect(box.x, box.y, box.w, box.h);
+    p.ctx.strokeStyle = cssVar("--edge-2");
+    p.ctx.lineWidth = 1;
+    p.ctx.strokeRect(box.x + 0.5, box.y + 0.5, box.w - 1, box.h - 1);
+
+    // Dim the whole source, then re-reveal exactly the region the cover fit keeps.
+    p.ctx.fillStyle = "rgba(0,0,0,0.32)";
+    p.ctx.fillRect(box.x, box.y, box.w, box.h);
+
+    var cx = box.x + cover.cropX * scale, cy = box.y + cover.cropY * scale;
+    var cw = cover.w * scale, ch = cover.h * scale;
+    p.ctx.fillStyle = cssVar("--signal-soft");
+    p.ctx.fillRect(cx, cy, cw, ch);
+    p.ctx.strokeStyle = cssVar("--signal");
+    p.ctx.lineWidth = 2;
+    p.ctx.strokeRect(cx + 1, cy + 1, cw - 2, ch - 2);
+  }
+
+  /* --- cover / contain maths --------------------------------------------------
+     Cover: crop the source down to the target ratio, keeping every pixel of one
+     axis and trimming the other — nothing is added, some content is lost.
+     Contain: pad the source up to the target ratio — nothing is lost, letterbox
+     or pillarbox bars are added instead. Both are expressed purely from the
+     source size and the target ratio, no separate container size needed. */
+
+  function computeFits(srcW, srcH, targetRatio) {
+    var srcRatio = srcW / srcH;
+    if (srcRatio > targetRatio) {
+      var coverW = srcH * targetRatio;
+      var containH = srcW / targetRatio;
+      return {
+        cover: { w: coverW, h: srcH, cropX: (srcW - coverW) / 2, cropY: 0, cropAxis: "x" },
+        contain: { w: srcW, h: containH, padAxis: "y" }
+      };
+    }
+    var coverH = srcW / targetRatio;
+    var containW = srcH * targetRatio;
+    return {
+      cover: { w: srcW, h: coverH, cropX: 0, cropY: (srcH - coverH) / 2, cropAxis: "y" },
+      contain: { w: containW, h: srcH, padAxis: "x" }
+    };
+  }
+
+  function describeRemoved(cover, srcW, srcH) {
+    if (cover.cropAxis === "x") {
+      var dw = srcW - cover.w;
+      return Math.round(dw) + "px off the width (" + Math.round(dw / 2) + "px each side)";
+    }
+    var dh = srcH - cover.h;
+    return Math.round(dh) + "px off the height (" + Math.round(dh / 2) + "px top and bottom)";
+  }
+
+  function describeAdded(contain, srcW, srcH) {
+    if (contain.padAxis === "y") {
+      var dh = contain.h - srcH;
+      return Math.round(dh) + "px of letterboxing (" + Math.round(dh / 2) + "px top and bottom)";
+    }
+    var dw = contain.w - srcW;
+    return Math.round(dw) + "px of pillarboxing (" + Math.round(dw / 2) + "px each side)";
+  }
+
+  /* --- standard sizes ---------------------------------------------------------- */
+
+  var CURATED = [
+    { ratio: 16 / 9, sizes: [[1280, 720], [1920, 1080], [2560, 1440], [3840, 2160]] },
+    { ratio: 4 / 3,  sizes: [[640, 480], [800, 600], [1024, 768], [1600, 1200]] },
+    { ratio: 3 / 2,  sizes: [[1080, 720], [1440, 960], [2160, 1440], [3000, 2000]] },
+    { ratio: 1,      sizes: [[512, 512], [1080, 1080], [1500, 1500], [3000, 3000]] },
+    { ratio: 21 / 9, sizes: [[2560, 1080], [3440, 1440], [5120, 2160]] },
+    { ratio: 9 / 16, sizes: [[720, 1280], [1080, 1920], [1440, 2560]] },
+    { ratio: 5 / 4,  sizes: [[1280, 1024], [1600, 1280]] },
+    { ratio: 2.39,   sizes: [[2048, 857], [3996, 1672]] },
+    { ratio: 1.6180339887, sizes: [[1618, 1000], [1000, 618]] }
+  ];
+
+  function findCurated(r) {
+    for (var i = 0; i < CURATED.length; i++) if (Math.abs(CURATED[i].ratio - r) < 0.003) return CURATED[i].sizes;
+    return null;
+  }
+
+  function genericSizes(r) {
+    var widths = [640, 750, 800, 960, 1080, 1200, 1280, 1366, 1440, 1600, 1920, 2048, 2560, 3000, 3200, 3840, 5120, 7680];
+    var seen = {}, out = [];
+    widths.forEach(function (w) {
+      var h = Math.round(w / r);
+      if (h <= 0) return;
+      var key = w + "x" + h;
+      if (seen[key]) return;
+      seen[key] = true;
+      out.push([w, h]);
+    });
+    return out.slice(0, 8);
+  }
+
+  /* --- rendering --------------------------------------------------------------- */
+
+  function useSize(w, h) {
+    width = w; height = h; ratio = width / height; lockRatio = true;
+    lockBtn.textContent = "Lock ratio: On";
+    lockBtn.classList.add("btn--on");
+    lockBtn.setAttribute("aria-pressed", "true");
+    render();
+  }
+
+  function renderSizes(rw, rh, g) {
+    $("#sizes-ratio").textContent = (rw / g) + ":" + (rh / g);
+    var sizes = findCurated(width / height) || genericSizes(width / height);
+    sizesBody.innerHTML = "";
+    sizes.forEach(function (pair) {
+      var useBtn = el("button", { class: "btn btn--sm", type: "button", text: "Use" });
+      useBtn.addEventListener("click", function () { useSize(pair[0], pair[1]); });
+      sizesBody.appendChild(el("tr", {}, [
+        el("td", { class: "mono num", text: String(pair[0]) }),
+        el("td", { class: "mono num", text: String(pair[1]) }),
+        el("td", {}, [useBtn])
+      ]));
+    });
+    $("#css-out").value = "aspect-ratio: " + (rw / g) + " / " + (rh / g) + ";";
+  }
+
+  function renderCrop() {
+    var sw = positiveNumber(srcWInput.value), sh = positiveNumber(srcHInput.value);
+    $("#crop-target-ratio").textContent = $("#ratio-int").textContent;
+    if (sw == null || sh == null) {
+      cropNote.innerHTML = '<div class="note note--bad"><span class="note__mark">✕</span><span>Enter source width and height greater than 0.</span></div>';
+      return;
+    }
+    cropNote.innerHTML = "";
+    var fits = computeFits(sw, sh, width / height);
+    $("#fit-cover").textContent = Math.round(fits.cover.w) + " × " + Math.round(fits.cover.h);
+    $("#fit-cover-removed").textContent = describeRemoved(fits.cover, sw, sh);
+    $("#fit-contain").textContent = Math.round(fits.contain.w) + " × " + Math.round(fits.contain.h);
+    $("#fit-contain-added").textContent = describeAdded(fits.contain, sw, sh);
+    drawCropPreview(cropCanvas, sw, sh, fits.cover);
+  }
+
+  function render(source) {
+    if (source !== "width") widthInput.value = String(Math.round(width));
+    if (source !== "height") heightInput.value = String(Math.round(height));
+
+    var rw = Math.round(width), rh = Math.round(height), g = gcd(rw, rh);
+    $("#ratio-int").textContent = (rw / g) + " : " + (rh / g);
+    $("#ratio-dec").textContent = trimDecimal(width / height);
+    $("#preview-caption").textContent = rw + " × " + rh;
+
+    drawPreview(previewCanvas, width / height);
+
+    $$(".chip[data-num]").forEach(function (btn) {
+      var r = Number(btn.dataset.num) / Number(btn.dataset.den);
+      btn.classList.toggle("chip--on", Math.abs(r - ratio) < 0.002);
+    });
+
+    renderCrop();
+    renderSizes(rw, rh, g);
+  }
+
+  /* --- wiring -------------------------------------------------------------------- */
+
+  function onWidthInput() {
+    var n = positiveNumber(widthInput.value);
+    if (n == null) {
+      dimsNote.innerHTML = '<div class="note note--bad"><span class="note__mark">✕</span><span>Enter a width greater than 0.</span></div>';
+      return;
+    }
+    dimsNote.innerHTML = "";
+    width = n;
+    if (lockRatio) height = Math.max(1, Math.round(width / ratio));
+    else ratio = width / height;
+    render("width");
+  }
+
+  function onHeightInput() {
+    var n = positiveNumber(heightInput.value);
+    if (n == null) {
+      dimsNote.innerHTML = '<div class="note note--bad"><span class="note__mark">✕</span><span>Enter a height greater than 0.</span></div>';
+      return;
+    }
+    dimsNote.innerHTML = "";
+    height = n;
+    if (lockRatio) width = Math.max(1, Math.round(height * ratio));
+    else ratio = width / height;
+    render("height");
+  }
+
+  widthInput.addEventListener("input", Bench.debounce(onWidthInput, 80));
+  heightInput.addEventListener("input", Bench.debounce(onHeightInput, 80));
+  srcWInput.addEventListener("input", Bench.debounce(renderCrop, 80));
+  srcHInput.addEventListener("input", Bench.debounce(renderCrop, 80));
+
+  lockBtn.addEventListener("click", function () {
+    lockRatio = !lockRatio;
+    if (lockRatio) ratio = width / height;
+    lockBtn.textContent = "Lock ratio: " + (lockRatio ? "On" : "Off");
+    lockBtn.classList.toggle("btn--on", lockRatio);
+    lockBtn.setAttribute("aria-pressed", String(lockRatio));
+  });
+
+  $$(".chip[data-num]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      ratio = Number(btn.dataset.num) / Number(btn.dataset.den);
+      lockRatio = true;
+      lockBtn.textContent = "Lock ratio: On";
+      lockBtn.classList.add("btn--on");
+      lockBtn.setAttribute("aria-pressed", "true");
+      height = Math.max(1, Math.round(width / ratio));
+      render();
+    });
+  });
+
+  window.addEventListener("resize", Bench.debounce(function () { render(); }, 150));
+
+  render();
+});
+</script>
+
+</body>
+</html>

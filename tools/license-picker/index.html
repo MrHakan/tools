@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>License Picker — Bench</title>
+<meta name="description" content="Compare open-source licences and get the full text with your details filled in.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/css/bench.css">
+<style>
+  /* Page-specific CSS only, prefixed .lp__ */
+
+  .lp__qblock + .lp__qblock { margin-top: 20px; }
+
+  .lp__qtext {
+    font-size: 14.5px;
+    margin-bottom: 9px;
+  }
+
+  .lp__qopts { display: flex; flex-wrap: wrap; gap: 8px; }
+
+  .lp__rec {
+    margin-top: 20px;
+    padding: 16px;
+    border: 1px solid var(--signal);
+    background: var(--signal-soft);
+    border-radius: var(--r);
+  }
+
+  .lp__rec__head {
+    font-family: var(--mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--steel);
+    margin-bottom: 6px;
+  }
+
+  .lp__rec__name { font-size: 19px; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 8px; }
+
+  .lp__rec ul { margin: 8px 0 12px 18px; font-size: 13.5px; }
+  .lp__rec li { margin-bottom: 4px; }
+
+  .lp__rec__alt { font-size: 12.5px; color: var(--steel); margin-top: 8px; }
+
+  .lp__yes { color: var(--verify); font-weight: 700; }
+  .lp__no { color: var(--steel); opacity: 0.55; }
+
+  .lp__table th, .lp__table td { text-align: center; white-space: nowrap; }
+  .lp__table th:first-child, .lp__table td:first-child { text-align: left; white-space: normal; }
+  .lp__table td:first-child { min-width: 168px; }
+
+  .lp__pick {
+    background: none; border: 0; padding: 0; color: var(--ink); font: inherit;
+    font-weight: 600; text-align: left; cursor: pointer; text-decoration: underline;
+    text-decoration-color: transparent; text-underline-offset: 3px;
+  }
+  .lp__pick:hover, .lp__pick:focus-visible { color: var(--signal); text-decoration-color: currentColor; }
+  .lp__pick.is-current { color: var(--signal); }
+
+  .lp__grouphead { font-size: 10.5px; color: var(--steel); font-weight: 400; text-transform: none; }
+
+  .lp__spdx { color: var(--steel); font-family: var(--mono); font-size: 12.5px; }
+
+  .lp__detail { scroll-margin-top: 70px; }
+
+  .lp__fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+  @media (max-width: 560px) { .lp__fields { grid-template-columns: 1fr; } }
+
+  .lp__prose { font-size: 13.5px; color: var(--ink); margin-bottom: 14px; }
+  .lp__prose b { font-weight: 600; }
+  .lp__prose + .lp__prose { margin-top: -6px; }
+
+  .lp__textlabel {
+    font-family: var(--mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--steel);
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__home" href="../../index.html"><span class="topbar__mark">▚</span> bench</a>
+  <span class="topbar__sep">/</span>
+  <span class="topbar__here">License Picker</span>
+  <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
+</header>
+
+<main class="wrap">
+
+  <div class="toolhead">
+    <p class="toolhead__spec mono">SPDX: MIT</p>
+    <h1 class="toolhead__title">License Picker</h1>
+    <p class="toolhead__desc">Compare open-source licences and get the full text with your details filled in.</p>
+  </div>
+
+  <p class="note note--info" style="margin-bottom:var(--gap)">
+    <span class="note__mark">i</span>
+    <span>This tool gives general guidance to help you pick a starting point — it is not legal advice. If a licence choice matters commercially, have a lawyer confirm it.</span>
+  </p>
+
+  <div class="stack">
+
+    <section class="panel">
+      <h2 class="panel__title">Not sure? Answer four questions</h2>
+
+      <div class="lp__qblock">
+        <p class="lp__qtext"><b>1.</b> If someone modifies and redistributes your code, must they release their changes under the same licence?</p>
+        <div class="lp__qopts" data-q="copyleft">
+          <button class="btn btn--sm" data-v="yes">Yes, keep it open</button>
+          <button class="btn btn--sm" data-v="no">No, they can keep changes closed</button>
+        </div>
+      </div>
+
+      <div class="lp__qblock">
+        <p class="lp__qtext"><b>2.</b> Do you want an explicit patent licence and patent-retaliation clause from contributors?</p>
+        <div class="lp__qopts" data-q="patent">
+          <button class="btn btn--sm" data-v="yes">Yes, patents are a concern</button>
+          <button class="btn btn--sm" data-v="no">Not fussed</button>
+        </div>
+      </div>
+
+      <div class="lp__qblock">
+        <p class="lp__qtext"><b>3.</b> Do you require people to keep your name and copyright notice when they redistribute it?</p>
+        <div class="lp__qopts" data-q="attribution">
+          <button class="btn btn--sm" data-v="yes">Yes, keep my name on it</button>
+          <button class="btn btn--sm" data-v="no">No conditions at all</button>
+        </div>
+      </div>
+
+      <div class="lp__qblock">
+        <p class="lp__qtext"><b>4.</b> What are you licensing?</p>
+        <div class="lp__qopts" data-q="type">
+          <button class="btn btn--sm" data-v="library">A library or package</button>
+          <button class="btn btn--sm" data-v="app">An application or product</button>
+          <button class="btn btn--sm" data-v="noncode">Non-code — docs, data, media</button>
+        </div>
+      </div>
+
+      <div id="lp-rec"></div>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel__title">Compare licences</h2>
+      <div class="tablewrap">
+        <table class="table lp__table" id="lp-table">
+          <thead>
+            <tr>
+              <th rowspan="2">Licence</th>
+              <th colspan="5">Permissions</th>
+              <th colspan="4">Conditions</th>
+              <th colspan="3">Limitations</th>
+            </tr>
+            <tr>
+              <th class="lp__grouphead">Commercial use</th>
+              <th class="lp__grouphead">Modification</th>
+              <th class="lp__grouphead">Distribution</th>
+              <th class="lp__grouphead">Patent grant</th>
+              <th class="lp__grouphead">Private use</th>
+              <th class="lp__grouphead">Notice</th>
+              <th class="lp__grouphead">State changes</th>
+              <th class="lp__grouphead">Disclose source</th>
+              <th class="lp__grouphead">Same licence</th>
+              <th class="lp__grouphead">Liability</th>
+              <th class="lp__grouphead">Warranty</th>
+              <th class="lp__grouphead">Trademark</th>
+            </tr>
+          </thead>
+          <tbody id="lp-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel lp__detail" id="lp-detail">
+      <h2 class="panel__title">Licence text</h2>
+      <div id="lp-detail-body"></div>
+    </section>
+
+  </div>
+
+  <footer class="foot">
+    <a href="../../index.html">← All tools</a>
+    <span>·</span>
+    <span>Runs entirely in your browser</span>
+  </footer>
+
+</main>
+
+<script src="../../assets/js/bench.js" defer></script>
+<script defer>
+document.addEventListener("DOMContentLoaded", function () {
+  "use strict";
+  var $ = Bench.$, $$ = Bench.$$, esc = Bench.esc;
+  var store = Bench.store("license-picker");
+
+  /* --- the licences -----------------------------------------------------
+     `kind: "full"` licences embed their complete, verbatim text with
+     [year]/[fullname] placeholders. `kind: "notice"` licences (the copyleft
+     and CC0 family) embed only the boilerplate notice that licence itself
+     instructs you to attach — never a full text we can't verify byte for
+     byte — plus a prose link to the canonical source and a reminder to
+     include the full licence file alongside it. */
+
+  var LICENSES = [
+    { id: "mit", name: "MIT License", spdx: "MIT", kind: "full",
+      perm: { commercial: 1, modify: 1, distribute: 1, patent: 0, private: 1 },
+      cond: { notice: 1, state: 0, disclose: 0, same: 0 },
+      limit: { liability: 1, warranty: 1, trademark: 0 },
+      summary: "A short, maximally permissive licence. You can do almost anything with the code, including using it in closed-source products, as long as you keep the original copyright and licence notice.",
+      when: "Pick it when you want the widest possible adoption and don't need modifications to stay open source.",
+      who: "React, Ruby on Rails, .NET, most of npm.",
+      text:
+`MIT License
+
+Copyright (c) [year] [fullname]
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.` },
+
+    { id: "apache-2.0", name: "Apache License 2.0", spdx: "Apache-2.0", kind: "notice",
+      perm: { commercial: 1, modify: 1, distribute: 1, patent: 1, private: 1 },
+      cond: { notice: 1, state: 1, disclose: 0, same: 0 },
+      limit: { liability: 1, warranty: 1, trademark: 1 },
+      summary: "Permissive like MIT, plus an explicit patent licence from every contributor, a patent-retaliation clause, and a requirement to document significant changes you make to files.",
+      when: "Pick it for a project with many contributors or corporate backing, where an explicit patent grant protects downstream users.",
+      who: "Kubernetes, Android (AOSP), TensorFlow, most Apache Software Foundation projects.",
+      linkUrl: "https://opensource.org/license/apache-2-0", linkLabel: "Apache License 2.0 on opensource.org",
+      notice:
+`Copyright [year] [fullname]
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.` },
+
+    { id: "gpl-3.0", name: "GNU General Public License v3.0", spdx: "GPL-3.0", kind: "notice",
+      perm: { commercial: 1, modify: 1, distribute: 1, patent: 1, private: 1 },
+      cond: { notice: 1, state: 1, disclose: 1, same: 1 },
+      limit: { liability: 1, warranty: 1, trademark: 0 },
+      summary: "Strong copyleft. Anyone who distributes your code or a derivative must release the complete corresponding source under GPL-3.0 too, with an explicit patent grant from contributors.",
+      when: "Pick it when you want every derivative to stay open source, even at the cost of ruling out closed-source reuse.",
+      who: "GNU coreutils and most GNU tools, Bash, GIMP, much of the WordPress plugin ecosystem.",
+      linkUrl: "https://www.gnu.org/licenses/gpl-3.0.html", linkLabel: "GNU General Public License v3.0 on gnu.org",
+      notice:
+`<one line to give the program's name and a brief idea of what it does>
+Copyright (C) [year]  [fullname]
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.` },
+
+    { id: "agpl-3.0", name: "GNU Affero General Public License v3.0", spdx: "AGPL-3.0", kind: "notice",
+      perm: { commercial: 1, modify: 1, distribute: 1, patent: 1, private: 1 },
+      cond: { notice: 1, state: 1, disclose: 1, same: 1 },
+      limit: { liability: 1, warranty: 1, trademark: 0 },
+      summary: "The same strong copyleft as GPL-3.0, extended to network use: if you run a modified version as a hosted service, you must offer its source to users interacting with it remotely — closing the so-called SaaS loophole.",
+      when: "Pick it for server-side software you want to keep open even when it's only ever run as a service and never distributed as a binary.",
+      who: "Nextcloud, Mastodon, and many self-hosted alternatives that want to prevent closed-source hosted forks.",
+      linkUrl: "https://www.gnu.org/licenses/agpl-3.0.html", linkLabel: "GNU Affero General Public License v3.0 on gnu.org",
+      notice:
+`<one line to give the program's name and a brief idea of what it does>
+Copyright (C) [year]  [fullname]
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.` },
+
+    { id: "lgpl-3.0", name: "GNU Lesser General Public License v3.0", spdx: "LGPL-3.0", kind: "notice",
+      perm: { commercial: 1, modify: 1, distribute: 1, patent: 1, private: 1 },
+      cond: { notice: 1, state: 1, disclose: 1, same: 1 },
+      limit: { liability: 1, warranty: 1, trademark: 0 },
+      summary: "Weak copyleft built for libraries: modifications to the library itself must stay LGPL, but an application that merely links against it is free to remain closed source.",
+      when: "Pick it for a library you want to keep open, while still letting proprietary applications depend on it.",
+      who: "The GNU C Library (glibc), Qt (dual-licensed), several FFmpeg library components.",
+      linkUrl: "https://www.gnu.org/licenses/lgpl-3.0.html", linkLabel: "GNU Lesser General Public License v3.0 on gnu.org",
+      notice:
+`<one line to give the library's name and a brief idea of what it does>
+Copyright (C) [year]  [fullname]
+
+This library is free software: you can redistribute it and/or modify
+it under the terms of the GNU Lesser General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This library is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License
+along with this library. If not, see <https://www.gnu.org/licenses/>.` },
+
+    { id: "bsd-3-clause", name: "BSD 3-Clause License", spdx: "BSD-3-Clause", kind: "full",
+      perm: { commercial: 1, modify: 1, distribute: 1, patent: 0, private: 1 },
+      cond: { notice: 1, state: 0, disclose: 0, same: 0 },
+      limit: { liability: 1, warranty: 1, trademark: 0 },
+      summary: "Permissive, like MIT, with an added clause that forbids using the names of the copyright holder or contributors to endorse or promote derived products without written permission.",
+      when: "Pick it when you want MIT-style freedom plus explicit protection against your project's name implying an endorsement it didn't give.",
+      who: "Django, NumPy, Flask.",
+      text:
+`BSD 3-Clause License
+
+Copyright (c) [year] [fullname]
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its contributors
+   may be used to endorse or promote products derived from this software
+   without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.` },
+
+    { id: "bsd-2-clause", name: "BSD 2-Clause License", spdx: "BSD-2-Clause", kind: "full",
+      perm: { commercial: 1, modify: 1, distribute: 1, patent: 0, private: 1 },
+      cond: { notice: 1, state: 0, disclose: 0, same: 0 },
+      limit: { liability: 1, warranty: 1, trademark: 0 },
+      summary: "The simplest BSD variant — permissive like MIT, without the 3-clause version's non-endorsement clause.",
+      when: "Pick it when you want BSD-style wording but don't need the extra non-endorsement clause; functionally very close to MIT.",
+      who: "Common across the BSD/Unix world and in Go-ecosystem packages that want fewer clauses than BSD-3-Clause.",
+      text:
+`BSD 2-Clause License
+
+Copyright (c) [year] [fullname]
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.` },
+
+    { id: "mpl-2.0", name: "Mozilla Public License 2.0", spdx: "MPL-2.0", kind: "notice",
+      perm: { commercial: 1, modify: 1, distribute: 1, patent: 1, private: 1 },
+      cond: { notice: 1, state: 0, disclose: 1, same: 1 },
+      limit: { liability: 1, warranty: 1, trademark: 1 },
+      summary: "File-level copyleft: if you modify an MPL-licensed file, that file's source must stay available under MPL-2.0, but you can combine it with proprietary code in a larger work without that code becoming MPL.",
+      when: "Pick it for a middle ground between GPL and MIT — changes to your own files get shared back, without forcing an entire proprietary application open.",
+      who: "Firefox and other Mozilla projects, plus projects wanting file-level rather than whole-project copyleft.",
+      linkUrl: "https://www.mozilla.org/en-US/MPL/2.0/", linkLabel: "Mozilla Public License 2.0 on mozilla.org",
+      notice:
+`This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at http://mozilla.org/MPL/2.0/.` },
+
+    { id: "unlicense", name: "The Unlicense", spdx: "Unlicense", kind: "full",
+      perm: { commercial: 1, modify: 1, distribute: 1, patent: 0, private: 1 },
+      cond: { notice: 0, state: 0, disclose: 0, same: 0 },
+      limit: { liability: 1, warranty: 1, trademark: 0 },
+      summary: "A public-domain dedication with a permissive fallback licence for jurisdictions that don't recognise placing work in the public domain. No conditions at all — not even attribution.",
+      when: "Pick it when you want code as close to the public domain as legally possible and don't need credit.",
+      who: "Small utilities, gists and code samples shared for unrestricted reuse.",
+      text:
+`This is free and unencumbered software released into the public domain.
+
+Anyone is free to copy, modify, publish, use, compile, sell, or distribute
+this software, either in source code form or as a compiled binary, for any
+purpose, commercial or non-commercial, and by any means.
+
+In jurisdictions that recognize copyright laws, the author or authors of this
+software dedicate any and all copyright interest in the software to the public
+domain. We make this dedication for the benefit of the public at large and to
+the detriment of our heirs and successors. We intend this dedication to be an
+overt act of relinquishment in perpetuity of all present and future rights to
+this software under copyright law.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+For more information, please refer to <https://unlicense.org>` },
+
+    { id: "isc", name: "ISC License", spdx: "ISC", kind: "full",
+      perm: { commercial: 1, modify: 1, distribute: 1, patent: 0, private: 1 },
+      cond: { notice: 1, state: 0, disclose: 0, same: 0 },
+      limit: { liability: 1, warranty: 1, trademark: 0 },
+      summary: "Functionally equivalent to the MIT licence, with simpler, more direct wording.",
+      when: "Pick it when you want MIT-equivalent terms with terser legal language.",
+      who: "npm itself, many Node.js core and userland modules.",
+      text:
+`ISC License
+
+Copyright (c) [year] [fullname]
+
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
+OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+PERFORMANCE OF THIS SOFTWARE.` },
+
+    { id: "cc0-1.0", name: "Creative Commons Zero v1.0", spdx: "CC0-1.0", kind: "notice",
+      perm: { commercial: 1, modify: 1, distribute: 1, patent: 0, private: 1 },
+      cond: { notice: 0, state: 0, disclose: 0, same: 0 },
+      limit: { liability: 1, warranty: 1, trademark: 1 },
+      summary: "A public-domain dedication designed for any kind of work, not just software, with a permissive fallback licence where public domain isn't legally recognised. Waives copyright and related rights as completely as the law allows.",
+      when: "Pick it for datasets, documentation or creative work you want anyone to reuse with zero conditions, including no attribution requirement.",
+      who: "Open datasets, government and research data releases, sample content.",
+      linkUrl: "https://creativecommons.org/publicdomain/zero/1.0/", linkLabel: "CC0 1.0 Universal on creativecommons.org",
+      notice:
+`To the extent possible under law, [fullname] has waived all copyright and
+related or neighboring rights to this work.
+
+You should have received a copy of the CC0 legal code along with this work.
+If not, see the canonical text linked below.` }
+  ];
+
+  var BY_ID = {};
+  LICENSES.forEach(function (l) { BY_ID[l.id] = l; });
+
+  function fillTemplate(str, year, fullname) {
+    var y = year && year.trim() ? year.trim() : "[year]";
+    var n = fullname && fullname.trim() ? fullname.trim() : "[fullname]";
+    return str.replace(/\[year\]/g, y).replace(/\[fullname\]/g, n);
+  }
+
+  /* --- state --------------------------------------------------------------- */
+
+  var answers = store.get("answers", {});
+  var current = store.get("selected", "mit");
+  var year = store.get("year", String(new Date().getFullYear()));
+  var fullname = store.get("fullname", "");
+
+  var recEl = $("#lp-rec"), tbody = $("#lp-tbody"), detailBody = $("#lp-detail-body");
+
+  /* --- questionnaire --------------------------------------------------------- */
+
+  function buildRecommendation(a) {
+    if (!a.copyleft || !a.patent || !a.attribution || !a.type) return null;
+
+    if (a.type === "noncode") {
+      return {
+        id: "cc0-1.0",
+        bullets: [
+          "You're licensing non-code content, so a software copyleft licence doesn't really apply.",
+          "CC0-1.0 waives copyright as completely as the law allows and is designed for data, docs and media, not just source code.",
+          a.attribution === "yes"
+            ? "You asked for mandatory attribution — CC0 has no conditions at all, so it can't enforce that. Consider asking nicely in a README instead, or look outside this tool at a Creative Commons Attribution (CC-BY) licence, which isn't covered here."
+            : "You don't need attribution enforced, which matches CC0 exactly."
+        ]
+      };
+    }
+
+    if (a.copyleft === "yes") {
+      if (a.type === "library") {
+        return {
+          id: "lgpl-3.0",
+          bullets: [
+            "You want changes to stay open, and you're licensing a library rather than a whole application.",
+            "LGPL-3.0 keeps modifications to the library itself copyleft, while still letting proprietary applications link against it.",
+            a.patent === "yes" ? "It also carries the same explicit patent grant as GPL-3.0." : "It includes a patent grant even though you said patents weren't a priority — it comes for free with this family of licences."
+          ]
+        };
+      }
+      return {
+        id: "gpl-3.0",
+        bullets: [
+          "You want any distributed derivative to stay open source — that's strong copyleft.",
+          "GPL-3.0 requires anyone who distributes your code or a modified version to release the complete corresponding source under GPL-3.0 too.",
+          "If this will mostly run as a hosted service rather than be distributed as a binary, consider AGPL-3.0 instead — it extends the same copyleft to network use."
+        ]
+      };
+    }
+
+    // permissive branch
+    if (a.patent === "yes") {
+      return {
+        id: "apache-2.0",
+        bullets: [
+          "You don't need derivatives to stay open, but you do want an explicit patent grant.",
+          "Apache-2.0 gives every contributor's patents to users of the code, with a retaliation clause if someone sues over patents.",
+          "It also requires documenting significant changes to files you modify — a reasonable trade for the patent protection."
+        ]
+      };
+    }
+
+    if (a.attribution === "yes") {
+      return {
+        id: "mit",
+        bullets: [
+          "You want permissive terms with your name kept on it, and patents aren't a priority.",
+          "MIT is the shortest, most widely recognised licence that does exactly that.",
+          "BSD-3-Clause and ISC are near-equivalent alternatives if you want slightly different wording."
+        ]
+      };
+    }
+
+    return {
+      id: "unlicense",
+      bullets: [
+        "You don't need attribution, a patent grant, or derivatives to stay open — about as few conditions as a software licence can have.",
+        "The Unlicense dedicates the work to the public domain, with a permissive fallback licence for jurisdictions that don't recognise that.",
+        "CC0-1.0 is a more internationally robust alternative if the work isn't purely software."
+      ]
+    };
+  }
+
+  function renderRecommendation() {
+    var rec = buildRecommendation(answers);
+    if (!rec) {
+      recEl.innerHTML = '<p class="empty" style="margin-top:16px">Answer all four questions above to see a recommendation.</p>';
+      return;
+    }
+    var l = BY_ID[rec.id];
+    recEl.innerHTML = '<div class="lp__rec">'
+      + '<div class="lp__rec__head">Recommended</div>'
+      + '<div class="lp__rec__name">' + esc(l.name) + ' <span class="lp__spdx">' + esc(l.spdx) + "</span></div>"
+      + "<ul>" + rec.bullets.map(function (b) { return "<li>" + esc(b) + "</li>"; }).join("") + "</ul>"
+      + '<button class="btn btn--sm btn--primary" data-use="' + l.id + '">Use ' + esc(l.spdx) + "</button>"
+      + "</div>";
+  }
+
+  $$("[data-q]").forEach(function (group) {
+    group.addEventListener("click", function (e) {
+      var btn = e.target.closest(".btn");
+      if (!btn) return;
+      var q = group.dataset.q;
+      answers[q] = btn.dataset.v;
+      store.set("answers", answers);
+      $$(".btn", group).forEach(function (b) { b.classList.toggle("btn--on", b === btn); });
+      renderRecommendation();
+    });
+  });
+
+  // restore any saved answers' button states
+  Object.keys(answers).forEach(function (q) {
+    var group = document.querySelector('[data-q="' + q + '"]');
+    if (!group) return;
+    $$(".btn", group).forEach(function (b) { b.classList.toggle("btn--on", b.dataset.v === answers[q]); });
+  });
+
+  recEl.addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-use]");
+    if (!btn) return;
+    selectLicense(btn.dataset.use);
+  });
+
+  /* --- comparison table -------------------------------------------------------- */
+
+  function mark(v, muted) {
+    return v ? '<span class="lp__yes">✓</span>' : '<span class="lp__no">✕</span>';
+  }
+
+  function renderTable() {
+    tbody.innerHTML = LICENSES.map(function (l) {
+      return "<tr>"
+        + '<td><button type="button" class="lp__pick' + (l.id === current ? " is-current" : "") + '" data-pick="' + l.id + '">'
+        + esc(l.name) + '</button><br><span class="lp__spdx">' + esc(l.spdx) + "</span></td>"
+        + "<td>" + mark(l.perm.commercial) + "</td>"
+        + "<td>" + mark(l.perm.modify) + "</td>"
+        + "<td>" + mark(l.perm.distribute) + "</td>"
+        + "<td>" + mark(l.perm.patent) + "</td>"
+        + "<td>" + mark(l.perm.private) + "</td>"
+        + "<td>" + mark(l.cond.notice) + "</td>"
+        + "<td>" + mark(l.cond.state) + "</td>"
+        + "<td>" + mark(l.cond.disclose) + "</td>"
+        + "<td>" + mark(l.cond.same) + "</td>"
+        + "<td>" + mark(l.limit.liability) + "</td>"
+        + "<td>" + mark(l.limit.warranty) + "</td>"
+        + "<td>" + mark(l.limit.trademark) + "</td>"
+        + "</tr>";
+    }).join("");
+  }
+
+  tbody.addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-pick]");
+    if (!btn) return;
+    selectLicense(btn.dataset.pick);
+  });
+
+  /* --- detail panel -------------------------------------------------------------- */
+
+  function currentText(l) {
+    if (l.kind === "full") return fillTemplate(l.text, year, fullname);
+    return fillTemplate(l.notice, year, fullname);
+  }
+
+  function renderDetail() {
+    var l = BY_ID[current];
+    var text = currentText(l);
+
+    var html = '<div class="lp__fields">'
+      + '<div class="field"><label class="label" for="lp-year">Year</label>'
+      + '<input class="input input--mono" id="lp-year" type="text" inputmode="numeric" value="' + esc(year) + '" placeholder="' + new Date().getFullYear() + '"></div>'
+      + '<div class="field"><label class="label" for="lp-fullname">Copyright holder</label>'
+      + '<input class="input" id="lp-fullname" type="text" value="' + esc(fullname) + '" placeholder="Your name or organisation"></div>'
+      + "</div>";
+
+    html += '<p class="lp__prose"><b>' + esc(l.name) + '</b> <span class="lp__spdx">' + esc(l.spdx) + "</span></p>";
+    html += '<p class="lp__prose">' + esc(l.summary) + "</p>";
+    html += '<p class="lp__prose"><b>When to pick it —</b> ' + esc(l.when) + "</p>";
+    html += '<p class="lp__prose"><b>Who uses it —</b> ' + esc(l.who) + "</p>";
+
+    if (l.kind === "full") {
+      html += '<div class="lp__textlabel">Licence text<span class="grow"></span></div>'
+        + '<pre class="out out--wrap" id="lp-text">' + esc(text) + "</pre>"
+        + '<div class="row" style="margin-top:12px">'
+        + '<button class="btn btn--sm" id="lp-copy">Copy</button>'
+        + '<button class="btn btn--sm" id="lp-download">Download LICENSE</button>'
+        + "</div>";
+    } else {
+      html += '<div class="lp__textlabel">Notice to add to your source (not the full licence text)</div>'
+        + '<pre class="out out--wrap" id="lp-text">' + esc(text) + "</pre>"
+        + '<p class="note note--info" style="margin-top:12px"><span class="note__mark">i</span><span>Also include the complete licence text as its own file in your repository — grab the canonical copy from '
+        + '<a href="' + esc(l.linkUrl) + '" target="_blank" rel="noopener">' + esc(l.linkLabel) + "</a>.</span></p>"
+        + '<div class="row" style="margin-top:12px">'
+        + '<button class="btn btn--sm" id="lp-copy">Copy notice</button>'
+        + '<button class="btn btn--sm" id="lp-download">Download notice</button>'
+        + "</div>";
+    }
+
+    detailBody.innerHTML = html;
+
+    $("#lp-year").addEventListener("input", Bench.debounce(function (e) {
+      year = e.target.value; store.set("year", year); renderDetail();
+    }, 200));
+    $("#lp-fullname").addEventListener("input", Bench.debounce(function (e) {
+      fullname = e.target.value; store.set("fullname", fullname); renderDetail();
+    }, 200));
+    $("#lp-copy").addEventListener("click", function (e) { Bench.copy(currentText(BY_ID[current]), e.currentTarget); });
+    $("#lp-download").addEventListener("click", function () {
+      var l = BY_ID[current];
+      var filename = l.kind === "full" ? "LICENSE" : "NOTICE.txt";
+      Bench.download(filename, currentText(l), "text/plain");
+    });
+  }
+
+  function selectLicense(id) {
+    if (!BY_ID[id]) return;
+    current = id;
+    store.set("selected", id);
+    renderTable();
+    renderDetail();
+    history.replaceState(null, "", "#" + id);
+    $("#lp-detail").scrollIntoView({ block: "start", behavior: "smooth" });
+  }
+
+  /* --- boot ------------------------------------------------------------------- */
+
+  (function () {
+    var h = decodeURIComponent(location.hash.slice(1));
+    if (h && BY_ID[h]) current = h;
+  })();
+
+  renderRecommendation();
+  renderTable();
+  renderDetail();
+});
+</script>
+
+</body>
+</html>

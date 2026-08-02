@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Placeholder Data — Bench</title>
+<meta name="description" content="Lorem ipsum plus fake people, addresses and JSON test data.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/css/bench.css">
+<style>
+  .pd-section { padding: 26px 0 6px; }
+  .pd-section:first-child { padding-top: 0; }
+  .pd-section__head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 16px; }
+  .pd-section__name { font-family: var(--mono); font-size: 11.5px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.13em; color: var(--ink); white-space: nowrap; }
+  .pd-section__rule { flex: 1; height: 1px; background: var(--edge); }
+
+  .pd-tabs { display: flex; gap: 6px; }
+
+  #pd-fields.chips { margin-bottom: 4px; }
+  .pd-field-count { color: var(--steel); font-size: 12px; margin-bottom: 14px; }
+
+  .pd-tablewrap { max-height: 480px; }
+  .pd-card-note { color: var(--steel); font-size: 12px; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__home" href="../../index.html"><span class="topbar__mark">▚</span> bench</a>
+  <span class="topbar__sep">/</span>
+  <span class="topbar__here">Placeholder Data</span>
+  <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
+</header>
+
+<main class="wrap">
+
+  <div class="toolhead">
+    <p class="toolhead__spec mono">Lorem ipsum dolor</p>
+    <h1 class="toolhead__title">Placeholder Data</h1>
+    <p class="toolhead__desc">Lorem ipsum plus fake people, addresses and JSON test data.</p>
+  </div>
+
+  <!-- ================================================================= -->
+  <!-- Half A — Lorem ipsum                                                -->
+  <!-- ================================================================= -->
+
+  <div class="pd-section">
+    <div class="pd-section__head">
+      <span class="pd-section__name">Lorem ipsum</span>
+      <span class="pd-section__rule"></span>
+    </div>
+
+    <div class="split">
+      <section class="panel">
+        <h2 class="panel__title">Settings</h2>
+        <div class="row" style="gap:14px 20px;flex-wrap:wrap">
+          <div class="field" style="flex:1;min-width:150px">
+            <label class="label" for="lo-unit">Unit</label>
+            <select class="select" id="lo-unit">
+              <option value="paragraphs">Paragraphs</option>
+              <option value="sentences">Sentences</option>
+              <option value="words">Words</option>
+              <option value="list">List items</option>
+            </select>
+          </div>
+          <div class="field" style="flex:1;min-width:110px">
+            <label class="label" for="lo-count">Count</label>
+            <input class="input input--mono" type="number" id="lo-count" min="1" max="500" value="4">
+          </div>
+          <div class="field" style="flex:1;min-width:150px">
+            <label class="label" for="lo-bank">Word bank</label>
+            <select class="select" id="lo-bank">
+              <option value="classic">Classic Latin</option>
+              <option value="english">Plain English</option>
+              <option value="tech">Tech jargon</option>
+            </select>
+          </div>
+          <div class="field" style="flex:1;min-width:150px">
+            <label class="label" for="lo-format">Output as</label>
+            <select class="select" id="lo-format">
+              <option value="text">Plain text</option>
+              <option value="html">HTML</option>
+              <option value="md">Markdown</option>
+            </select>
+          </div>
+        </div>
+        <label class="check" style="margin-top:4px">
+          <input type="checkbox" id="lo-classic-start" checked>
+          Start with "Lorem ipsum dolor sit amet"
+        </label>
+        <div class="row" style="margin-top:16px">
+          <button class="btn btn--primary" id="lo-generate">Regenerate</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="row row--between" style="margin-bottom:14px">
+          <h2 class="panel__title" style="margin-bottom:0">Output</h2>
+          <div class="row">
+            <button class="btn btn--sm" id="lo-copy">Copy</button>
+            <button class="btn btn--sm" id="lo-download">Download</button>
+          </div>
+        </div>
+        <div class="out out--wrap" id="lo-out"><span class="empty">Generated text appears here.</span></div>
+      </section>
+    </div>
+  </div>
+
+  <!-- ================================================================= -->
+  <!-- Half B — Fake data                                                  -->
+  <!-- ================================================================= -->
+
+  <div class="pd-section">
+    <div class="pd-section__head">
+      <span class="pd-section__name">Fake data</span>
+      <span class="pd-section__rule"></span>
+    </div>
+
+    <section class="panel">
+      <h2 class="panel__title">Fields</h2>
+      <div class="chips" id="fd-fields"></div>
+      <p class="pd-field-count" id="fd-field-count"></p>
+    </section>
+
+    <div class="split" style="margin-top:20px">
+      <section class="panel">
+        <h2 class="panel__title">Options</h2>
+        <div class="row" style="gap:14px 20px;flex-wrap:wrap">
+          <div class="field" style="flex:1;min-width:130px">
+            <label class="label" for="fd-rows">Rows (1–500)</label>
+            <input class="input input--mono" type="number" id="fd-rows" min="1" max="500" value="20">
+          </div>
+          <div class="field" style="flex:2;min-width:180px">
+            <label class="label" for="fd-seed">Seed (optional)</label>
+            <input class="input input--mono" type="text" id="fd-seed" placeholder="blank = fresh random each time">
+          </div>
+        </div>
+        <div class="row" style="margin-top:4px">
+          <button class="btn btn--primary" id="fd-generate">Generate rows</button>
+        </div>
+        <div id="fd-note" style="margin-top:12px"></div>
+      </section>
+
+      <section class="panel">
+        <h2 class="panel__title">Export</h2>
+        <div class="tabs pd-tabs" style="margin-bottom:14px">
+          <button class="btn btn--sm btn--on" data-fmt="json">JSON</button>
+          <button class="btn btn--sm" data-fmt="csv">CSV</button>
+          <button class="btn btn--sm" data-fmt="sql">SQL</button>
+          <button class="btn btn--sm" data-fmt="js">JS array</button>
+        </div>
+        <div class="field" id="fd-tablename-field">
+          <label class="label" for="fd-tablename">Table name (SQL only)</label>
+          <input class="input input--mono" type="text" id="fd-tablename" value="records">
+        </div>
+        <div class="row row--end">
+          <button class="btn btn--sm" id="fd-copy">Copy</button>
+          <button class="btn btn--sm" id="fd-download">Download</button>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel" style="margin-top:20px">
+      <div class="row row--between" style="margin-bottom:14px">
+        <h2 class="panel__title" style="margin-bottom:0">Records</h2>
+        <div class="stats" id="fd-stats" style="border:0"></div>
+      </div>
+      <div class="tablewrap pd-tablewrap" id="fd-tablewrap">
+        <table class="table" id="fd-table"></table>
+      </div>
+      <p class="pd-card-note">The card-number field always starts 4111 — a well-known test prefix. It is never a real card number.</p>
+    </section>
+
+    <section class="panel" style="margin-top:20px">
+      <h2 class="panel__title">Export preview</h2>
+      <div class="out" id="fd-out"><span class="empty">Generate rows to see export text here.</span></div>
+    </section>
+  </div>
+
+  <footer class="foot">
+    <a href="../../index.html">← All tools</a>
+    <span>·</span>
+    <span>Runs entirely in your browser</span>
+  </footer>
+
+</main>
+
+<script src="../../assets/js/bench.js" defer></script>
+<script defer>
+document.addEventListener("DOMContentLoaded", function () {
+  "use strict";
+  var $ = Bench.$, $$ = Bench.$$, esc = Bench.esc;
+
+  /* ================================================================= *
+   * Word banks                                                        *
+   * ================================================================= */
+
+  var BANKS = {
+    classic: ("lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor "
+      + "incididunt ut labore et dolore magna aliqua enim ad minim veniam quis nostrud "
+      + "exercitation ullamco laboris nisi aliquip ex ea commodo consequat duis aute irure "
+      + "in reprehenderit voluptate velit esse cillum fugiat nulla pariatur excepteur sint "
+      + "occaecat cupidatat non proident sunt culpa qui officia deserunt mollit anim id est "
+      + "laborum at vero eos accusamus iusto odio dignissimos ducimus blanditiis praesentium "
+      + "voluptatum deleniti atque corrupti quos quas molestias excepturi occaecati cupiditate "
+      + "provident similique debitis rerum necessitatibus saepe eveniet voluptates repudiandae "
+      + "recusandae itaque earum hic tenetur sapiente delectus reiciendis maiores alias "
+      + "perferendis doloribus asperiores repellat").split(" "),
+    english: ("the quick brown fox jumps over lazy dog team project plan review update meeting "
+      + "schedule report client product feature design build test launch release feedback "
+      + "idea goal result process system value data insight growth market customer service "
+      + "support quality detail content story message context option choice balance focus "
+      + "effort progress change future today moment reason purpose method approach structure "
+      + "pattern signal response outcome measure scope range level stage phase step piece "
+      + "part whole group set list item point note draft version copy sample example case "
+      + "topic subject theme tone style voice word phrase line page section chapter").split(" "),
+    tech: ("scalable synergy leverage paradigm bandwidth pivot roadmap backlog sprint refactor "
+      + "deploy pipeline container cluster latency throughput endpoint microservice serverless "
+      + "kubernetes docker webhook cache queue async middleware framework runtime compiler "
+      + "binary repository branch merge commit rollback staging production monitoring "
+      + "telemetry observability dashboard metric alert incident architecture module "
+      + "dependency package registry token payload schema migration shard replica instance "
+      + "region zone balancer gateway proxy firewall credential encryption checksum protocol "
+      + "handshake socket thread daemon kernel stack heap buffer recursion iteration "
+      + "abstraction interface implementation injection singleton observer listener callback "
+      + "promise").split(" ")
+  };
+
+  var CLASSIC_OPEN = "Lorem ipsum dolor sit amet";
+  var CLASSIC_OPEN_WORDS = CLASSIC_OPEN.toLowerCase().split(" ");
+
+  function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+  function genSentence(bank, minW, maxW) {
+    var n = minW + Bench.randInt(maxW - minW + 1);
+    var words = [];
+    for (var i = 0; i < n; i++) words.push(Bench.randPick(bank));
+    if (n > 6) {
+      var ci = 3 + Bench.randInt(n - 5);
+      words[ci - 1] += ",";
+    }
+    return cap(words.join(" ")) + ".";
+  }
+
+  function genParagraph(bank) {
+    var ns = 3 + Bench.randInt(4); // 3-6 sentences
+    var out = [];
+    for (var i = 0; i < ns; i++) out.push(genSentence(bank, 5, 15));
+    return out.join(" ");
+  }
+
+  /**
+   * Build `count` units of `unit` ("paragraphs" | "sentences" | "words" | "list")
+   * from `bank`. Returns { type: "blocks"|"list", items: [...] }. "words" comes
+   * back as a single block so every output format treats it as one paragraph.
+   */
+  function buildLorem(unit, count, bank, forceClassic) {
+    if (unit === "words") {
+      var words = [];
+      if (forceClassic) words = CLASSIC_OPEN_WORDS.slice(0, Math.min(count, 5));
+      while (words.length < count) words.push(Bench.randPick(bank));
+      words[0] = cap(words[0]);
+      return { type: "blocks", items: [words.join(" ") + "."] };
+    }
+
+    var items = [];
+    for (var i = 0; i < count; i++) {
+      var forceThis = forceClassic && i === 0;
+      var block;
+      if (unit === "sentences" || unit === "list") {
+        block = forceThis ? CLASSIC_OPEN + "." : genSentence(bank, 6, 14);
+      } else { // paragraphs
+        block = forceThis ? (CLASSIC_OPEN + ", " + genParagraph(bank).charAt(0).toLowerCase() + genParagraph(bank).slice(1)) : genParagraph(bank);
+      }
+      items.push(block);
+    }
+    return { type: unit === "list" ? "list" : "blocks", items: items };
+  }
+
+  function formatLorem(built, format) {
+    if (built.type === "list") {
+      if (format === "html") return "<ul>\n" + built.items.map(function (i) { return "  <li>" + esc(i) + "</li>"; }).join("\n") + "\n</ul>";
+      if (format === "md") return built.items.map(function (i) { return "- " + i; }).join("\n");
+      return built.items.map(function (i) { return "- " + i; }).join("\n");
+    }
+    if (format === "html") return built.items.map(function (p) { return "<p>" + esc(p) + "</p>"; }).join("\n");
+    if (format === "md") return built.items.join("\n\n");
+    return built.items.join("\n\n");
+  }
+
+  var loUnit = $("#lo-unit"), loCount = $("#lo-count"), loBank = $("#lo-bank");
+  var loFormat = $("#lo-format"), loClassic = $("#lo-classic-start");
+  var loOut = $("#lo-out");
+  var loText = "";
+
+  function renderLorem() {
+    var count = Math.max(1, Math.min(500, Number(loCount.value) || 1));
+    loCount.value = count;
+    var built = buildLorem(loUnit.value, count, BANKS[loBank.value], loClassic.checked);
+    loText = formatLorem(built, loFormat.value);
+    loOut.className = "out out--wrap";
+    loOut.textContent = loText;
+  }
+
+  Bench.live(loCount, Bench.debounce(renderLorem, 200));
+  [loUnit, loBank, loFormat, loClassic].forEach(function (el) { el.addEventListener("change", renderLorem); });
+  $("#lo-generate").addEventListener("click", renderLorem);
+  $("#lo-copy").addEventListener("click", function (e) {
+    if (!loText) { Bench.toast("Nothing to copy yet", "bad"); return; }
+    Bench.copy(loText, e.currentTarget);
+  });
+  $("#lo-download").addEventListener("click", function () {
+    if (!loText) { Bench.toast("Nothing to save yet", "bad"); return; }
+    var ext = loFormat.value === "html" ? "html" : loFormat.value === "md" ? "md" : "txt";
+    Bench.download("lorem." + ext, loText, "text/plain");
+  });
+
+  renderLorem();
+
+  /* ================================================================= *
+   * Fake data                                                         *
+   * ================================================================= */
+
+  /* --- name & place banks (60+ names, 40+ cities, per spec) ------------- */
+
+  var FIRST_NAMES = ("James Mary Robert Patricia John Jennifer Michael Linda David Elizabeth "
+    + "William Barbara Richard Susan Joseph Jessica Thomas Sarah Charles Karen Christopher "
+    + "Nancy Daniel Lisa Matthew Margaret Anthony Betty Mark Sandra Donald Ashley Steven "
+    + "Dorothy Andrew Kimberly Paul Emily Joshua Donna Kenneth Michelle Kevin Carol Brian "
+    + "Amanda George Melissa Edward Deborah Ronald Stephanie Timothy Rebecca Jason Sharon "
+    + "Jeffrey Laura Ryan Cynthia Jacob Kathleen Gary Amy Nicholas Angela Eric Shirley "
+    + "Jonathan Anna Stephen Brenda Larry Pamela Justin Emma Scott Nicole Brandon Helen "
+    + "Benjamin Samantha Samuel Katherine Frank Christine Gregory Debra Raymond Rachel "
+    + "Alexander Carolyn Patrick Janet Jack Maria Dennis Heather Jerry Diane").split(" ");
+
+  var LAST_NAMES = ("Smith Johnson Williams Brown Jones Garcia Miller Davis Rodriguez Martinez "
+    + "Hernandez Lopez Gonzalez Wilson Anderson Thomas Taylor Moore Jackson Martin Lee Perez "
+    + "Thompson White Harris Sanchez Clark Ramirez Lewis Robinson Walker Young Allen King "
+    + "Wright Scott Torres Nguyen Hill Flores Green Adams Nelson Baker Hall Rivera Campbell "
+    + "Mitchell Carter Roberts Gomez Phillips Evans Turner Diaz Parker Cruz Edwards Collins "
+    + "Reyes Stewart Morris Morales Murphy Cook Rogers Gutierrez Ortiz Morgan Cooper Peterson "
+    + "Bailey Reed Kelly Howard Ramos Kim Cox Ward Richardson Watson Brooks Chavez Wood "
+    + "Bennett Gray Mendoza Ruiz Hughes Price Alvarez Castillo Sanders Patel Myers Long Ross "
+    + "Foster Jimenez").split(" ");
+
+  var CITIES = ["New York", "Los Angeles", "Chicago", "Houston", "Phoenix", "Philadelphia",
+    "San Antonio", "San Diego", "Dallas", "Austin", "London", "Manchester", "Birmingham",
+    "Bristol", "Toronto", "Vancouver", "Montreal", "Sydney", "Melbourne", "Brisbane",
+    "Auckland", "Wellington", "Dublin", "Edinburgh", "Berlin", "Munich", "Hamburg", "Paris",
+    "Lyon", "Marseille", "Madrid", "Barcelona", "Rome", "Milan", "Amsterdam", "Rotterdam",
+    "Vienna", "Zurich", "Geneva", "Stockholm", "Oslo", "Copenhagen", "Helsinki", "Warsaw",
+    "Prague", "Lisbon", "Singapore", "Tokyo", "Osaka", "Seoul", "Mumbai", "Bangalore",
+    "Cape Town", "Nairobi", "Sao Paulo", "Mexico City", "Buenos Aires"];
+
+  var REGIONS = ["California", "Texas", "New York", "Florida", "Ontario", "Quebec",
+    "British Columbia", "England", "Scotland", "Wales", "Bavaria", "Catalonia", "Lombardy",
+    "New South Wales", "Victoria", "Auckland", "Gauteng", "Ile-de-France", "Attica", "Tuscany",
+    "Andalusia", "Bengaluru Urban", "Sao Paulo State", "Nairobi County"];
+
+  var COUNTRIES = ["United States", "Canada", "United Kingdom", "Ireland", "Germany", "France",
+    "Spain", "Italy", "Netherlands", "Switzerland", "Austria", "Sweden", "Norway", "Denmark",
+    "Finland", "Poland", "Portugal", "Belgium", "Australia", "New Zealand", "Japan",
+    "South Korea", "Singapore", "India", "Brazil", "Mexico", "Argentina", "South Africa",
+    "Kenya", "United Arab Emirates"];
+
+  var STREET_NAMES = ["Maple", "Oak", "Cedar", "Elm", "Pine", "Washington", "Lincoln",
+    "Madison", "Jefferson", "Franklin", "Highland", "Sunset", "Lakeview", "Riverside",
+    "Hillcrest", "Park", "Main", "Church", "Spring", "Chestnut", "Willow", "Birch",
+    "Sycamore", "Meadow", "Ridge", "Forest", "Union", "Market", "Broadway", "College"];
+
+  var STREET_SUFFIXES = ["St", "Ave", "Blvd", "Dr", "Ln", "Rd", "Ct", "Way", "Pl", "Ter"];
+
+  var COMPANY_PREFIX = ["Nova", "Vertex", "Bright", "Silver", "North", "Blue", "Summit",
+    "Crest", "Prime", "Clear", "Rapid", "Bold", "Quantum", "Metro", "Cobalt", "Amber",
+    "Delta", "Cedar", "Anchor", "Lumen"];
+
+  var COMPANY_SUFFIX = ["Labs", "Works", "Systems", "Solutions", "Group", "Partners",
+    "Holdings", "Studio", "Collective", "Dynamics", "Technologies", "Ventures"];
+
+  var JOB_TITLES = ["Product Manager", "Software Engineer", "UX Designer", "Data Analyst",
+    "Marketing Lead", "Sales Executive", "Operations Manager", "Customer Success Manager",
+    "Financial Analyst", "HR Business Partner", "Content Strategist", "QA Engineer",
+    "DevOps Engineer", "Account Manager", "Business Development Rep", "Project Coordinator",
+    "Research Scientist", "Legal Counsel", "Supply Chain Analyst", "Executive Assistant",
+    "Creative Director", "Brand Manager", "Solutions Architect", "Support Specialist",
+    "Recruiter", "Copywriter", "Data Scientist", "Site Reliability Engineer",
+    "Product Designer", "Chief of Staff"];
+
+  var EMAIL_DOMAINS = ["example.com", "example.org", "example.net", "mailbox.example"];
+
+  /* --- seeded randomness ------------------------------------------------
+     mulberry32 gives a fast, deterministic PRNG from a 32-bit integer seed.
+     A text seed is folded into that integer with a small string hash. With
+     no seed, every field falls back to Bench.randInt — the same crypto-backed
+     source every other tool on the bench uses — so "no seed" still means
+     "not reproducible by design", not "weaker". ------------------------- */
+
+  function strToSeed(str) {
+    var h = 0;
+    for (var i = 0; i < str.length; i++) h = (Math.imul(31, h) + str.charCodeAt(i)) | 0;
+    return h >>> 0;
+  }
+
+  function mulberry32(seed) {
+    var t = seed >>> 0;
+    return function () {
+      t = (t + 0x6D2B79F5) | 0;
+      var r = Math.imul(t ^ (t >>> 15), 1 | t);
+      r = (r + Math.imul(r ^ (r >>> 7), 61 | r)) ^ r;
+      return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function makeRng(seedStr) {
+    if (!seedStr) {
+      return { randInt: Bench.randInt, randPick: Bench.randPick, seeded: false };
+    }
+    var rnd = mulberry32(strToSeed(seedStr));
+    return {
+      seeded: true,
+      randInt: function (max) { return Math.floor(rnd() * max); },
+      randPick: function (arr) { return arr[Math.floor(rnd() * arr.length)]; }
+    };
+  }
+
+  /* --- field generators ---------------------------------------------------- */
+
+  function yearsAgoMs(y) { var d = new Date(); d.setUTCFullYear(d.getUTCFullYear() - y); return d.getTime(); }
+
+  function isoDateBetween(r, startMs, endMs) {
+    var t = startMs + r.randInt(Math.max(1, endMs - startMs));
+    return new Date(t).toISOString().slice(0, 10);
+  }
+
+  function genUuid(r) {
+    var b = [];
+    for (var i = 0; i < 16; i++) b.push(r.randInt(256));
+    b[6] = (b[6] & 0x0f) | 0x40;
+    b[8] = (b[8] & 0x3f) | 0x80;
+    var h = b.map(function (x) { return x.toString(16).padStart(2, "0"); }).join("");
+    return [h.slice(0, 8), h.slice(8, 12), h.slice(12, 16), h.slice(16, 20), h.slice(20)].join("-");
+  }
+
+  function genIPv4(r) { return [r.randInt(256), r.randInt(256), r.randInt(256), r.randInt(256)].join("."); }
+  function genIPv6(r) {
+    var g = [];
+    for (var i = 0; i < 8; i++) g.push(r.randInt(65536).toString(16).padStart(4, "0"));
+    return g.join(":");
+  }
+  function genMac(r) {
+    var g = [];
+    for (var i = 0; i < 6; i++) g.push(r.randInt(256).toString(16).padStart(2, "0"));
+    return g.join(":").toUpperCase();
+  }
+  function genColorHex(r) { return "#" + r.randInt(16777216).toString(16).padStart(6, "0"); }
+  function genCard(r) {
+    var groups = [];
+    for (var i = 0; i < 3; i++) groups.push(String(r.randInt(10000)).padStart(4, "0"));
+    return "4111 " + groups.join(" ");
+  }
+  function genUrl(ctx, r) {
+    var slug = ctx.company.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+    var path = r.randPick(["", "about", "products", "blog", "docs", "contact"]);
+    return "https://" + slug + ".example.com" + (path ? "/" + path : "");
+  }
+
+  /** Per-row context so related fields (name/email/username/address) agree. */
+  function buildContext(r) {
+    var first = r.randPick(FIRST_NAMES);
+    var last = r.randPick(LAST_NAMES);
+    var company = r.randPick(COMPANY_PREFIX) + " " + r.randPick(COMPANY_SUFFIX);
+    return {
+      first: first, last: last, full: first + " " + last,
+      email: (first + "." + last).toLowerCase() + "@" + r.randPick(EMAIL_DOMAINS),
+      username: (first.charAt(0) + last).toLowerCase() + String(r.randInt(100)).padStart(2, "0"),
+      phone: "+1 " + (200 + r.randInt(800)) + "-" + (100 + r.randInt(900)) + "-" + String(r.randInt(10000)).padStart(4, "0"),
+      street: (100 + r.randInt(9900)) + " " + r.randPick(STREET_NAMES) + " " + r.randPick(STREET_SUFFIXES),
+      city: r.randPick(CITIES), region: r.randPick(REGIONS), country: r.randPick(COUNTRIES),
+      postcode: String(10000 + r.randInt(90000)),
+      company: company, job: r.randPick(JOB_TITLES),
+      dob: isoDateBetween(r, yearsAgoMs(80), yearsAgoMs(18)),
+      isoDate: isoDateBetween(r, yearsAgoMs(3), Date.now())
+    };
+  }
+
+  var FIELD_DEFS = [
+    { key: "firstName", label: "First name", get: function (c) { return c.first; } },
+    { key: "lastName", label: "Last name", get: function (c) { return c.last; } },
+    { key: "fullName", label: "Full name", get: function (c) { return c.full; } },
+    { key: "email", label: "Email", get: function (c) { return c.email; } },
+    { key: "username", label: "Username", get: function (c) { return c.username; } },
+    { key: "phone", label: "Phone", get: function (c) { return c.phone; } },
+    { key: "street", label: "Street address", get: function (c) { return c.street; } },
+    { key: "city", label: "City", get: function (c) { return c.city; } },
+    { key: "region", label: "Region", get: function (c) { return c.region; } },
+    { key: "postcode", label: "Postcode", get: function (c) { return c.postcode; } },
+    { key: "country", label: "Country", get: function (c) { return c.country; } },
+    { key: "company", label: "Company", get: function (c) { return c.company; } },
+    { key: "jobTitle", label: "Job title", get: function (c) { return c.job; } },
+    { key: "dob", label: "Date of birth", get: function (c) { return c.dob; } },
+    { key: "uuid", label: "UUID", get: function (c, r) { return genUuid(r); } },
+    { key: "ipv4", label: "IPv4", get: function (c, r) { return genIPv4(r); } },
+    { key: "ipv6", label: "IPv6", get: function (c, r) { return genIPv6(r); } },
+    { key: "mac", label: "MAC address", get: function (c, r) { return genMac(r); } },
+    { key: "url", label: "URL", get: function (c, r) { return genUrl(c, r); } },
+    { key: "card", label: "Card number (test)", get: function (c, r) { return genCard(r); } },
+    { key: "bool", label: "Boolean", get: function (c, r) { return r.randInt(2) === 1; } },
+    { key: "int", label: "Integer", get: function (c, r) { return r.randInt(100000); } },
+    { key: "decimal", label: "Decimal", get: function (c, r) { return Number((r.randInt(10000000) / 100).toFixed(2)); } },
+    { key: "isoDate", label: "ISO date", get: function (c) { return c.isoDate; } },
+    { key: "color", label: "Colour hex", get: function (c, r) { return genColorHex(r); } },
+    { key: "sentence", label: "Lorem sentence", get: function (c, r) {
+        var words = []; var n = 6 + r.randInt(9);
+        for (var i = 0; i < n; i++) words.push(r.randPick(BANKS.classic));
+        return cap(words.join(" ")) + ".";
+      } }
+  ];
+  var FIELD_MAP = {};
+  FIELD_DEFS.forEach(function (d) { FIELD_MAP[d.key] = d; });
+
+  var DEFAULT_FIELDS = ["fullName", "email", "city", "country", "company", "jobTitle", "uuid"];
+  var selected = {};
+  DEFAULT_FIELDS.forEach(function (k) { selected[k] = true; });
+
+  var fieldsEl = $("#fd-fields"), fieldCountEl = $("#fd-field-count");
+  var rowsInput = $("#fd-rows"), seedInput = $("#fd-seed");
+  var fdNote = $("#fd-note"), fdOut = $("#fd-out");
+  var tablewrap = $("#fd-tablewrap"), tableEl = $("#fd-table");
+  var fdStats = $("#fd-stats");
+  var tablenameInput = $("#fd-tablename");
+  var exportFmt = "json";
+  var rows = [], orderedKeys = [];
+
+  function renderFieldChips() {
+    fieldsEl.innerHTML = FIELD_DEFS.map(function (d) {
+      return '<button type="button" class="chip' + (selected[d.key] ? " chip--on" : "") + '" data-key="' + d.key + '">' + esc(d.label) + "</button>";
+    }).join("");
+    var n = FIELD_DEFS.filter(function (d) { return selected[d.key]; }).length;
+    fieldCountEl.textContent = Bench.plural(n, "field") + " selected of " + FIELD_DEFS.length + ".";
+  }
+
+  fieldsEl.addEventListener("click", function (e) {
+    var btn = e.target.closest(".chip");
+    if (!btn) return;
+    var key = btn.dataset.key;
+    selected[key] = !selected[key];
+    renderFieldChips();
+    generateRows();
+  });
+
+  /* --- CSV / SQL escaping ---------------------------------------------------- */
+
+  function csvCell(v) {
+    var s = String(v);
+    if (/[",\n]/.test(s)) s = '"' + s.replace(/"/g, '""') + '"';
+    return s;
+  }
+  function sqlCell(v) {
+    if (typeof v === "boolean") return v ? "TRUE" : "FALSE";
+    if (typeof v === "number") return String(v);
+    return "'" + String(v).replace(/'/g, "''") + "'";
+  }
+
+  function buildExports(rows, keys) {
+    var labels = keys.map(function (k) { return FIELD_MAP[k].label; });
+
+    var json = JSON.stringify(rows, null, 2);
+
+    var csvLines = [labels.map(csvCell).join(",")];
+    rows.forEach(function (row) { csvLines.push(keys.map(function (k) { return csvCell(row[k]); }).join(",")); });
+    var csv = csvLines.join("\n");
+
+    var table = (tablenameInput.value.trim() || "records").replace(/[^a-zA-Z0-9_]/g, "_") || "records";
+    var sql = rows.map(function (row) {
+      return "INSERT INTO " + table + " (" + keys.join(", ") + ") VALUES ("
+        + keys.map(function (k) { return sqlCell(row[k]); }).join(", ") + ");";
+    }).join("\n");
+
+    var js = "const records = " + JSON.stringify(rows, null, 2) + ";";
+
+    return { json: json, csv: csv, sql: sql, js: js };
+  }
+
+  var lastExports = null;
+
+  function renderTable() {
+    if (!rows.length || !orderedKeys.length) {
+      tableEl.innerHTML = "";
+      tablewrap.innerHTML = '<p class="empty" style="padding:14px">' +
+        (orderedKeys.length ? "Generate rows to preview them here." : "Select at least one field above.") + "</p>";
+      return;
+    }
+    tablewrap.innerHTML = '<table class="table" id="fd-table"></table>';
+    tableEl = $("#fd-table");
+    var thead = "<thead><tr>" + orderedKeys.map(function (k) { return "<th>" + esc(FIELD_MAP[k].label) + "</th>"; }).join("") + "</tr></thead>";
+    var isNum = function (k) { return k === "int" || k === "decimal"; };
+    var tbody = "<tbody>" + rows.map(function (row) {
+      return "<tr>" + orderedKeys.map(function (k) {
+        var v = row[k];
+        var cls = isNum(k) ? ' class="num"' : "";
+        var text = typeof v === "boolean" ? (v ? "true" : "false") : String(v);
+        return "<td" + cls + ">" + esc(text) + "</td>";
+      }).join("") + "</tr>";
+    }).join("") + "</tbody>";
+    tableEl.innerHTML = thead + tbody;
+  }
+
+  function renderExportPreview() {
+    if (!lastExports) { fdOut.innerHTML = '<span class="empty">Generate rows to see export text here.</span>'; return; }
+    fdOut.className = "out out--wrap";
+    fdOut.textContent = lastExports[exportFmt];
+  }
+
+  function renderStats() {
+    fdStats.innerHTML = rows.length
+      ? '<div class="stat"><span class="stat__n">' + Bench.num(rows.length) + '</span><span class="stat__k">Rows</span></div>'
+        + '<div class="stat"><span class="stat__n">' + orderedKeys.length + '</span><span class="stat__k">Fields</span></div>'
+      : "";
+  }
+
+  function generateRows() {
+    orderedKeys = FIELD_DEFS.filter(function (d) { return selected[d.key]; }).map(function (d) { return d.key; });
+    var n = Math.max(1, Math.min(500, Number(rowsInput.value) || 1));
+    rowsInput.value = n;
+
+    if (!orderedKeys.length) {
+      rows = [];
+      lastExports = null;
+      fdNote.innerHTML = '<div class="note note--warn"><span class="note__mark">!</span><span>Pick at least one field to generate rows.</span></div>';
+      renderTable(); renderExportPreview(); renderStats();
+      return;
+    }
+
+    var seedStr = seedInput.value.trim();
+    var r = makeRng(seedStr);
+    rows = [];
+    for (var i = 0; i < n; i++) {
+      var ctx = buildContext(r);
+      var row = {};
+      orderedKeys.forEach(function (k) { row[k] = FIELD_MAP[k].get(ctx, r); });
+      rows.push(row);
+    }
+
+    lastExports = buildExports(rows, orderedKeys);
+    fdNote.innerHTML = '<div class="note note--ok"><span class="note__mark">✓</span><span>'
+      + Bench.plural(n, "row") + " generated"
+      + (seedStr ? " — seed " + esc(seedStr) + " (deterministic, mulberry32)" : " — fresh random each time (Bench.randInt, crypto-backed)")
+      + ".</span></div>";
+
+    renderTable(); renderExportPreview(); renderStats();
+  }
+
+  $("#fd-generate").addEventListener("click", generateRows);
+  Bench.live(rowsInput, Bench.debounce(generateRows, 250));
+  seedInput.addEventListener("change", generateRows);
+  tablenameInput.addEventListener("input", Bench.debounce(function () {
+    if (lastExports) { lastExports = buildExports(rows, orderedKeys); renderExportPreview(); }
+  }, 200));
+
+  $$(".pd-tabs [data-fmt]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      exportFmt = btn.dataset.fmt;
+      $$(".pd-tabs [data-fmt]").forEach(function (b) { b.classList.toggle("btn--on", b === btn); });
+      renderExportPreview();
+    });
+  });
+
+  $("#fd-copy").addEventListener("click", function (e) {
+    if (!lastExports) { Bench.toast("Generate rows first", "bad"); return; }
+    Bench.copy(lastExports[exportFmt], e.currentTarget);
+  });
+  $("#fd-download").addEventListener("click", function () {
+    if (!lastExports) { Bench.toast("Generate rows first", "bad"); return; }
+    var ext = { json: "json", csv: "csv", sql: "sql", js: "js" }[exportFmt];
+    var mime = { json: "application/json", csv: "text/csv", sql: "text/plain", js: "text/javascript" }[exportFmt];
+    Bench.download("fake-data." + ext, lastExports[exportFmt], mime);
+  });
+
+  renderFieldChips();
+  generateRows();
+});
+</script>
+
+</body>
+</html>

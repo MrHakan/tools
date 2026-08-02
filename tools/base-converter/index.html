@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Number Base Converter — Bench</title>
+<meta name="description" content="Convert between binary, octal, decimal and hex, and see bitwise operations applied live.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/css/bench.css">
+<style>
+  /* --- the clickable 32-bit grid, shared by both operands and the result --- */
+  .bcv__grid { display: flex; flex-wrap: wrap; gap: 16px; }
+  .bcv__byte { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .bcv__bytelabel { font-size: 10px; color: var(--steel); letter-spacing: 0.02em; }
+  .bcv__bits { display: flex; gap: 3px; }
+
+  .bcv__bit {
+    width: 25px; height: 25px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: 1px solid var(--edge-2); border-radius: 2px;
+    background: var(--card); color: var(--steel);
+    font-family: var(--mono); font-size: 12px; font-weight: 500;
+    transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
+  }
+  .bcv__bit:hover:not([disabled]) { border-color: var(--signal); color: var(--signal); }
+  .bcv__bit.is-on { border-color: var(--signal); background: var(--signal-soft); color: var(--signal); font-weight: 700; }
+  .bcv__bit[disabled] { cursor: default; }
+
+  .bcv__oplabel { font-family: var(--mono); font-size: 12px; color: var(--steel); }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__home" href="../../index.html"><span class="topbar__mark">▚</span> bench</a>
+  <span class="topbar__sep">/</span>
+  <span class="topbar__here">Number Base Converter</span>
+  <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
+</header>
+
+<main class="wrap">
+
+  <div class="toolhead">
+    <p class="toolhead__spec mono">0xFF = 255</p>
+    <h1 class="toolhead__title">Number Base Converter</h1>
+    <p class="toolhead__desc">Convert between binary, octal, decimal and hex, and see bitwise operations applied live.</p>
+  </div>
+
+  <div class="stack">
+
+    <section class="panel">
+      <h2 class="panel__title">Base converter</h2>
+      <div class="row" style="margin-bottom:16px">
+        <button class="btn btn--sm" id="bc-sample" type="button">Load sample</button>
+        <button class="btn btn--sm btn--danger" id="bc-clear" type="button">Clear</button>
+      </div>
+
+      <div class="field">
+        <label class="label" for="f-bin">Binary (base 2)</label>
+        <div class="row">
+          <input class="input input--mono grow" id="f-bin" autocomplete="off" spellcheck="false">
+          <button class="btn btn--sm" data-copy="#f-bin" type="button">Copy</button>
+        </div>
+        <div id="n-bin" style="margin-top:6px"></div>
+      </div>
+
+      <div class="field">
+        <label class="label" for="f-oct">Octal (base 8)</label>
+        <div class="row">
+          <input class="input input--mono grow" id="f-oct" autocomplete="off" spellcheck="false">
+          <button class="btn btn--sm" data-copy="#f-oct" type="button">Copy</button>
+        </div>
+        <div id="n-oct" style="margin-top:6px"></div>
+      </div>
+
+      <div class="field">
+        <label class="label" for="f-dec">Decimal (base 10)</label>
+        <div class="row">
+          <input class="input input--mono grow" id="f-dec" autocomplete="off" spellcheck="false">
+          <button class="btn btn--sm" data-copy="#f-dec" type="button">Copy</button>
+        </div>
+        <div id="n-dec" style="margin-top:6px"></div>
+      </div>
+
+      <div class="field">
+        <label class="label" for="f-hex">Hexadecimal (base 16)</label>
+        <div class="row">
+          <input class="input input--mono grow" id="f-hex" autocomplete="off" spellcheck="false">
+          <button class="btn btn--sm" data-copy="#f-hex" type="button">Copy</button>
+        </div>
+        <div id="n-hex" style="margin-top:6px"></div>
+      </div>
+
+      <div class="field">
+        <label class="label" for="f-custom-val">Custom base (2–36)</label>
+        <div class="row">
+          <label class="sr-only" for="f-custom-base">Custom base number</label>
+          <input class="input input--mono" id="f-custom-base" type="number" min="2" max="36" step="1" value="36" style="max-width:84px">
+          <input class="input input--mono grow" id="f-custom-val" autocomplete="off" spellcheck="false">
+          <button class="btn btn--sm" data-copy="#f-custom-val" type="button">Copy</button>
+        </div>
+        <div id="n-custom" style="margin-top:6px"></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel__title">Bitwise playground</h2>
+
+      <div class="split">
+        <div>
+          <div class="field">
+            <label class="label" for="op-a">Operand A (decimal, 32-bit)</label>
+            <input class="input input--mono" id="op-a" inputmode="numeric" autocomplete="off" spellcheck="false">
+            <div id="n-opa" style="margin-top:6px"></div>
+          </div>
+          <div id="grid-a" class="bcv__grid" role="group" aria-label="Operand A bits, click to toggle"></div>
+        </div>
+        <div>
+          <div class="field">
+            <label class="label" for="op-b">Operand B (decimal, 32-bit)</label>
+            <input class="input input--mono" id="op-b" inputmode="numeric" autocomplete="off" spellcheck="false">
+            <div id="n-opb" style="margin-top:6px"></div>
+          </div>
+          <div id="grid-b" class="bcv__grid" role="group" aria-label="Operand B bits, click to toggle"></div>
+        </div>
+      </div>
+
+      <div class="field" style="margin-top:20px">
+        <label class="label">Unary target — which operand NOT and shifts apply to</label>
+        <div class="chips">
+          <button class="chip chip--on" data-target="a" type="button">A</button>
+          <button class="chip" data-target="b" type="button">B</button>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:14px; align-items: flex-end">
+        <div class="field" style="margin-bottom:0; max-width:110px">
+          <label class="label" for="shift-n">Shift by</label>
+          <input class="input input--mono" id="shift-n" type="number" min="0" max="31" value="4">
+        </div>
+        <div class="row">
+          <button class="btn btn--sm btn--on" data-op="and" type="button">A AND B</button>
+          <button class="btn btn--sm" data-op="or" type="button">A OR B</button>
+          <button class="btn btn--sm" data-op="xor" type="button">A XOR B</button>
+          <button class="btn btn--sm" data-op="not" type="button">NOT</button>
+          <button class="btn btn--sm" data-op="shl" type="button">Shift left</button>
+          <button class="btn btn--sm" data-op="shr" type="button">Shift right</button>
+        </div>
+      </div>
+
+      <div class="note note--info" style="margin-top:18px">
+        <span class="note__mark">i</span>
+        <span>These operations run on 32-bit signed integers, same as JavaScript's own
+        <span class="mono">&amp; | ^ ~ &lt;&lt; &gt;&gt;</span>. Negative numbers are stored in
+        <b>two's complement</b>: flip every bit of the positive value and add 1. That's why the
+        binary, octal and hex columns below always show the full 32-bit pattern — a leading
+        <span class="mono">1</span> bit is what makes a pattern read as negative — while decimal
+        shows the signed result.</span>
+      </div>
+
+      <div style="margin-top:20px">
+        <div class="row row--between">
+          <span class="label" style="margin:0">Result — <span class="bcv__oplabel" id="result-label">A AND B</span></span>
+        </div>
+        <div id="grid-result" class="bcv__grid" style="margin-top:10px" role="group" aria-label="Result bits"></div>
+        <div class="tablewrap" style="margin-top:14px">
+          <table class="table">
+            <tbody>
+              <tr><th>Binary</th><td class="mono" id="res-bin"></td></tr>
+              <tr><th>Octal</th><td class="mono" id="res-oct"></td></tr>
+              <tr><th>Decimal</th><td class="mono" id="res-dec"></td></tr>
+              <tr><th>Hexadecimal</th><td class="mono" id="res-hex"></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <footer class="foot">
+    <a href="../../index.html">← All tools</a>
+    <span>·</span>
+    <span>Runs entirely in your browser</span>
+  </footer>
+
+</main>
+
+<script src="../../assets/js/bench.js" defer></script>
+<script defer>
+document.addEventListener("DOMContentLoaded", function () {
+  "use strict";
+  var $ = Bench.$, $$ = Bench.$$, esc = Bench.esc, el = Bench.el;
+
+  /* ==========================================================================
+     Part 1 — the four linked bases, plus a custom-base field. Arbitrary
+     precision throughout: values are BigInt so a 200-digit number stays exact
+     instead of rounding once it passes Number.MAX_SAFE_INTEGER.
+     ========================================================================== */
+
+  var binInput = $("#f-bin"), binNote = $("#n-bin");
+  var octInput = $("#f-oct"), octNote = $("#n-oct");
+  var decInput = $("#f-dec"), decNote = $("#n-dec");
+  var hexInput = $("#f-hex"), hexNote = $("#n-hex");
+  var customBaseInput = $("#f-custom-base"), customValInput = $("#f-custom-val"), customNote = $("#n-custom");
+
+  var current = 255n;
+
+  var ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyz";
+
+  function digitsForBase(base) { return ALPHABET.slice(0, base); }
+
+  function stripPrefix(s, base) {
+    if (base === 2) return s.replace(/^0b/i, "");
+    if (base === 8) return s.replace(/^0o/i, "");
+    if (base === 16) return s.replace(/^0x/i, "");
+    return s;
+  }
+
+  function parseInBase(raw, base) {
+    raw = String(raw).trim();
+    if (!raw) return { empty: true };
+    var neg = false;
+    if (raw[0] === "+" || raw[0] === "-") { neg = raw[0] === "-"; raw = raw.slice(1); }
+    raw = stripPrefix(raw, base);
+    if (!raw) return { error: "Enter at least one digit." };
+    var alphabet = digitsForBase(base);
+    var lower = raw.toLowerCase();
+    for (var i = 0; i < lower.length; i++) {
+      if (alphabet.indexOf(lower[i]) === -1) {
+        return { error: '"' + raw[i] + '" is not a valid base-' + base + " digit." };
+      }
+    }
+    var value = 0n, b = BigInt(base);
+    for (i = 0; i < lower.length; i++) value = value * b + BigInt(alphabet.indexOf(lower[i]));
+    return { value: neg ? -value : value };
+  }
+
+  function formatInBase(value, base) {
+    if (value === 0n) return "0";
+    var neg = value < 0n;
+    var v = neg ? -value : value;
+    var alphabet = digitsForBase(base), b = BigInt(base), out = "";
+    while (v > 0n) { out = alphabet[Number(v % b)] + out; v = v / b; }
+    return (neg ? "-" : "") + out;
+  }
+
+  function customBase() {
+    var b = parseInt(customBaseInput.value, 10);
+    return (isFinite(b) && b >= 2 && b <= 36) ? b : null;
+  }
+
+  function renderBaseAll(source) {
+    if (source !== "bin") { binInput.value = formatInBase(current, 2); binNote.innerHTML = ""; }
+    if (source !== "oct") { octInput.value = formatInBase(current, 8); octNote.innerHTML = ""; }
+    if (source !== "dec") { decInput.value = formatInBase(current, 10); decNote.innerHTML = ""; }
+    if (source !== "hex") { hexInput.value = formatInBase(current, 16).toUpperCase(); hexNote.innerHTML = ""; }
+    var cb = customBase();
+    if (source !== "custom" && cb != null) { customValInput.value = formatInBase(current, cb); customNote.innerHTML = ""; }
+  }
+
+  function makeFieldHandler(base, inputEl, noteEl, sourceName) {
+    return function () {
+      var result = parseInBase(inputEl.value, base);
+      if (result.empty) { noteEl.innerHTML = ""; return; }
+      if (result.error) {
+        noteEl.innerHTML = '<div class="note note--bad"><span class="note__mark">✕</span><span>' + esc(result.error) + "</span></div>";
+        return;
+      }
+      noteEl.innerHTML = "";
+      current = result.value;
+      renderBaseAll(sourceName);
+    };
+  }
+
+  function onCustomBaseChange() {
+    var b = customBase();
+    if (b == null) {
+      customNote.innerHTML = '<div class="note note--bad"><span class="note__mark">✕</span><span>Base must be a whole number from 2 to 36.</span></div>';
+      return;
+    }
+    customNote.innerHTML = "";
+    customValInput.value = formatInBase(current, b);
+  }
+
+  function onCustomValInput() {
+    var b = customBase();
+    if (b == null) {
+      customNote.innerHTML = '<div class="note note--bad"><span class="note__mark">✕</span><span>Fix the base above first.</span></div>';
+      return;
+    }
+    var result = parseInBase(customValInput.value, b);
+    if (result.empty) { customNote.innerHTML = ""; return; }
+    if (result.error) {
+      customNote.innerHTML = '<div class="note note--bad"><span class="note__mark">✕</span><span>' + esc(result.error) + "</span></div>";
+      return;
+    }
+    customNote.innerHTML = "";
+    current = result.value;
+    renderBaseAll("custom");
+  }
+
+  binInput.addEventListener("input", Bench.debounce(makeFieldHandler(2, binInput, binNote, "bin"), 120));
+  octInput.addEventListener("input", Bench.debounce(makeFieldHandler(8, octInput, octNote, "oct"), 120));
+  decInput.addEventListener("input", Bench.debounce(makeFieldHandler(10, decInput, decNote, "dec"), 120));
+  hexInput.addEventListener("input", Bench.debounce(makeFieldHandler(16, hexInput, hexNote, "hex"), 120));
+  customBaseInput.addEventListener("input", Bench.debounce(onCustomBaseChange, 120));
+  customValInput.addEventListener("input", Bench.debounce(onCustomValInput, 120));
+
+  $("#bc-sample").addEventListener("click", function () { current = 255n; renderBaseAll(); });
+  $("#bc-clear").addEventListener("click", function () { current = 0n; renderBaseAll(); binInput.focus(); });
+
+  renderBaseAll();
+
+  /* ==========================================================================
+     Part 2 — bitwise playground. Bounded to 32-bit signed integers, exactly
+     like JavaScript's own bitwise operators, so plain Numbers and the native
+     `>>> 0` / `| 0` conversions are enough — no BigInt needed here.
+     ========================================================================== */
+
+  var opA = $("#op-a"), opaNote = $("#n-opa");
+  var opB = $("#op-b"), opbNote = $("#n-opb");
+  var gridA = $("#grid-a"), gridB = $("#grid-b"), gridResult = $("#grid-result");
+  var shiftInput = $("#shift-n"), resultLabel = $("#result-label");
+
+  var aVal = 170, bVal = 85; // 10101010 and 01010101 — a clear demo pair
+  var unaryTarget = "a", currentOp = "and";
+
+  function padLeft(s, width, ch) { while (s.length < width) s = ch + s; return s; }
+
+  /** Render a labelled, optionally-clickable 32-bit grid, MSB byte first. */
+  function renderBitGrid(container, uintValue, editable, onToggle) {
+    container.innerHTML = "";
+    for (var byte = 3; byte >= 0; byte--) {
+      var box = el("div", { class: "bcv__byte" });
+      box.appendChild(el("div", { class: "bcv__bytelabel mono", text: (byte * 8 + 7) + "–" + (byte * 8) }));
+      var row = el("div", { class: "bcv__bits" });
+      for (var i = 7; i >= 0; i--) {
+        (function (bitIndex) {
+          var bit = (uintValue >>> bitIndex) & 1;
+          var btn = el("button", {
+            type: "button",
+            class: "bcv__bit" + (bit ? " is-on" : ""),
+            text: String(bit),
+            "aria-label": "Bit " + bitIndex + (editable ? ", click to toggle" : "")
+          });
+          if (editable) btn.addEventListener("click", function () { onToggle(bitIndex); });
+          else btn.disabled = true;
+          row.appendChild(btn);
+        })(byte * 8 + i);
+      }
+      box.appendChild(row);
+      container.appendChild(box);
+    }
+  }
+
+  function renderOperand(which) {
+    var val = which === "a" ? aVal : bVal;
+    renderBitGrid(which === "a" ? gridA : gridB, val >>> 0, true, function (bitIndex) {
+      toggleBit(which, bitIndex);
+    });
+  }
+
+  function toggleBit(which, bitIndex) {
+    var val = which === "a" ? aVal : bVal;
+    var u = (val >>> 0) ^ (1 << bitIndex);
+    var signed = u | 0;
+    if (which === "a") { aVal = signed; opA.value = String(aVal); opaNote.innerHTML = ""; }
+    else { bVal = signed; opB.value = String(bVal); opbNote.innerHTML = ""; }
+    renderOperand(which);
+    computeResult();
+  }
+
+  function getShiftN() {
+    var n = parseInt(shiftInput.value, 10);
+    if (!isFinite(n)) n = 0;
+    return Math.max(0, Math.min(31, n));
+  }
+
+  function computeResult() {
+    var a = aVal, b = bVal, n = getShiftN();
+    var target = unaryTarget === "a" ? aVal : bVal;
+    var result, label;
+    switch (currentOp) {
+      case "or":  result = a | b; label = "A OR B"; break;
+      case "xor": result = a ^ b; label = "A XOR B"; break;
+      case "not": result = ~target; label = "NOT " + unaryTarget.toUpperCase(); break;
+      case "shl": result = target << n; label = unaryTarget.toUpperCase() + " << " + n; break;
+      case "shr": result = target >> n; label = unaryTarget.toUpperCase() + " >> " + n; break;
+      default:    result = a & b; label = "A AND B";
+    }
+    result = result | 0;
+    resultLabel.textContent = label;
+    var u = result >>> 0;
+    renderBitGrid(gridResult, u, false);
+    $("#res-bin").textContent = padLeft(u.toString(2), 32, "0");
+    $("#res-oct").textContent = u.toString(8);
+    $("#res-dec").textContent = String(result);
+    $("#res-hex").textContent = padLeft(u.toString(16).toUpperCase(), 8, "0");
+  }
+
+  function onOpAInput() {
+    var raw = opA.value.trim();
+    if (!/^[+-]?\d+$/.test(raw)) {
+      opaNote.innerHTML = '<div class="note note--bad"><span class="note__mark">✕</span><span>Enter a whole decimal number (it wraps to 32 bits).</span></div>';
+      return;
+    }
+    opaNote.innerHTML = "";
+    aVal = Number(raw) | 0;
+    renderOperand("a");
+    computeResult();
+  }
+
+  function onOpBInput() {
+    var raw = opB.value.trim();
+    if (!/^[+-]?\d+$/.test(raw)) {
+      opbNote.innerHTML = '<div class="note note--bad"><span class="note__mark">✕</span><span>Enter a whole decimal number (it wraps to 32 bits).</span></div>';
+      return;
+    }
+    opbNote.innerHTML = "";
+    bVal = Number(raw) | 0;
+    renderOperand("b");
+    computeResult();
+  }
+
+  opA.addEventListener("input", Bench.debounce(onOpAInput, 120));
+  opB.addEventListener("input", Bench.debounce(onOpBInput, 120));
+  shiftInput.addEventListener("input", Bench.debounce(computeResult, 120));
+
+  $$("[data-target]").forEach(function (chip) {
+    chip.addEventListener("click", function () {
+      unaryTarget = chip.dataset.target;
+      $$("[data-target]").forEach(function (c) { c.classList.toggle("chip--on", c === chip); });
+      computeResult();
+    });
+  });
+
+  $$("[data-op]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      currentOp = btn.dataset.op;
+      $$("[data-op]").forEach(function (b) { b.classList.toggle("btn--on", b === btn); });
+      computeResult();
+    });
+  });
+
+  opA.value = String(aVal);
+  opB.value = String(bVal);
+  renderOperand("a");
+  renderOperand("b");
+  computeResult();
+});
+</script>
+
+</body>
+</html>

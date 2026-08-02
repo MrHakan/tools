@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Placeholder Image — Bench</title>
+<meta name="description" content="Make sized, labelled placeholder images without calling a placeholder service.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/css/bench.css">
+<style>
+  /* Page-specific CSS only, prefixed ph__ (placeholder-image). */
+
+  .ph__grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 500px) { .ph__grid2 { grid-template-columns: 1fr; } }
+
+  .ph__swatch-row { display: flex; align-items: center; gap: 10px; }
+  .ph__swatch-row input[type="color"] { flex: none; }
+  .ph__swatch-row .input { flex: 1; }
+
+  .ph__canvas-wrap {
+    display: flex; align-items: center; justify-content: center;
+    background: var(--sunk); border: 1px solid var(--edge); border-radius: var(--r);
+    padding: 18px; overflow: auto;
+  }
+  .ph__canvas-wrap canvas { max-width: 100%; height: auto; border-radius: 2px; box-shadow: 0 1px 0 rgba(0,0,0,0.06); }
+
+  .ph__caption { margin-top: 10px; font-family: var(--mono); font-size: 12px; color: var(--steel); text-align: center; }
+
+  .ph__fontsize-row { display: flex; align-items: center; gap: 10px; }
+  .ph__fontsize-row .input { flex: 1; }
+  .ph__fontsize-row .check { flex: none; white-space: nowrap; }
+
+  .ph__set-list { display: grid; gap: 8px; margin-bottom: 14px; }
+  .ph__set-item { display: flex; align-items: center; gap: 9px; font-size: 13.5px; }
+  .ph__set-item span.mono { color: var(--steel); font-size: 12px; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__home" href="../../index.html"><span class="topbar__mark">▚</span> bench</a>
+  <span class="topbar__sep">/</span>
+  <span class="topbar__here">Placeholder Image</span>
+  <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
+</header>
+
+<main class="wrap">
+
+  <div class="toolhead">
+    <p class="toolhead__spec mono">600 × 400</p>
+    <h1 class="toolhead__title">Placeholder Image</h1>
+    <p class="toolhead__desc">Make sized, labelled placeholder images without calling a placeholder service. Everything is drawn in this tab.</p>
+  </div>
+
+  <div class="note note--info" style="margin-bottom:20px">
+    <span class="note__mark">i</span>
+    <span>This replaces services like <b>via.placeholder.com</b> — every image below is generated locally by your
+    browser's canvas and SVG. Nothing is requested from the network, so it keeps working with no connection at all.</span>
+  </div>
+
+  <div class="stack" style="gap:20px">
+
+    <div class="split split--narrow">
+
+      <section class="panel">
+        <h2 class="panel__title">Settings</h2>
+
+        <div class="field">
+          <span class="label">Preset sizes</span>
+          <div class="chips" id="size-presets"></div>
+        </div>
+
+        <div class="ph__grid2">
+          <div class="field">
+            <label class="label" for="ph-w">Width (px)</label>
+            <input class="input input--mono" type="number" id="ph-w" value="600" min="16" max="4000" step="1">
+          </div>
+          <div class="field">
+            <label class="label" for="ph-h">Height (px)</label>
+            <input class="input input--mono" type="number" id="ph-h" value="400" min="16" max="4000" step="1">
+          </div>
+        </div>
+
+        <div class="ph__grid2">
+          <div class="field">
+            <label class="label" for="ph-bg">Background colour</label>
+            <div class="ph__swatch-row">
+              <input type="color" id="ph-bg" value="#c7ccc9" aria-label="Background colour picker">
+              <input class="input input--mono" id="ph-bg-text" value="#c7ccc9" spellcheck="false">
+            </div>
+          </div>
+          <div class="field">
+            <label class="label" for="ph-fg">Text &amp; pattern colour</label>
+            <div class="ph__swatch-row">
+              <input type="color" id="ph-fg" value="#33403c" aria-label="Text colour picker">
+              <input class="input input--mono" id="ph-fg-text" value="#33403c" spellcheck="false">
+            </div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="label" for="ph-label">Label</label>
+          <input class="input" id="ph-label" placeholder="600 × 400" spellcheck="false">
+        </div>
+
+        <div class="field">
+          <span class="label">Font size</span>
+          <div class="ph__fontsize-row">
+            <input class="input input--mono" type="number" id="ph-fontsize" value="48" min="6" max="1000" step="1" disabled>
+            <label class="check"><input type="checkbox" id="ph-autofit" checked> Auto-fit</label>
+          </div>
+        </div>
+
+        <div class="field">
+          <span class="label">Pattern</span>
+          <div class="chips" id="pattern-chips">
+            <button type="button" class="chip chip--on" data-pattern="solid">Solid</button>
+            <button type="button" class="chip" data-pattern="stripes">Diagonal stripes</button>
+            <button type="button" class="chip" data-pattern="grid">Grid</button>
+            <button type="button" class="chip" data-pattern="dots">Dots</button>
+            <button type="button" class="chip" data-pattern="checker">Checkerboard</button>
+            <button type="button" class="chip" data-pattern="noise">Noise</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2 class="panel__title">Preview</h2>
+        <div class="ph__canvas-wrap">
+          <canvas id="ph-canvas" width="600" height="400"></canvas>
+        </div>
+        <p class="ph__caption" id="ph-caption">600 × 400 px</p>
+
+        <div class="row" style="margin-top:16px">
+          <button class="btn btn--sm btn--primary" id="dl-png">Download PNG</button>
+          <button class="btn btn--sm" id="dl-svg">Download SVG</button>
+          <button class="btn btn--sm" id="copy-svg">Copy SVG markup</button>
+          <button class="btn btn--sm" id="copy-png-uri">Copy PNG data URI</button>
+          <button class="btn btn--sm" id="copy-svg-uri">Copy SVG data URI</button>
+        </div>
+      </section>
+
+    </div>
+
+    <section class="panel">
+      <h2 class="panel__title">Generate a set</h2>
+      <p class="clc__hint" style="color:var(--steel);font-size:13px;margin-bottom:12px">
+        Uses the current colours, pattern and font settings above. If the label field is empty, each image gets its
+        own "width × height" label; a custom label is reused as-is on every size.
+      </p>
+      <div class="ph__set-list" id="set-list"></div>
+      <div class="row row--between">
+        <div class="clc__unit-toggle" role="group" aria-label="Batch format">
+          <button type="button" class="btn--on" data-format="png">PNG</button>
+          <button type="button" data-format="svg">SVG</button>
+        </div>
+        <button class="btn btn--sm btn--primary" id="dl-set">Download set</button>
+      </div>
+    </section>
+
+  </div>
+
+  <footer class="foot">
+    <a href="../../index.html">← All tools</a>
+    <span>·</span>
+    <span>Runs entirely in your browser</span>
+  </footer>
+
+</main>
+
+<script src="../../assets/js/bench.js" defer></script>
+<script defer>
+document.addEventListener("DOMContentLoaded", function () {
+  "use strict";
+  var $ = Bench.$, $$ = Bench.$$, esc = Bench.esc;
+
+  var wIn = $("#ph-w"), hIn = $("#ph-h");
+  var bgPicker = $("#ph-bg"), bgText = $("#ph-bg-text");
+  var fgPicker = $("#ph-fg"), fgText = $("#ph-fg-text");
+  var labelIn = $("#ph-label");
+  var fontSizeIn = $("#ph-fontsize"), autoFitBox = $("#ph-autofit");
+  var canvas = $("#ph-canvas"), caption = $("#ph-caption");
+
+  var FONT_STACK = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+
+  var SIZE_PRESETS = [
+    { label: "1200 × 630 · OG", w: 1200, h: 630 },
+    { label: "1080 × 1080 · Square", w: 1080, h: 1080 },
+    { label: "1920 × 1080 · HD", w: 1920, h: 1080 },
+    { label: "800 × 600 · 4∶3", w: 800, h: 600 },
+    { label: "400 × 300 · Small", w: 400, h: 300 }
+  ];
+
+  var batchFormat = "png";
+  var currentSVG = "", currentFontSize = 48;
+
+  /* --- colour helpers --------------------------------------------------------- */
+
+  function hexToRgb(hex) {
+    hex = (hex || "").replace("#", "");
+    if (hex.length === 3) hex = hex.split("").map(function (c) { return c + c; }).join("");
+    var n = parseInt(hex, 16) || 0;
+    return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+  }
+
+  function isHex(str) { return /^#?[0-9a-f]{3}$|^#?[0-9a-f]{6}$/i.test((str || "").trim()); }
+  function normHex(str) {
+    str = str.trim();
+    return str.charAt(0) === "#" ? str : "#" + str;
+  }
+
+  /* --- number helpers ---------------------------------------------------------- */
+
+  function clampInt(v, min, max, fallback) {
+    var n = Math.round(parseFloat(v));
+    if (isNaN(n)) return fallback;
+    return Math.max(min, Math.min(max, n));
+  }
+
+  /* --- canvas pattern drawing ---------------------------------------------------
+     Each pattern is drawn using the text colour at low alpha so it stays subtle
+     against whatever background colour is chosen, and reads consistently in
+     both the PNG (drawn here) and the hand-built SVG (below) using matching
+     geometry so the two exports look like the same image. */
+
+  function drawStripes(ctx, w, h, fg) {
+    var rgb = hexToRgb(fg);
+    var step = Math.max(10, Math.round(Math.min(w, h) / 18));
+    var diag = Math.sqrt(w * w + h * h);
+    ctx.save();
+    ctx.strokeStyle = "rgba(" + rgb.r + "," + rgb.g + "," + rgb.b + ",0.16)";
+    ctx.lineWidth = step;
+    ctx.translate(w / 2, h / 2);
+    ctx.rotate(Math.PI / 4);
+    for (var x = -diag; x <= diag; x += step * 2) {
+      ctx.beginPath();
+      ctx.moveTo(x, -diag);
+      ctx.lineTo(x, diag);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawGrid(ctx, w, h, fg) {
+    var rgb = hexToRgb(fg);
+    var g = Math.max(16, Math.round(Math.min(w, h) / 12));
+    ctx.save();
+    ctx.strokeStyle = "rgba(" + rgb.r + "," + rgb.g + "," + rgb.b + ",0.16)";
+    ctx.lineWidth = 1;
+    for (var x = 0; x <= w; x += g) { ctx.beginPath(); ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, h); ctx.stroke(); }
+    for (var y = 0; y <= h; y += g) { ctx.beginPath(); ctx.moveTo(0, y + 0.5); ctx.lineTo(w, y + 0.5); ctx.stroke(); }
+    ctx.restore();
+  }
+
+  function drawDots(ctx, w, h, fg) {
+    var rgb = hexToRgb(fg);
+    var d = Math.max(14, Math.round(Math.min(w, h) / 16));
+    var r = Math.max(1, d * 0.12);
+    ctx.save();
+    ctx.fillStyle = "rgba(" + rgb.r + "," + rgb.g + "," + rgb.b + ",0.22)";
+    for (var x = d / 2; x < w; x += d) {
+      for (var y = d / 2; y < h; y += d) {
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+
+  function drawChecker(ctx, w, h, fg) {
+    var rgb = hexToRgb(fg);
+    var c = Math.max(12, Math.round(Math.min(w, h) / 14));
+    ctx.save();
+    ctx.fillStyle = "rgba(" + rgb.r + "," + rgb.g + "," + rgb.b + ",0.12)";
+    var cols = Math.ceil(w / c), rows = Math.ceil(h / c);
+    for (var row = 0; row < rows; row++) {
+      for (var col = 0; col < cols; col++) {
+        if ((row + col) % 2 === 0) ctx.fillRect(col * c, row * c, c, c);
+      }
+    }
+    ctx.restore();
+  }
+
+  // Noise is inherently non-deterministic — the PNG uses real per-pixel
+  // randomness (cheap, plenty convincing at texture scale); the SVG export
+  // uses <feTurbulence>, the closest native equivalent a static SVG has.
+  function drawNoise(ctx, w, h, fg) {
+    var rgb = hexToRgb(fg);
+    var count = Math.min(20000, Math.round((w * h) / 50));
+    for (var i = 0; i < count; i++) {
+      var x = Math.floor(Math.random() * w);
+      var y = Math.floor(Math.random() * h);
+      var a = (Math.random() * 0.18 + 0.04).toFixed(2);
+      var s = Math.floor(Math.random() * 3) + 1;
+      ctx.fillStyle = "rgba(" + rgb.r + "," + rgb.g + "," + rgb.b + "," + a + ")";
+      ctx.fillRect(x, y, s, s);
+    }
+  }
+
+  function drawPattern(ctx, w, h, pattern, fg) {
+    if (pattern === "stripes") drawStripes(ctx, w, h, fg);
+    else if (pattern === "grid") drawGrid(ctx, w, h, fg);
+    else if (pattern === "dots") drawDots(ctx, w, h, fg);
+    else if (pattern === "checker") drawChecker(ctx, w, h, fg);
+    else if (pattern === "noise") drawNoise(ctx, w, h, fg);
+    // "solid" — nothing extra on top of the background fill
+  }
+
+  /* --- font sizing --------------------------------------------------------------
+     Auto-fit finds the largest size, starting from a guess proportional to the
+     shorter side, that still keeps the label within ~86% of the canvas width. */
+
+  function computeAutoFontSize(ctx, label, w, h) {
+    var size = Math.max(12, Math.min(300, Math.round(Math.min(w, h) * 0.16)));
+    var maxWidth = w * 0.86;
+    ctx.font = "700 " + size + "px " + FONT_STACK;
+    while (ctx.measureText(label).width > maxWidth && size > 10) {
+      size -= 1;
+      ctx.font = "700 " + size + "px " + FONT_STACK;
+    }
+    return size;
+  }
+
+  /* --- shared draw: same routine backs the live canvas and every batch image --- */
+
+  function renderToCanvas(ctx, w, h, s) {
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = s.bg;
+    ctx.fillRect(0, 0, w, h);
+    drawPattern(ctx, w, h, s.pattern, s.fg);
+
+    var size = s.autoFit ? computeAutoFontSize(ctx, s.label, w, h) : s.fontSize;
+    ctx.save();
+    ctx.fillStyle = s.fg;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = "700 " + size + "px " + FONT_STACK;
+    ctx.fillText(s.label, w / 2, h / 2);
+    ctx.restore();
+    return size;
+  }
+
+  /* --- hand-built SVG ------------------------------------------------------------ */
+
+  function buildSVG(w, h, s, fontSize) {
+    var rgb = hexToRgb(s.fg);
+    var lineC = "rgba(" + rgb.r + "," + rgb.g + "," + rgb.b + ",0.16)";
+    var dotC = "rgba(" + rgb.r + "," + rgb.g + "," + rgb.b + ",0.22)";
+    var checkC = "rgba(" + rgb.r + "," + rgb.g + "," + rgb.b + ",0.12)";
+    var defs = "", overlay = "";
+
+    if (s.pattern === "stripes") {
+      var step = Math.max(10, Math.round(Math.min(w, h) / 18));
+      defs = '<pattern id="p" width="' + step * 2 + '" height="' + step * 2
+        + '" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">'
+        + '<rect width="' + step + '" height="' + step * 2 + '" fill="' + lineC + '"/></pattern>';
+      overlay = '<rect width="100%" height="100%" fill="url(#p)"/>';
+    } else if (s.pattern === "grid") {
+      var g = Math.max(16, Math.round(Math.min(w, h) / 12));
+      defs = '<pattern id="p" width="' + g + '" height="' + g + '" patternUnits="userSpaceOnUse">'
+        + '<path d="M ' + g + ' 0 L 0 0 0 ' + g + '" fill="none" stroke="' + lineC + '" stroke-width="1"/></pattern>';
+      overlay = '<rect width="100%" height="100%" fill="url(#p)"/>';
+    } else if (s.pattern === "dots") {
+      var d = Math.max(14, Math.round(Math.min(w, h) / 16));
+      var r = Math.max(1, d * 0.12);
+      defs = '<pattern id="p" width="' + d + '" height="' + d + '" patternUnits="userSpaceOnUse">'
+        + '<circle cx="' + d / 2 + '" cy="' + d / 2 + '" r="' + r + '" fill="' + dotC + '"/></pattern>';
+      overlay = '<rect width="100%" height="100%" fill="url(#p)"/>';
+    } else if (s.pattern === "checker") {
+      var c = Math.max(12, Math.round(Math.min(w, h) / 14));
+      defs = '<pattern id="p" width="' + c * 2 + '" height="' + c * 2 + '" patternUnits="userSpaceOnUse">'
+        + '<rect width="' + c + '" height="' + c + '" fill="' + checkC + '"/>'
+        + '<rect x="' + c + '" y="' + c + '" width="' + c + '" height="' + c + '" fill="' + checkC + '"/></pattern>';
+      overlay = '<rect width="100%" height="100%" fill="url(#p)"/>';
+    } else if (s.pattern === "noise") {
+      defs = '<filter id="p" x="0" y="0" width="100%" height="100%">'
+        + '<feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" stitchTiles="stitch" result="n"/>'
+        + '<feColorMatrix in="n" type="matrix" values="0 0 0 0 ' + (rgb.r / 255).toFixed(3)
+        + ' 0 0 0 0 ' + (rgb.g / 255).toFixed(3) + ' 0 0 0 0 ' + (rgb.b / 255).toFixed(3)
+        + ' 0 0 0 0.2 0"/></filter>';
+      overlay = '<rect width="100%" height="100%" filter="url(#p)"/>';
+    }
+
+    return '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + " " + h + '">'
+      + (defs ? "<defs>" + defs + "</defs>" : "")
+      + '<rect width="100%" height="100%" fill="' + esc(s.bg) + '"/>'
+      + overlay
+      + '<text x="50%" y="50%" fill="' + esc(s.fg) + '" font-family="' + FONT_STACK.replace(/"/g, "'")
+      + '" font-weight="700" font-size="' + fontSize + '" text-anchor="middle" dominant-baseline="middle">'
+      + esc(s.label) + "</text></svg>";
+  }
+
+  /* --- settings + render -------------------------------------------------------- */
+
+  function currentPattern() {
+    var on = $("#pattern-chips .chip--on");
+    return on ? on.dataset.pattern : "solid";
+  }
+
+  function readSettings() {
+    var w = clampInt(wIn.value, 16, 4000, 600);
+    var h = clampInt(hIn.value, 16, 4000, 400);
+    var custom = labelIn.value.trim();
+    return {
+      w: w, h: h,
+      bg: isHex(bgText.value) ? normHex(bgText.value) : bgPicker.value,
+      fg: isHex(fgText.value) ? normHex(fgText.value) : fgPicker.value,
+      pattern: currentPattern(),
+      label: custom || (w + " × " + h),
+      autoFit: autoFitBox.checked,
+      fontSize: clampInt(fontSizeIn.value, 6, 1000, 48)
+    };
+  }
+
+  function render() {
+    var s = readSettings();
+    labelIn.placeholder = s.w + " × " + s.h;
+
+    canvas.width = s.w;
+    canvas.height = s.h;
+    var ctx = canvas.getContext("2d");
+    currentFontSize = renderToCanvas(ctx, s.w, s.h, s);
+
+    fontSizeIn.disabled = s.autoFit;
+    if (s.autoFit) fontSizeIn.value = currentFontSize;
+
+    currentSVG = buildSVG(s.w, s.h, s, currentFontSize);
+
+    requestAnimationFrame(function () {
+      var rect = canvas.getBoundingClientRect();
+      var pct = rect.width ? Math.round((rect.width / s.w) * 100) : 100;
+      caption.textContent = s.w + " × " + s.h + " px — shown at " + Math.min(pct, 100) + "% for display";
+    });
+
+    renderSetList(s);
+  }
+
+  /* --- colour field wiring: picker <-> text, each stays authoritative for its
+     own edits so neither fights the other while typing ------------------------ */
+
+  function wireColour(picker, text) {
+    picker.addEventListener("input", function () { text.value = picker.value; render(); });
+    Bench.live(text, Bench.debounce(function () {
+      if (isHex(text.value)) { picker.value = normHex(text.value); render(); }
+    }, 150));
+  }
+  wireColour(bgPicker, bgText);
+  wireColour(fgPicker, fgText);
+
+  [wIn, hIn, labelIn, fontSizeIn].forEach(function (input) {
+    Bench.live(input, Bench.debounce(render, 120));
+  });
+  autoFitBox.addEventListener("change", render);
+
+  $("#pattern-chips").addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-pattern]");
+    if (!btn) return;
+    $$("#pattern-chips .chip").forEach(function (c) { c.classList.toggle("chip--on", c === btn); });
+    render();
+  });
+
+  /* --- size presets --------------------------------------------------------------- */
+
+  $("#size-presets").innerHTML = SIZE_PRESETS.map(function (p, i) {
+    return '<button type="button" class="chip" data-size="' + i + '">' + esc(p.label) + "</button>";
+  }).join("");
+  $("#size-presets").addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-size]");
+    if (!btn) return;
+    var p = SIZE_PRESETS[Number(btn.dataset.size)];
+    wIn.value = p.w; hIn.value = p.h;
+    render();
+  });
+
+  /* --- exports --------------------------------------------------------------------- */
+
+  $("#dl-png").addEventListener("click", function () {
+    canvas.toBlob(function (blob) {
+      if (!blob) { Bench.toast("Could not render a PNG", "bad"); return; }
+      Bench.download("placeholder-" + canvas.width + "x" + canvas.height + ".png", blob, "image/png");
+    }, "image/png");
+  });
+
+  $("#dl-svg").addEventListener("click", function () {
+    Bench.download("placeholder-" + canvas.width + "x" + canvas.height + ".svg", currentSVG, "image/svg+xml");
+  });
+
+  $("#copy-svg").addEventListener("click", function (e) { Bench.copy(currentSVG, e.currentTarget); });
+
+  $("#copy-png-uri").addEventListener("click", function (e) {
+    Bench.copy(canvas.toDataURL("image/png"), e.currentTarget);
+  });
+
+  $("#copy-svg-uri").addEventListener("click", function (e) {
+    Bench.copy("data:image/svg+xml;charset=utf-8," + encodeURIComponent(currentSVG), e.currentTarget);
+  });
+
+  /* --- generate a set --------------------------------------------------------------- */
+
+  function renderSetList(s) {
+    var host = $("#set-list");
+    if (host.childElementCount) return; // built once; checkboxes persist across renders
+    host.innerHTML = SIZE_PRESETS.map(function (p, i) {
+      return '<label class="ph__set-item"><input type="checkbox" class="set-check" data-size="' + i
+        + '" checked><span>' + esc(p.label.split(" · ")[1] || "") + "</span> <span class=\"mono\">"
+        + p.w + "×" + p.h + "</span></label>";
+    }).join("");
+  }
+
+  $$("[data-format]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      batchFormat = btn.dataset.format;
+      $$("[data-format]").forEach(function (b) { b.classList.toggle("btn--on", b === btn); });
+    });
+  });
+
+  $("#dl-set").addEventListener("click", function () {
+    var s = readSettings();
+    var customLabel = labelIn.value.trim();
+    var chosen = $$(".set-check").filter(function (c) { return c.checked; })
+      .map(function (c) { return SIZE_PRESETS[Number(c.dataset.size)]; });
+
+    if (!chosen.length) { Bench.toast("Select at least one size", "bad"); return; }
+
+    chosen.forEach(function (p, i) {
+      setTimeout(function () {
+        var off = document.createElement("canvas");
+        off.width = p.w; off.height = p.h;
+        var ctx = off.getContext("2d");
+        var setting = {
+          bg: s.bg, fg: s.fg, pattern: s.pattern, autoFit: s.autoFit, fontSize: s.fontSize,
+          label: customLabel || (p.w + " × " + p.h)
+        };
+        var fontSize = renderToCanvas(ctx, p.w, p.h, setting);
+        if (batchFormat === "png") {
+          off.toBlob(function (blob) {
+            if (blob) Bench.download("placeholder-" + p.w + "x" + p.h + ".png", blob, "image/png");
+          }, "image/png");
+        } else {
+          var svg = buildSVG(p.w, p.h, setting, fontSize);
+          Bench.download("placeholder-" + p.w + "x" + p.h + ".svg", svg, "image/svg+xml");
+        }
+      }, i * 260);
+    });
+
+    Bench.toast("Generating " + chosen.length + plural_suffix(chosen.length) + "…");
+  });
+
+  function plural_suffix(n) { return n === 1 ? " image" : " images"; }
+
+  window.addEventListener("resize", Bench.debounce(function () {
+    var rect = canvas.getBoundingClientRect();
+    if (!rect.width) return;
+    var pct = Math.min(100, Math.round((rect.width / canvas.width) * 100));
+    caption.textContent = canvas.width + " × " + canvas.height + " px — shown at " + pct + "% for display";
+  }, 150));
+
+  render();
+});
+</script>
+
+</body>
+</html>

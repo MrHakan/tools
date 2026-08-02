@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rate Limit Calculator — Bench</title>
+<meta name="description" content="Work out quota burn-down, safe request spacing and how long a backlog takes.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/css/bench.css">
+<style>
+  /* Page-specific CSS only, prefixed .rl__ */
+  body { font-variant-ligatures: none; } /* keep ">=" etc. literal in a mono-heavy page */
+  .rl__hint { color: var(--steel); font-size: 13.5px; margin-bottom: 12px; }
+  .rl__svgwrap { overflow-x: auto; }
+  .rl__svgwrap svg { display: block; min-width: 560px; width: 100%; height: auto; }
+  .rl__caption { color: var(--steel); font-size: 12.5px; margin-top: 8px; }
+  .rl__gaugewrap { margin-top: 10px; }
+  .rl__gauge { width: 100%; height: 26px; display: block; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__home" href="../../index.html"><span class="topbar__mark">▚</span> bench</a>
+  <span class="topbar__sep">/</span>
+  <span class="topbar__here">Rate Limit Calculator</span>
+  <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
+</header>
+
+<main class="wrap">
+
+  <div class="toolhead">
+    <p class="toolhead__spec mono">100 req/s</p>
+    <h1 class="toolhead__title">Rate Limit Calculator</h1>
+    <p class="toolhead__desc">Work out quota burn-down, safe request spacing and how long a backlog takes.</p>
+  </div>
+
+  <div class="stack">
+
+    <!-- ================= Quota & spacing ================= -->
+    <section class="panel">
+      <h2 class="panel__title">Quota &amp; request spacing</h2>
+      <p class="rl__hint">Set a limit and the rate you intend to send at. Everything below is derived from those two numbers.</p>
+
+      <div class="row">
+        <div class="field" style="width:140px">
+          <label class="label" for="q-limit">Limit</label>
+          <input class="input input--mono" id="q-limit" type="number" min="0" step="any" value="100">
+        </div>
+        <div class="field" style="width:170px">
+          <label class="label" for="q-limit-unit">Per</label>
+          <select class="select" id="q-limit-unit">
+            <option value="1">second</option>
+            <option value="60">minute</option>
+            <option value="3600">hour</option>
+            <option value="86400">day</option>
+            <option value="2592000">month (30 days)</option>
+          </select>
+        </div>
+        <div class="field" style="width:140px">
+          <label class="label" for="q-rate">Intended rate</label>
+          <input class="input input--mono" id="q-rate" type="number" min="0" step="any" value="80">
+        </div>
+        <div class="field" style="width:170px">
+          <label class="label" for="q-rate-unit">Per</label>
+          <select class="select" id="q-rate-unit">
+            <option value="1">second</option>
+            <option value="60">minute</option>
+            <option value="3600">hour</option>
+            <option value="86400">day</option>
+            <option value="2592000">month (30 days)</option>
+          </select>
+        </div>
+      </div>
+
+      <p class="rl__hint" style="margin:2px 0 6px">Illustrative presets — providers change these over time, check current docs before relying on a number here.</p>
+      <div class="chips" id="q-presets" style="margin-bottom:14px">
+        <button class="chip" type="button" data-limit="5000" data-unit="3600">GitHub REST, authenticated (~5,000/hr)</button>
+        <button class="chip" type="button" data-limit="60" data-unit="3600">GitHub REST, unauthenticated (~60/hr)</button>
+        <button class="chip" type="button" data-limit="100" data-unit="1">Stripe API (~100/s)</button>
+        <button class="chip" type="button" data-limit="1200" data-unit="3600">X/Twitter v2, example tier (~300/15 min)</button>
+        <button class="chip" type="button" data-limit="500" data-unit="60">OpenAI, example tier (~500/min)</button>
+      </div>
+
+      <div id="q-status"></div>
+
+      <div class="stats" id="q-stats" style="margin-top:14px"></div>
+      <div class="stats" id="q-stats2" style="margin-top:1px"></div>
+
+      <div class="rl__svgwrap" style="margin-top:16px" id="q-chartwrap"></div>
+      <p class="rl__caption" id="q-caption"></p>
+    </section>
+
+    <!-- ================= Job duration & concurrency ================= -->
+    <section class="panel">
+      <h2 class="panel__title">Job duration &amp; safe concurrency</h2>
+      <p class="rl__hint">How long a backlog of requests takes under a rate limit, and how many parallel workers you can safely run.</p>
+
+      <div class="row">
+        <div class="field" style="width:150px">
+          <label class="label" for="j-n">Total requests</label>
+          <input class="input input--mono" id="j-n" type="number" min="0" step="1" value="10000">
+        </div>
+        <div class="field" style="width:120px">
+          <label class="label" for="j-limit">Limit</label>
+          <input class="input input--mono" id="j-limit" type="number" min="0" step="any" value="100">
+        </div>
+        <div class="field" style="width:160px">
+          <label class="label" for="j-limit-unit">Per</label>
+          <select class="select" id="j-limit-unit">
+            <option value="1">second</option>
+            <option value="60">minute</option>
+            <option value="3600">hour</option>
+            <option value="86400">day</option>
+            <option value="2592000">month (30 days)</option>
+          </select>
+        </div>
+        <div class="field" style="width:140px">
+          <label class="label" for="j-concurrency">Concurrency</label>
+          <input class="input input--mono" id="j-concurrency" type="number" min="1" step="1" value="20">
+        </div>
+        <div class="field" style="width:150px">
+          <label class="label" for="j-latency">Avg latency (ms)</label>
+          <input class="input input--mono" id="j-latency" type="number" min="0" step="any" value="150">
+        </div>
+      </div>
+
+      <div id="j-status"></div>
+      <div class="stats" id="j-stats" style="margin-top:14px"></div>
+    </section>
+
+    <!-- ================= Token bucket ================= -->
+    <section class="panel">
+      <h2 class="panel__title">Token bucket burst</h2>
+      <p class="rl__hint">Assumes the burst is fired back-to-back — as fast as the network allows — against a bucket that starts full.</p>
+
+      <div class="row">
+        <div class="field" style="width:160px">
+          <label class="label" for="b-capacity">Bucket capacity</label>
+          <input class="input input--mono" id="b-capacity" type="number" min="0" step="any" value="50">
+        </div>
+        <div class="field" style="width:160px">
+          <label class="label" for="b-refill">Refill rate (tokens/s)</label>
+          <input class="input input--mono" id="b-refill" type="number" min="0" step="any" value="10">
+        </div>
+        <div class="field" style="width:160px">
+          <label class="label" for="b-burst">Burst size (requests)</label>
+          <input class="input input--mono" id="b-burst" type="number" min="0" step="1" value="80">
+        </div>
+      </div>
+
+      <div id="b-status"></div>
+      <div class="stats" id="b-stats" style="margin-top:14px"></div>
+      <div class="rl__gaugewrap" id="b-gaugewrap"></div>
+      <p class="rl__caption" id="b-caption"></p>
+    </section>
+
+    <!-- ================= Retry / backoff planner ================= -->
+    <section class="panel">
+      <h2 class="panel__title">Retry &amp; backoff planner</h2>
+      <p class="rl__hint">Exponential backoff with full jitter — each retry's actual delay is picked uniformly between 0 and the nominal value.</p>
+
+      <div class="row">
+        <div class="field" style="width:150px">
+          <label class="label" for="r-base">Base delay (ms)</label>
+          <input class="input input--mono" id="r-base" type="number" min="0" step="any" value="200">
+        </div>
+        <div class="field" style="width:130px">
+          <label class="label" for="r-mult">Multiplier</label>
+          <input class="input input--mono" id="r-mult" type="number" min="1" step="any" value="2">
+        </div>
+        <div class="field" style="width:130px">
+          <label class="label" for="r-attempts">Max attempts</label>
+          <input class="input input--mono" id="r-attempts" type="number" min="1" step="1" value="6">
+        </div>
+        <div class="field" style="width:150px">
+          <label class="label" for="r-cap">Delay cap (ms, 0 = none)</label>
+          <input class="input input--mono" id="r-cap" type="number" min="0" step="any" value="30000">
+        </div>
+        <div class="field" style="align-self:flex-end">
+          <label class="check"><input type="checkbox" id="r-jitter" checked> Apply full jitter</label>
+        </div>
+        <button class="btn btn--sm" id="r-reroll" style="align-self:flex-end">Reroll example</button>
+      </div>
+
+      <div id="r-status"></div>
+      <div class="tablewrap" style="margin-top:12px">
+        <table class="table">
+          <thead><tr><th>Retry</th><th>Nominal delay</th><th>Jittered range</th><th>Example roll</th></tr></thead>
+          <tbody id="r-body"></tbody>
+        </table>
+      </div>
+      <div class="stats" id="r-stats" style="margin-top:14px"></div>
+    </section>
+
+  </div>
+
+  <footer class="foot">
+    <a href="../../index.html">← All tools</a>
+    <span>·</span>
+    <span>Runs entirely in your browser</span>
+  </footer>
+
+</main>
+
+<script src="../../assets/js/bench.js" defer></script>
+<script defer>
+document.addEventListener("DOMContentLoaded", function () {
+  "use strict";
+  var $ = Bench.$, $$ = Bench.$$, esc = Bench.esc;
+
+  /* --- shared helpers -------------------------------------------------------- */
+
+  /** Read a numeric input; returns null (not NaN) if it's empty or unparsable
+   *  so callers can tell "blank" apart from "zero". */
+  function num(input) {
+    var v = input.value.trim();
+    if (v === "") return null;
+    var n = Number(v);
+    return isFinite(n) ? n : null;
+  }
+
+  function cssVar(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+
+  /** Format a duration given in seconds as the most legible unit. */
+  function fmtDuration(sec) {
+    if (!isFinite(sec)) return "unbounded";
+    if (sec < 0) sec = 0;
+    if (sec === 0) return "0 s";
+    if (sec < 1) return Math.round(sec * 1000) + " ms";
+    var units = [["year", 31536000], ["month", 2592000], ["day", 86400], ["hour", 3600], ["minute", 60], ["second", 1]];
+    for (var i = 0; i < units.length; i++) {
+      if (sec >= units[i][1] || i === units.length - 1) {
+        var v = sec / units[i][1];
+        var digits = v < 10 ? 2 : v < 100 ? 1 : 0;
+        return Bench.num(v, digits) + " " + units[i][0] + (Math.abs(v - 1) < 0.005 ? "" : "s");
+      }
+    }
+  }
+
+  function stat(n, k) {
+    return '<div class="stat"><span class="stat__n">' + n + '</span><span class="stat__k">' + esc(k) + '</span></div>';
+  }
+
+  /* ==========================================================================
+     Panel 1 — quota & request spacing
+     ========================================================================== */
+
+  var qLimit = $("#q-limit"), qLimitUnit = $("#q-limit-unit"), qRate = $("#q-rate"), qRateUnit = $("#q-rate-unit");
+  var qStatus = $("#q-status"), qStats = $("#q-stats"), qStats2 = $("#q-stats2"), qChartWrap = $("#q-chartwrap"), qCaption = $("#q-caption");
+
+  function quotaSVG(limitPerSec, ratePerSec, windowSec) {
+    var W = 600, H = 190, padL = 46, padR = 14, padT = 14, padB = 28;
+    var plotW = W - padL - padR, plotH = H - padT - padB;
+    var limitAtWindowEnd = limitPerSec * windowSec;
+    var cumulativeAtWindowEnd = ratePerSec * windowSec;
+    var yMax = Math.max(limitAtWindowEnd, cumulativeAtWindowEnd) * 1.08 || 1;
+
+    var tCross = ratePerSec > 0 ? limitAtWindowEnd / ratePerSec : Infinity; // time the cumulative line meets the limit
+    var crosses = tCross < windowSec;
+
+    function X(t) { return padL + (t / windowSec) * plotW; }
+    function Y(v) { return padT + plotH - (v / yMax) * plotH; }
+
+    var okColor = cssVar("--verify") || "#0f7a5a";
+    var badColor = cssVar("--fault") || "#b3261e";
+    var edgeColor = cssVar("--edge") || "#c8d0ca";
+    var steelColor = cssVar("--steel") || "#5c6b66";
+
+    var segments;
+    if (crosses) {
+      segments = '<polyline points="' + X(0) + ',' + Y(0) + ' ' + X(tCross) + ',' + Y(limitAtWindowEnd) + '" style="fill:none;stroke:' + okColor + ';stroke-width:2.5"/>'
+        + '<polyline points="' + X(tCross) + ',' + Y(limitAtWindowEnd) + ' ' + X(windowSec) + ',' + Y(cumulativeAtWindowEnd) + '" style="fill:none;stroke:' + badColor + ';stroke-width:2.5;stroke-dasharray:5,4"/>'
+        + '<circle cx="' + X(tCross) + '" cy="' + Y(limitAtWindowEnd) + '" r="4" style="fill:' + badColor + '"/>';
+    } else {
+      segments = '<polyline points="' + X(0) + ',' + Y(0) + ' ' + X(windowSec) + ',' + Y(cumulativeAtWindowEnd) + '" style="fill:none;stroke:' + okColor + ';stroke-width:2.5"/>';
+    }
+
+    return '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Cumulative requests over the window versus the limit">'
+      + '<line x1="' + padL + '" y1="' + Y(limitAtWindowEnd) + '" x2="' + (W - padR) + '" y2="' + Y(limitAtWindowEnd) + '" style="stroke:' + steelColor + ';stroke-width:1;stroke-dasharray:3,3"/>'
+      + '<text x="' + (W - padR) + '" y="' + (Y(limitAtWindowEnd) - 5) + '" text-anchor="end" style="font:10px var(--mono);fill:' + steelColor + '">limit ' + Bench.num(limitAtWindowEnd, limitAtWindowEnd < 10 ? 1 : 0) + '</text>'
+      + '<line x1="' + padL + '" y1="' + (padT + plotH) + '" x2="' + (W - padR) + '" y2="' + (padT + plotH) + '" style="stroke:' + edgeColor + ';stroke-width:1"/>'
+      + '<line x1="' + padL + '" y1="' + padT + '" x2="' + padL + '" y2="' + (padT + plotH) + '" style="stroke:' + edgeColor + ';stroke-width:1"/>'
+      + segments
+      + '<text x="' + padL + '" y="' + (H - 8) + '" style="font:10px var(--mono);fill:' + steelColor + '">0</text>'
+      + '<text x="' + (W - padR) + '" y="' + (H - 8) + '" text-anchor="end" style="font:10px var(--mono);fill:' + steelColor + '">' + esc(fmtDuration(windowSec)) + '</text>'
+      + '<text x="' + (padL - 6) + '" y="' + (padT + plotH) + '" text-anchor="end" style="font:10px var(--mono);fill:' + steelColor + '">0</text>'
+      + '</svg>';
+  }
+
+  function renderQuota() {
+    var limit = num(qLimit), rate = num(qRate);
+    var limitUnitSec = Number(qLimitUnit.value), rateUnitSec = Number(qRateUnit.value);
+
+    if (limit == null || rate == null || limit < 0 || rate < 0) {
+      qStatus.innerHTML = '<div class="note note--bad"><span class="note__mark">✕</span><span>Enter a limit and an intended rate (zero or more) to see the burn-down.</span></div>';
+      qStats.innerHTML = ""; qStats2.innerHTML = ""; qChartWrap.innerHTML = ""; qCaption.textContent = "";
+      return;
+    }
+
+    var limitPerSec = limit / limitUnitSec;
+    var ratePerSec = rate / rateUnitSec;
+    var within = ratePerSec <= limitPerSec + 1e-12;
+    var pct = limitPerSec > 0 ? (ratePerSec / limitPerSec) * 100 : (ratePerSec > 0 ? Infinity : 0);
+
+    qStatus.innerHTML = '<div class="note note--' + (within ? "ok" : "bad") + '"><span class="note__mark">' + (within ? "✓" : "✕") + '</span><span>'
+      + (within ? "Within the limit — " : "Over the limit — ") + Bench.num(pct, pct < 10 ? 1 : 0) + '% of ' + Bench.num(limitPerSec, limitPerSec < 10 ? 3 : 0) + ' req/s allowed.</span></div>';
+
+    var minDelayMs = ratePerSec > 0 ? "—" : null;
+    var spacingMs = limitPerSec > 0 ? 1000 / limitPerSec : Infinity;
+
+    qStats.innerHTML =
+      stat(Bench.num(ratePerSec, ratePerSec < 10 ? 3 : 1), "Per second") +
+      stat(Bench.num(ratePerSec * 60, ratePerSec * 60 < 10 ? 2 : 0), "Per minute") +
+      stat(Bench.num(ratePerSec * 3600, 0), "Per hour") +
+      stat(Bench.num(ratePerSec * 86400, 0), "Per day") +
+      stat(Bench.num(ratePerSec * 2592000, 0), "Per month") +
+      stat(isFinite(spacingMs) ? (spacingMs < 1000 ? Bench.num(spacingMs, spacingMs < 10 ? 2 : 0) + " ms" : fmtDuration(spacingMs / 1000)) : "no limit", "Min. delay to stay under limit");
+
+    var limitPerHour = limitPerSec * 3600, limitPerDay = limitPerSec * 86400, limitPerMonth = limitPerSec * 2592000;
+    var consHour = ratePerSec * 3600, consDay = ratePerSec * 86400, consMonth = ratePerSec * 2592000;
+    function pctOf(c, l) { return l > 0 ? Bench.num((c / l) * 100, 1) + "%" : (c > 0 ? "∞" : "0%"); }
+
+    qStats2.innerHTML =
+      stat(Bench.num(consHour, 0) + '<span style="font-size:11px;color:var(--steel)"> / ' + pctOf(consHour, limitPerHour) + '</span>', "Quota per hour") +
+      stat(Bench.num(consDay, 0) + '<span style="font-size:11px;color:var(--steel)"> / ' + pctOf(consDay, limitPerDay) + '</span>', "Quota per day") +
+      stat(Bench.num(consMonth, 0) + '<span style="font-size:11px;color:var(--steel)"> / ' + pctOf(consMonth, limitPerMonth) + '</span>', "Quota per month (30-day)");
+
+    var windowSec = limitUnitSec;
+    qChartWrap.innerHTML = quotaSVG(limitPerSec, ratePerSec, windowSec);
+    var tCross = ratePerSec > 0 ? (limitPerSec * windowSec) / ratePerSec : Infinity;
+    qCaption.textContent = ratePerSec === 0
+      ? "No requests sent — nothing to plot."
+      : (tCross < windowSec
+        ? "At this rate, the limit is reached " + fmtDuration(tCross) + " into the " + fmtDuration(windowSec) + " window (dashed = over limit)."
+        : "At this rate, the window ends with quota to spare — the limit is never reached inside it.");
+  }
+
+  Bench.live(qLimit, Bench.debounce(renderQuota, 100));
+  Bench.live(qLimitUnit, renderQuota);
+  Bench.live(qRate, Bench.debounce(renderQuota, 100));
+  Bench.live(qRateUnit, renderQuota);
+
+  $$("#q-presets [data-limit]").forEach(function (chip) {
+    chip.addEventListener("click", function () {
+      qLimit.value = chip.dataset.limit;
+      qLimitUnit.value = chip.dataset.unit;
+      renderQuota();
+    });
+  });
+
+  /* ==========================================================================
+     Panel 2 — job duration & safe concurrency
+     ========================================================================== */
+
+  var jN = $("#j-n"), jLimit = $("#j-limit"), jLimitUnit = $("#j-limit-unit"), jConcurrency = $("#j-concurrency"), jLatency = $("#j-latency");
+  var jStatus = $("#j-status"), jStats = $("#j-stats");
+
+  function renderJob() {
+    var n = num(jN), limit = num(jLimit), concurrency = num(jConcurrency), latencyMs = num(jLatency);
+    var unitSec = Number(jLimitUnit.value);
+
+    if (n == null || limit == null || concurrency == null || latencyMs == null || n < 0 || limit < 0 || concurrency < 1 || latencyMs < 0) {
+      jStatus.innerHTML = '<div class="note note--bad"><span class="note__mark">✕</span><span>Fill in every field — concurrency needs at least 1 worker.</span></div>';
+      jStats.innerHTML = "";
+      return;
+    }
+    if (latencyMs === 0) {
+      jStatus.innerHTML = '<div class="note note--warn"><span class="note__mark">!</span><span>Average latency is 0 ms — that is not realistic, so the concurrency ceiling can’t be estimated. Enter a real round-trip time.</span></div>';
+      jStats.innerHTML = "";
+      return;
+    }
+
+    var limitPerSec = limit / unitSec;
+    var latencySec = latencyMs / 1000;
+    var maxFromConcurrency = concurrency / latencySec;
+    var effective = Math.min(maxFromConcurrency, limitPerSec);
+    var bottleneck = limitPerSec <= maxFromConcurrency ? "the rate limit" : "your concurrency";
+    var timeSec = effective > 0 ? n / effective : Infinity;
+    var safeConcurrency = Math.max(1, Math.floor(limitPerSec * latencySec));
+
+    var over = concurrency > safeConcurrency && limitPerSec < maxFromConcurrency;
+    jStatus.innerHTML = '<div class="note note--' + (over ? "warn" : "ok") + '"><span class="note__mark">' + (over ? "!" : "✓") + '</span><span>'
+      + "Bottleneck: " + bottleneck + ". "
+      + (over ? Bench.num(concurrency) + " workers can push " + Bench.num(maxFromConcurrency, 1) + " req/s, above the " + Bench.num(limitPerSec, 1) + " req/s limit — you'll be throttled." : "Your configured concurrency stays inside the limit.")
+      + "</span></div>";
+
+    jStats.innerHTML =
+      stat(Bench.num(effective, effective < 10 ? 2 : 1), "Effective throughput (req/s)") +
+      stat(fmtDuration(timeSec), "Time to complete") +
+      stat(Bench.num(Math.ceil(n / concurrency)), "Requests per worker") +
+      stat(Bench.num(safeConcurrency), "Max safe concurrency");
+  }
+
+  [jN, jLimit, jConcurrency, jLatency].forEach(function (i) { Bench.live(i, Bench.debounce(renderJob, 100)); });
+  Bench.live(jLimitUnit, renderJob);
+
+  /* ==========================================================================
+     Panel 3 — token bucket burst
+     ========================================================================== */
+
+  var bCapacity = $("#b-capacity"), bRefill = $("#b-refill"), bBurst = $("#b-burst");
+  var bStatus = $("#b-status"), bStats = $("#b-stats"), bGaugeWrap = $("#b-gaugewrap"), bCaption = $("#b-caption");
+
+  function gaugeSVG(remaining, capacity) {
+    var pct = capacity > 0 ? Math.max(0, Math.min(1, remaining / capacity)) : 0;
+    var W = 600, H = 26;
+    var okColor = cssVar("--verify") || "#0f7a5a";
+    var sunkColor = cssVar("--sunk") || "#dcdfdb";
+    var edgeColor = cssVar("--edge-2") || "#b4bfb8";
+    return '<svg class="rl__gauge" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" role="img" aria-label="Tokens remaining in the bucket">'
+      + '<rect x="0.5" y="0.5" width="' + (W - 1) + '" height="' + (H - 1) + '" rx="3" style="fill:' + sunkColor + ';stroke:' + edgeColor + '"/>'
+      + '<rect x="0.5" y="0.5" width="' + Math.max(0, pct * (W - 1)) + '" height="' + (H - 1) + '" rx="3" style="fill:' + okColor + '"/>'
+      + '</svg>';
+  }
+
+  function renderBucket() {
+    var capacity = num(bCapacity), refill = num(bRefill), burst = num(bBurst);
+    if (capacity == null || refill == null || burst == null || capacity < 0 || refill < 0 || burst < 0) {
+      bStatus.innerHTML = '<div class="note note--bad"><span class="note__mark">✕</span><span>Enter a bucket capacity, refill rate and burst size (zero or more).</span></div>';
+      bStats.innerHTML = ""; bGaugeWrap.innerHTML = ""; bCaption.textContent = "";
+      return;
+    }
+
+    var immediate = Math.min(burst, capacity);
+    var remainingAfter, drainSec, recoverySec, throttled;
+
+    if (burst <= capacity) {
+      throttled = 0;
+      drainSec = 0;
+      remainingAfter = capacity - burst;
+      recoverySec = refill > 0 ? burst / refill : Infinity;
+      bStatus.innerHTML = '<div class="note note--ok"><span class="note__mark">✓</span><span>All ' + Bench.num(burst) + ' requests go through immediately — the ' + Bench.num(capacity) + '-token bucket absorbs the whole burst with no throttling.</span></div>';
+    } else {
+      throttled = burst - capacity;
+      drainSec = refill > 0 ? throttled / refill : Infinity;
+      remainingAfter = 0;
+      recoverySec = refill > 0 ? capacity / refill : Infinity;
+      bStatus.innerHTML = '<div class="note note--warn"><span class="note__mark">!</span><span>' + Bench.num(capacity) + ' requests go through immediately; the remaining ' + Bench.num(throttled) + ' are throttled to the refill rate.</span></div>';
+    }
+
+    bStats.innerHTML =
+      stat(Bench.num(immediate), "Succeed immediately") +
+      stat(Bench.num(throttled), "Throttled") +
+      stat(fmtDuration(drainSec), "Time to drain the burst") +
+      stat(fmtDuration(recoverySec), "Time to refill to full");
+
+    bGaugeWrap.innerHTML = gaugeSVG(remainingAfter, capacity);
+    bCaption.textContent = "Bucket level right after the burst: " + Bench.num(remainingAfter, remainingAfter < 10 ? 1 : 0) + " of " + Bench.num(capacity) + " tokens.";
+  }
+
+  [bCapacity, bRefill, bBurst].forEach(function (i) { Bench.live(i, Bench.debounce(renderBucket, 100)); });
+
+  /* ==========================================================================
+     Panel 4 — retry / backoff planner
+     ========================================================================== */
+
+  var rBase = $("#r-base"), rMult = $("#r-mult"), rAttempts = $("#r-attempts"), rCap = $("#r-cap"), rJitter = $("#r-jitter");
+  var rStatus = $("#r-status"), rBody = $("#r-body"), rStats = $("#r-stats");
+  var lastDelays = null;
+
+  function renderBackoff(reroll) {
+    var base = num(rBase), mult = num(rMult), attempts = num(rAttempts), cap = num(rCap);
+    if (base == null || mult == null || attempts == null || cap == null || base < 0 || mult < 1 || attempts < 1 || cap < 0) {
+      rStatus.innerHTML = '<div class="note note--bad"><span class="note__mark">✕</span><span>Base delay ≥ 0, multiplier ≥ 1, at least 1 attempt, and a cap of 0 or more (0 means uncapped).</span></div>';
+      rBody.innerHTML = ""; rStats.innerHTML = ""; lastDelays = null;
+      return;
+    }
+    rStatus.innerHTML = "";
+
+    var retries = Math.round(attempts) - 1; // the first attempt has no preceding delay
+    var jitterOn = rJitter.checked;
+    var nominals = [];
+    for (var i = 0; i < retries; i++) {
+      var d = base * Math.pow(mult, i);
+      if (cap > 0) d = Math.min(d, cap);
+      nominals.push(d);
+    }
+
+    if (!reroll || !lastDelays || lastDelays.length !== nominals.length) {
+      lastDelays = nominals.map(function (n) { return jitterOn ? Bench.randInt(Math.max(1, Math.round(n) + 1)) : n; });
+    }
+
+    var cumulative = 0;
+    var rows = nominals.map(function (n, i) {
+      cumulative += n;
+      var range = jitterOn ? "0 – " + Math.round(n) + " ms" : Math.round(n) + " ms (no jitter)";
+      return "<tr><td>#" + (i + 2) + "</td><td class=\"mono\">" + Math.round(n) + " ms</td><td class=\"mono\">" + esc(range) + "</td><td class=\"mono\">" + Math.round(lastDelays[i]) + " ms</td></tr>";
+    });
+    rBody.innerHTML = rows.length ? rows.join("") : '<tr><td colspan="4" style="color:var(--steel)">Only one attempt — nothing to retry.</td></tr>';
+
+    var worst = nominals.reduce(function (a, b) { return a + b; }, 0);
+    var expected = jitterOn ? nominals.reduce(function (a, b) { return a + b / 2; }, 0) : worst;
+
+    rStats.innerHTML =
+      stat(Bench.num(retries), "Retries") +
+      stat(fmtDuration(worst / 1000), "Worst-case total wait") +
+      stat(jitterOn ? fmtDuration(expected / 1000) : "—", "Expected total wait (avg. jitter)") +
+      stat(jitterOn ? "0 s" : fmtDuration(worst / 1000), "Best-case total wait");
+  }
+
+  [rBase, rMult, rAttempts, rCap].forEach(function (i) { Bench.live(i, Bench.debounce(function () { renderBackoff(false); }, 100)); });
+  rJitter.addEventListener("change", function () { renderBackoff(false); });
+  $("#r-reroll").addEventListener("click", function () { renderBackoff(true); });
+
+  /* ==========================================================================
+     Boot
+     ========================================================================== */
+
+  renderQuota();
+  renderJob();
+  renderBucket();
+  renderBackoff(false);
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Keyword Highlighter — Bench</title>
+<meta name="description" content="Find, count and highlight terms across a long document.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/css/bench.css">
+<style>
+  /* Terms box is a short list, not prose — bench.css's default 190px is tall for it. */
+  .kh-terms { min-height: 108px; }
+
+  /* Each match is a <span>, never a <mark>, so we control every pixel of its
+     background ourselves instead of fighting a user-agent default. Colour is
+     always set inline (see script) so "Copy as HTML" is a self-contained
+     fragment that looks right pasted anywhere, with no dependency on this
+     stylesheet. */
+  .kh-hl { border-radius: 2px; padding: 0 1px; transition: outline-color .12s ease; }
+  .kh-hl.kh-current { outline: 2px solid var(--signal); outline-offset: 1px; }
+
+  .kh-term { padding: 10px 11px; border: 1px solid var(--edge); border-radius: var(--r); background: var(--card); }
+  .kh-term + .kh-term { margin-top: 8px; }
+  .kh-term--off { opacity: .55; }
+  .kh-term__label { max-width: 15ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .kh-term__err { color: var(--fault); font-size: 12px; margin-top: 4px; }
+  .kh-term__pos { color: var(--steel); font-size: 11.5px; min-width: 4.5ch; text-align: center; }
+  .kh-term__meta { color: var(--steel); font-size: 12px; }
+
+  .kh-swatch {
+    flex: none; width: 12px; height: 12px; border-radius: 50%;
+    border: 1px solid var(--edge-2);
+  }
+
+  .kh-legend-empty { color: var(--steel); font-size: 13.5px; padding: 4px 2px; }
+
+  @media (max-width: 600px) { .kh-term__label { max-width: 11ch; } }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__home" href="../../index.html"><span class="topbar__mark">▚</span> bench</a>
+  <span class="topbar__sep">/</span>
+  <span class="topbar__here">Keyword Highlighter</span>
+  <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
+</header>
+
+<main class="wrap">
+
+  <div class="toolhead">
+    <p class="toolhead__spec mono">"term" ×14</p>
+    <h1 class="toolhead__title">Keyword Highlighter</h1>
+    <p class="toolhead__desc">Find, count and highlight terms across a long document.</p>
+  </div>
+
+  <div class="split">
+
+    <section class="panel">
+      <h2 class="panel__title">Document</h2>
+      <div class="row" style="margin-bottom:12px">
+        <button class="btn btn--sm" id="kh-sample">Load sample</button>
+        <button class="btn btn--sm" id="kh-paste">Paste</button>
+        <button class="btn btn--sm" id="kh-open">Open file</button>
+        <button class="btn btn--sm btn--danger" id="kh-clear">Clear</button>
+        <input type="file" id="kh-file" accept=".txt,.md,.csv,text/plain" hidden>
+      </div>
+      <label class="sr-only" for="kh-doc">Document text to scan</label>
+      <textarea class="textarea textarea--prose" id="kh-doc" spellcheck="false" placeholder="Paste or type the document you want scanned…"></textarea>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel__title">Terms</h2>
+      <label class="sr-only" for="kh-terms">Terms to find — one per line, or comma separated</label>
+      <textarea class="textarea kh-terms" id="kh-terms" spellcheck="false" placeholder="One term per line, or comma separated…"></textarea>
+      <div class="stack" style="margin-top:14px; gap:9px">
+        <label class="check"><input type="checkbox" id="kh-whole" checked> Whole words only</label>
+        <label class="check"><input type="checkbox" id="kh-case"> Case sensitive</label>
+        <label class="check"><input type="checkbox" id="kh-regex"> Treat terms as regular expressions</label>
+      </div>
+      <div id="kh-termnote" style="margin-top:12px"></div>
+    </section>
+
+  </div>
+
+  <section class="panel" style="margin-top:20px">
+    <div class="row row--between" style="margin-bottom:14px">
+      <h2 class="panel__title" style="margin-bottom:0">Highlighted document</h2>
+      <div class="row">
+        <button class="btn btn--sm" id="kh-copyhtml">Copy as HTML</button>
+        <button class="btn btn--sm" id="kh-report">Download report</button>
+      </div>
+    </div>
+
+    <div class="stats" id="kh-stats" style="margin-bottom:14px" hidden>
+      <div class="stat"><span class="stat__n" id="kh-s-words">0</span><span class="stat__k">Words</span></div>
+      <div class="stat"><span class="stat__n" id="kh-s-terms">0</span><span class="stat__k">Terms</span></div>
+      <div class="stat"><span class="stat__n" id="kh-s-hits">0</span><span class="stat__k">Total hits</span></div>
+    </div>
+
+    <div class="split split--wide">
+      <div class="out out--wrap" id="kh-out"><span class="empty">Paste a document above (or open a file) to scan it for your terms.</span></div>
+      <div>
+        <div class="label">Legend</div>
+        <div id="kh-legend" class="stack" style="gap:8px"></div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <a href="../../index.html">← All tools</a>
+    <span>·</span>
+    <span>Runs entirely in your browser</span>
+  </footer>
+
+</main>
+
+<script src="../../assets/js/bench.js" defer></script>
+<script defer>
+document.addEventListener("DOMContentLoaded", function () {
+  "use strict";
+  var $ = Bench.$, $$ = Bench.$$, esc = Bench.esc;
+
+  var docInput = $("#kh-doc"), termsInput = $("#kh-terms");
+  var wholeChk = $("#kh-whole"), caseChk = $("#kh-case"), regexChk = $("#kh-regex");
+  var out = $("#kh-out"), legend = $("#kh-legend"), termNote = $("#kh-termnote");
+  var stats = $("#kh-stats"), sWords = $("#kh-s-words"), sTerms = $("#kh-s-terms"), sHits = $("#kh-s-hits");
+  var fileInput = $("#kh-file");
+
+  // Above this many accepted matches we stop painting individual <span>s (the
+  // DOM cost stops being worth it) but counts, density and the report stay
+  // exact — they come from the same match pass, just not rendered inline.
+  var RENDER_CAP = 4000;
+
+  var SAMPLE_DOC = "Every tool on this bench starts as a rough idea and ends as a small, "
+    + "focused page that a user can trust. Before a tool ships, it goes through a test pass: "
+    + "sample input, edge cases, empty states, and a check that no data leaves the tab. The "
+    + "team keeps a running list of test scenarios so the next tool benefits from the last "
+    + "tool's mistakes.\n\n"
+    + "A typical test session opens the tool, loads sample data, and tries to break it. "
+    + "Reviewers paste real user text, they try huge input, they try no input at all, and "
+    + "they toggle every option twice. If a tool cannot survive that test, it is not ready. "
+    + "The bench only publishes a tool once its test suite is boring — no surprises, no "
+    + "console errors, nothing left half-built.\n\n"
+    + "Data quality matters as much as code quality. A demo tool that only works on clean "
+    + "data will fail the first time a real user drops in something messy: mismatched quotes, "
+    + "stray whitespace, a file saved with the wrong encoding. So every tool ships with a way "
+    + "to load a sample, a way to clear the input, and a note that explains what a bad input "
+    + "looks like and how to fix it.\n\n"
+    + "The user is the real test. A tool that only makes sense to the person who built it is "
+    + "not finished — it is a draft. Read it back as a first-time user would, paste in the "
+    + "messiest data you can find, and if the tool still tells a clear story, it is ready for "
+    + "the bench.";
+
+  var SAMPLE_TERMS = "tool\ntest\ndata\nuser\nbench";
+
+  /* --- colour ---------------------------------------------------------------
+     Anchor hues come from Bench's validated categorical chart palette (blue,
+     orange, aqua, yellow, magenta, green, violet, red — in that fixed order,
+     the arrangement that keeps neighbours distinguishable). Terms beyond the
+     eighth reuse the same anchors rotated by an offset so a 9th–16th term
+     never repeats a colour outright. Backgrounds are a translucent wash over
+     the page's own ink/surface pair, so they read correctly in both themes
+     without a separate light/dark colour table. -------------------------- */
+
+  var BASE_HUES = [213, 16, 157, 40, 340, 120, 248, 355];
+
+  function colorFor(i) {
+    var hue = BASE_HUES[i % BASE_HUES.length];
+    var cycle = Math.floor(i / BASE_HUES.length);
+    hue = (hue + cycle * 41) % 360;
+    return {
+      bg: "hsla(" + hue + ",68%,50%,0.30)",
+      line: "hsl(" + hue + ",70%,40%)",
+      solid: "hsl(" + hue + ",62%,46%)"
+    };
+  }
+
+  /* --- term parsing & compiling ---------------------------------------------- */
+
+  function parseTermsRaw(text) {
+    var out = [], seen = {};
+    text.split(/\r?\n/).forEach(function (line) {
+      line.split(",").forEach(function (piece) {
+        var t = piece.trim();
+        if (!t || seen[t]) return;
+        seen[t] = true;
+        out.push(t);
+      });
+    });
+    return out;
+  }
+
+  function escapeRegExp(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+
+  function compileTerm(raw, opts) {
+    try {
+      var source = opts.regexMode ? raw : escapeRegExp(raw);
+      if (opts.whole) source = "\\b(?:" + source + ")\\b";
+      var flags = "g" + (opts.caseSensitive ? "" : "i");
+      return { regex: new RegExp(source, flags), error: null };
+    } catch (e) {
+      return { regex: null, error: e.message };
+    }
+  }
+
+  function countWords(text) {
+    var m = text.trim().match(/\S+/g);
+    return m ? m.length : 0;
+  }
+
+  /* --- surrounding sentence, for the report ----------------------------------- */
+
+  function sentenceAround(text, s, e) {
+    var left = s;
+    while (left > 0 && !/[.!?]/.test(text[left - 1])) left--;
+    while (left < text.length && /\s/.test(text[left])) left++;
+    var right = e;
+    while (right < text.length && !/[.!?]/.test(text[right])) right++;
+    if (right < text.length) right++;
+    var sentence = text.slice(left, right).replace(/\s+/g, " ").trim();
+    if (sentence) return sentence;
+    return text.slice(Math.max(0, s - 30), Math.min(text.length, e + 30)).replace(/\s+/g, " ").trim();
+  }
+
+  /* --- state ------------------------------------------------------------------
+     termState persists visibility + cursor per raw term text, independent of
+     the terms textarea being reparsed on every keystroke of the document. */
+
+  var termState = {};
+  var lastTerms = [], lastDoc = "", lastWordCount = 0, currentPointer = null;
+
+  /* --- match pass -------------------------------------------------------------
+     CRITICAL: matching happens on the raw document text (so \b, case, etc.
+     mean what the user typed), never on already-escaped HTML — escaping first
+     would shift every offset past the first "&"/"<"/">"/quote. We then walk
+     the accepted match list left to right and escape each plain-text and
+     matched slice individually as we emit it. Nothing is ever built by
+     string-replacing into an HTML string. --------------------------------- */
+
+  function recompute() {
+    var docText = docInput.value;
+    var opts = { whole: wholeChk.checked, caseSensitive: caseChk.checked, regexMode: regexChk.checked };
+    var rawList = parseTermsRaw(termsInput.value);
+
+    var terms = rawList.map(function (raw, i) {
+      var st = termState[raw] || (termState[raw] = { visible: true, cursor: -1 });
+      var c = compileTerm(raw, opts);
+      return {
+        raw: raw, color: colorFor(i), visible: st.visible, cursor: st.cursor,
+        regex: c.regex, error: c.error, matches: [], accepted: []
+      };
+    });
+
+    if (docText) {
+      terms.forEach(function (t) {
+        if (!t.regex) return;
+        var m, guard = 0;
+        while (guard++ < 50000 && (m = t.regex.exec(docText))) {
+          var len = m[0].length;
+          if (len === 0) { t.regex.lastIndex++; continue; }
+          t.matches.push({ start: m.index, end: m.index + len });
+          if (t.matches.length > 20000) break; // pathological pattern guard
+        }
+      });
+
+      var all = [];
+      terms.forEach(function (t, ti) {
+        t.matches.forEach(function (mm) { all.push({ start: mm.start, end: mm.end, ti: ti }); });
+      });
+      all.sort(function (a, b) { return a.start - b.start || (b.end - b.start) - (a.end - a.start) || a.ti - b.ti; });
+
+      var lastEnd = 0;
+      all.forEach(function (mm) {
+        if (mm.start >= lastEnd) {
+          terms[mm.ti].accepted.push({ start: mm.start, end: mm.end });
+          lastEnd = mm.end;
+        }
+      });
+    }
+
+    lastTerms = terms;
+    lastDoc = docText;
+    lastWordCount = countWords(docText);
+    currentPointer = null;
+    paint();
+  }
+
+  /* --- rendering --------------------------------------------------------------- */
+
+  function buildHTML(terms, docText, opts) {
+    var accepted = [];
+    terms.forEach(function (t, ti) {
+      t.accepted.forEach(function (mm, idx) { accepted.push({ start: mm.start, end: mm.end, ti: ti, idx: idx }); });
+    });
+    accepted.sort(function (a, b) { return a.start - b.start; });
+
+    var parts = [], prev = 0;
+    accepted.forEach(function (mm) {
+      if (mm.start > prev) parts.push(esc(docText.slice(prev, mm.start)));
+      var t = terms[mm.ti];
+      var isCurrent = !!(opts.withCurrent && opts.current && opts.current.ti === mm.ti && opts.current.idx === mm.idx);
+      var style = t.visible
+        ? ("background:" + t.color.bg + ";border-bottom:2px solid " + t.color.line)
+        : "background:transparent";
+      parts.push('<span class="kh-hl' + (isCurrent ? " kh-current" : "") + '" data-term="' + mm.ti
+        + '" data-idx="' + mm.idx + '" style="' + style + '">' + esc(docText.slice(mm.start, mm.end)) + "</span>");
+      prev = mm.end;
+    });
+    if (prev < docText.length) parts.push(esc(docText.slice(prev)));
+    return { html: parts.join(""), count: accepted.length };
+  }
+
+  function renderOutput() {
+    if (!lastDoc) {
+      out.className = "out out--wrap";
+      out.innerHTML = '<span class="empty">Paste a document above (or open a file) to scan it for your terms.</span>';
+      return;
+    }
+    var totalAccepted = lastTerms.reduce(function (n, t) { return n + t.accepted.length; }, 0);
+    out.className = "out out--wrap";
+    if (totalAccepted > RENDER_CAP) {
+      out.innerHTML = '<div class="note note--warn" style="margin-bottom:10px"><span class="note__mark">!</span>'
+        + "<span>" + Bench.num(totalAccepted) + " matches found — too dense to highlight inline. Counts, density "
+        + "and the report below are exact; narrow your terms to see inline highlights again.</span></div>"
+        + esc(lastDoc);
+      return;
+    }
+    if (!lastTerms.length) {
+      out.innerHTML = esc(lastDoc);
+      return;
+    }
+    out.innerHTML = buildHTML(lastTerms, lastDoc, { withCurrent: true, current: currentPointer }).html;
+  }
+
+  function renderLegend() {
+    if (!lastDoc) {
+      legend.innerHTML = '<p class="kh-legend-empty">Nothing to scan yet.</p>';
+      return;
+    }
+    if (!lastTerms.length) {
+      legend.innerHTML = '<p class="kh-legend-empty">Enter one or more terms to see them counted and highlighted.</p>';
+      return;
+    }
+    legend.innerHTML = lastTerms.map(function (t, ti) {
+      var n = t.accepted.length;
+      var density = lastWordCount ? (n / lastWordCount * 1000) : 0;
+      var posLabel = t.cursor < 0 ? "– / " + n : (t.cursor + 1) + " / " + n;
+      var errLine = t.error ? '<div class="kh-term__err">Invalid pattern — ' + esc(t.error) + "</div>" : "";
+      return '<div class="kh-term' + (t.visible ? "" : " kh-term--off") + '" data-term="' + ti + '">'
+        + '<div class="row row--between">'
+        + '<span class="row" style="gap:8px;flex-wrap:nowrap">'
+        + '<span class="kh-swatch" style="background:' + t.color.solid + '"></span>'
+        + '<span class="mono kh-term__label" title="' + esc(t.raw) + '">' + esc(t.raw) + "</span>"
+        + "</span>"
+        + '<span class="mono">' + Bench.num(n) + "</span>"
+        + "</div>"
+        + errLine
+        + '<div class="row row--between" style="margin-top:6px">'
+        + '<span class="kh-term__meta mono">' + density.toFixed(1) + " / 1000 words</span>"
+        + '<span class="row" style="gap:4px;flex-wrap:nowrap">'
+        + '<button class="btn btn--sm btn--ghost" type="button" data-act="toggle" aria-label="' + (t.visible ? "Hide" : "Show") + ' ' + esc(t.raw) + '">' + (t.visible ? "Hide" : "Show") + "</button>"
+        + '<button class="btn btn--sm btn--ghost" type="button" data-act="prev" aria-label="Previous occurrence of ' + esc(t.raw) + '"' + (n ? "" : " disabled") + ">‹</button>"
+        + '<span class="kh-term__pos mono">' + posLabel + "</span>"
+        + '<button class="btn btn--sm btn--ghost" type="button" data-act="next" aria-label="Next occurrence of ' + esc(t.raw) + '"' + (n ? "" : " disabled") + ">›</button>"
+        + "</span></div></div>";
+    }).join("");
+  }
+
+  function renderStats() {
+    if (!lastDoc || !lastTerms.length) { stats.hidden = true; return; }
+    var totalHits = lastTerms.reduce(function (n, t) { return n + t.accepted.length; }, 0);
+    sWords.textContent = Bench.num(lastWordCount);
+    sTerms.textContent = Bench.num(lastTerms.length);
+    sHits.textContent = Bench.num(totalHits);
+    stats.hidden = false;
+  }
+
+  function renderTermNote() {
+    var invalid = lastTerms.filter(function (t) { return t.error; });
+    if (!invalid.length) { termNote.innerHTML = ""; return; }
+    termNote.innerHTML = '<div class="note note--bad"><span class="note__mark">✕</span>'
+      + "<span>" + Bench.plural(invalid.length, "term") + " with an invalid pattern — see the legend for details.</span></div>";
+  }
+
+  function paint() {
+    renderOutput();
+    renderLegend();
+    renderStats();
+    renderTermNote();
+  }
+
+  /* --- navigation ---------------------------------------------------------- */
+
+  function toggleVisible(ti) {
+    var t = lastTerms[ti];
+    if (!t) return;
+    t.visible = !t.visible;
+    termState[t.raw].visible = t.visible;
+    if (currentPointer && currentPointer.ti === ti && !t.visible) currentPointer = null;
+    paint();
+  }
+
+  function jump(ti, dir) {
+    var t = lastTerms[ti];
+    if (!t || !t.accepted.length) { Bench.toast("No occurrences of “" + t.raw + "”", "bad"); return; }
+    if (!t.visible) { t.visible = true; termState[t.raw].visible = true; }
+    var n = t.accepted.length;
+    t.cursor = t.cursor < 0 ? (dir > 0 ? 0 : n - 1) : ((t.cursor + dir) % n + n) % n;
+    termState[t.raw].cursor = t.cursor;
+    currentPointer = { ti: ti, idx: t.cursor };
+    paint();
+    var span = out.querySelector(".kh-hl.kh-current");
+    if (span) span.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  legend.addEventListener("click", function (e) {
+    var btn = e.target.closest("button[data-act]");
+    if (!btn || btn.disabled) return;
+    var row = btn.closest(".kh-term");
+    var ti = Number(row.dataset.term);
+    if (btn.dataset.act === "toggle") toggleVisible(ti);
+    else if (btn.dataset.act === "prev") jump(ti, -1);
+    else if (btn.dataset.act === "next") jump(ti, 1);
+  });
+
+  /* --- export ---------------------------------------------------------------- */
+
+  function exportHTML() {
+    if (!lastDoc || !lastTerms.length) return "";
+    var built = buildHTML(lastTerms, lastDoc, { withCurrent: false });
+    return '<div style="white-space:pre-wrap;font-family:inherit">' + built.html + "</div>";
+  }
+
+  function exportReport() {
+    var lines = [];
+    lines.push("Keyword Highlighter report");
+    lines.push("Generated " + new Date().toISOString());
+    lines.push("Document: " + Bench.num(lastWordCount) + " words, " + Bench.plural(lastTerms.length, "term"));
+    lines.push("");
+    lastTerms.forEach(function (t) {
+      var n = t.accepted.length;
+      var density = lastWordCount ? (n / lastWordCount * 1000) : 0;
+      lines.push("TERM: " + t.raw + (t.error ? " (invalid pattern: " + t.error + ")" : ""));
+      lines.push("Hits: " + n + "   Density: " + density.toFixed(2) + " / 1000 words");
+      if (!n) {
+        lines.push("  No occurrences.");
+      } else {
+        t.accepted.forEach(function (mm, i) {
+          lines.push("  " + (i + 1) + ". " + sentenceAround(lastDoc, mm.start, mm.end));
+        });
+      }
+      lines.push("");
+    });
+    return lines.join("\n");
+  }
+
+  $("#kh-copyhtml").addEventListener("click", function (e) {
+    var html = exportHTML();
+    if (!html) { Bench.toast("Nothing to copy yet", "bad"); return; }
+    Bench.copy(html, e.currentTarget);
+  });
+
+  $("#kh-report").addEventListener("click", function () {
+    if (!lastDoc || !lastTerms.length) { Bench.toast("Nothing to report yet", "bad"); return; }
+    Bench.download("keyword-report.txt", exportReport(), "text/plain");
+  });
+
+  /* --- input wiring ---------------------------------------------------------- */
+
+  Bench.live(docInput, Bench.debounce(recompute, 150));
+  Bench.live(termsInput, Bench.debounce(recompute, 150));
+  [wholeChk, caseChk, regexChk].forEach(function (c) { c.addEventListener("change", recompute); });
+
+  $("#kh-sample").addEventListener("click", function () {
+    docInput.value = SAMPLE_DOC;
+    termsInput.value = SAMPLE_TERMS;
+    termState = {};
+    recompute();
+  });
+
+  $("#kh-clear").addEventListener("click", function () {
+    docInput.value = "";
+    docInput.focus();
+    recompute();
+  });
+
+  $("#kh-paste").addEventListener("click", function () {
+    if (!navigator.clipboard || !navigator.clipboard.readText) {
+      Bench.toast("Use Ctrl+V in the box", "bad");
+      docInput.focus();
+      return;
+    }
+    navigator.clipboard.readText().then(function (t) { docInput.value = t; recompute(); })
+      .catch(function () { Bench.toast("Clipboard access was blocked — paste with Ctrl+V", "bad"); docInput.focus(); });
+  });
+
+  $("#kh-open").addEventListener("click", function () { fileInput.click(); });
+  fileInput.addEventListener("change", function () {
+    var f = fileInput.files[0];
+    if (!f) return;
+    Bench.readFile(f).then(function (t) { docInput.value = t; recompute(); })
+      .catch(function (e) { Bench.toast(e.message, "bad"); });
+    fileInput.value = "";
+  });
+
+  Bench.dropzone(docInput, function (files) {
+    Bench.readFile(files[0]).then(function (t) { docInput.value = t; recompute(); })
+      .catch(function (e) { Bench.toast(e.message, "bad"); });
+  });
+
+  // Ship with something in it.
+  docInput.value = SAMPLE_DOC;
+  termsInput.value = SAMPLE_TERMS;
+  recompute();
+});
+</script>
+
+</body>
+</html>

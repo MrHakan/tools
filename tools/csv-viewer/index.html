@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CSV Viewer — Bench</title>
+<meta name="description" content="Open a CSV, then sort, filter and search it without uploading anything.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/css/bench.css">
+<style>
+  /* Page-specific CSS only, prefixed csv-. */
+
+  /* .btn sets its own `display`, which otherwise beats the UA [hidden] rule
+     at equal specificity (author origin wins). Make hidden always win. */
+  [hidden] { display: none !important; }
+
+  /* The data table can run to thousands of rows; give it its own scroll
+     container (bounded height) so the sticky header means something and the
+     page itself doesn't turn into one giant scroll well. */
+  .csv-tablewrap { max-height: 56vh; overflow-y: auto; }
+  .csv-colwrap { max-height: 220px; overflow-y: auto; }
+
+  /* Header cell is a real <button> so it stays keyboard-operable; strip its
+     chrome back down to plain header text with a hover tint. */
+  .csv-sortbtn {
+    background: none; border: 0; padding: 0; margin: 0; font: inherit; color: inherit;
+    cursor: pointer; display: inline-flex; align-items: center; gap: 4px; text-align: left;
+  }
+  .csv-sortbtn:hover { color: var(--signal); }
+  .csv-sortarrow { color: var(--signal); font-size: 10px; }
+
+  /* Per-column filter row lives in <td>s (not <th>s) on purpose: bench.css
+     only makes .table th sticky, so this row scrolls away under the header
+     instead of the two sticky rows fighting for the same top:0. */
+  .csv-filterrow td { padding: 6px 8px; background: var(--card); }
+  .csv-filterrow input { font-size: 12px; padding: 5px 8px; }
+
+  .csv-toolbar { margin-bottom: 12px; }
+  .csv-loadrow { margin-bottom: 12px; }
+  .csv-empty { padding: 26px 0 6px; }
+  .csv-foot { margin-top: 12px; }
+  .csv-foot span { color: var(--steel); font-family: var(--mono); font-size: 12px; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__home" href="../../index.html"><span class="topbar__mark">▚</span> bench</a>
+  <span class="topbar__sep">/</span>
+  <span class="topbar__here">CSV Viewer</span>
+  <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
+</header>
+
+<main class="wrap">
+
+  <div class="toolhead">
+    <p class="toolhead__spec mono">a,b,c</p>
+    <h1 class="toolhead__title">CSV Viewer</h1>
+    <p class="toolhead__desc">Open a CSV, then sort, filter and search it without uploading anything. Parsing happens in this tab — nothing leaves it.</p>
+  </div>
+
+  <section class="panel">
+    <h2 class="panel__title">Load data</h2>
+    <div class="row csv-loadrow">
+      <button class="btn btn--sm" id="sample">Load sample</button>
+      <button class="btn btn--sm" id="open">Open file</button>
+      <button class="btn btn--sm" id="paste">Paste</button>
+      <button class="btn btn--sm btn--danger" id="clear">Clear</button>
+      <input type="file" id="file" accept=".csv,.tsv,.txt,text/csv" hidden>
+      <span class="grow"></span>
+      <label class="sr-only" for="delim">Delimiter</label>
+      <select class="select" id="delim" style="width:auto">
+        <option value="auto">Auto-detect delimiter</option>
+        <option value="comma">Comma ,</option>
+        <option value="semicolon">Semicolon ;</option>
+        <option value="tab">Tab</option>
+        <option value="pipe">Pipe |</option>
+      </select>
+      <label class="check"><input type="checkbox" id="header" checked> First row is header</label>
+    </div>
+    <label class="sr-only" for="src">CSV text</label>
+    <textarea class="textarea" id="src" spellcheck="false" placeholder="Paste CSV text here, drop a file on this box, or open one."></textarea>
+    <div id="parsenote" style="margin-top:12px"></div>
+  </section>
+
+  <section class="panel">
+    <h2 class="panel__title">Data</h2>
+
+    <div id="dataEmpty" class="csv-empty">
+      <span class="empty">Load a CSV above — paste text, drop a file, or click "Load sample" — to sort, filter and search it here.</span>
+    </div>
+
+    <div id="dataArea" hidden>
+
+      <div class="stats" id="stats" style="margin-bottom:16px">
+        <div class="stat"><span class="stat__n" id="s-rows">0</span><span class="stat__k">Rows</span></div>
+        <div class="stat"><span class="stat__n" id="s-cols">0</span><span class="stat__k">Columns</span></div>
+        <div class="stat"><span class="stat__n" id="s-matches">0</span><span class="stat__k">Matching</span></div>
+      </div>
+
+      <div class="tablewrap csv-colwrap" style="margin-bottom:16px">
+        <table class="table">
+          <thead><tr><th>Column</th><th>Type</th><th>Summary</th></tr></thead>
+          <tbody id="colsummary"></tbody>
+        </table>
+      </div>
+
+      <div class="row row--between csv-toolbar">
+        <div class="field grow" style="margin-bottom:0">
+          <label class="sr-only" for="search">Search all columns</label>
+          <input class="input" id="search" placeholder="Search all columns…">
+        </div>
+        <div class="row">
+          <button class="btn btn--sm btn--ghost" id="resetfilters">Clear filters</button>
+          <button class="btn btn--sm" id="exportcsv">Export CSV</button>
+          <button class="btn btn--sm" id="exportjson">Export JSON</button>
+        </div>
+      </div>
+
+      <div class="tablewrap csv-tablewrap">
+        <table class="table" id="table">
+          <thead>
+            <tr id="headrow"></tr>
+            <tr id="filterrow" class="csv-filterrow"></tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+
+      <div class="row row--between csv-foot">
+        <span class="mono" id="shownlabel"></span>
+        <button class="btn btn--sm" id="more" hidden>Show more</button>
+      </div>
+
+    </div>
+  </section>
+
+  <footer class="foot">
+    <a href="../../index.html">← All tools</a>
+    <span>·</span>
+    <span>Runs entirely in your browser</span>
+  </footer>
+
+</main>
+
+<script src="../../assets/js/bench.js" defer></script>
+<script defer>
+document.addEventListener("DOMContentLoaded", function () {
+  "use strict";
+  var $ = Bench.$, $$ = Bench.$$, esc = Bench.esc;
+
+  var PAGE_SIZE = 100;
+  var DELIM_MAP = { comma: ",", semicolon: ";", tab: "\t", pipe: "|" };
+
+  var src = $("#src"), fileInput = $("#file");
+  var delimSel = $("#delim"), headerChk = $("#header");
+  var parsenote = $("#parsenote");
+  var dataEmpty = $("#dataEmpty"), dataArea = $("#dataArea");
+  var statsRows = $("#s-rows"), statsCols = $("#s-cols"), statsMatches = $("#s-matches");
+  var colsummaryBody = $("#colsummary");
+  var searchInput = $("#search");
+  var headRow = $("#headrow"), filterRow = $("#filterrow"), tbody = $("#tbody");
+  var shownLabel = $("#shownlabel"), moreBtn = $("#more");
+
+  // --- state --------------------------------------------------------------
+  var headers = [];       // column names, in display order
+  var dataRows = [];      // array of arrays of strings (parsed, padded, minus header)
+  var colTypes = [];      // "numeric" | "text" per column
+  var filters = [];       // per-column substring filter text
+  var searchText = "";
+  var sortCol = -1, sortDir = 1;
+  var visibleCount = PAGE_SIZE;
+  var activeDelim = ",";
+
+  var SAMPLE = [
+    "id,name,department,city,salary,joined,notes",
+    '1,"Doe, Jane",Engineering,"Springfield, IL",95000,2019-03-14,"Loves coffee"',
+    "2,John Smith,Marketing,Austin,72000,2020-07-01,Prefers async updates",
+    '3,"O\'Brien, Sean",Sales,"Boston, MA",68000,2018-11-23,"Handles the ""east coast"" accounts"',
+    "4,Maria Garcia,Engineering,Seattle,101000,2021-01-15,",
+    '5,"Nguyen, Linh",Design,"Portland, OR",83000,2022-05-30,"Ships pixel-perfect work"',
+    "6,Wei Zhang,Engineering,Austin,97500,2019-09-09,",
+    '7,Fatima Al-Sayed,Finance,Chicago,89000,2020-02-18,"Closes month-end early"',
+    '8,"Kowalski, Piotr",Operations,"Denver, CO",64000,2023-04-02,',
+    '9,Amara Okafor,Marketing,"New York, NY",76000,2021-08-11,"Runs the newsletter"',
+    "10,Lucas Fernandes,Sales,Miami,71000,2022-10-05,",
+    '11,"Ivanova, Ekaterina",Design,"Chicago, IL",85500,2020-12-01,"Multiline note:\nsecond line here"',
+    '12,Tariq Hassan,Engineering,"San Jose, CA",112000,2017-06-19,"Senior, mentors juniors"',
+    "13,Grace Kim,Finance,Boston,79000,2023-01-09,",
+    '14,Diego Alvarez,Operations,Denver,66000,2021-03-27,"Owns vendor contracts"',
+    '15,"Schmidt, Anna",Marketing,Austin,74500,2019-05-14,'
+  ].join("\n");
+
+  /* --- RFC 4180 parser ------------------------------------------------------
+     Quoted fields, "" escapes a literal quote inside a quoted field, fields
+     may contain the delimiter or embedded newlines while quoted, and rows can
+     end in \r\n, \r or \n. A stray, unterminated quote at end of file is
+     reported rather than silently truncating data. */
+  function parseCSV(text, delim) {
+    var rows = [], row = [], field = "";
+    var i = 0, len = text.length, inQuotes = false;
+
+    while (i < len) {
+      var c = text.charAt(i);
+
+      if (inQuotes) {
+        if (c === '"') {
+          if (text.charAt(i + 1) === '"') { field += '"'; i += 2; continue; }
+          inQuotes = false; i++; continue;
+        }
+        field += c; i++; continue;
+      }
+
+      if (c === '"' && field === "") { inQuotes = true; i++; continue; }
+      if (c === delim) { row.push(field); field = ""; i++; continue; }
+      if (c === "\r") {
+        row.push(field); field = ""; rows.push(row); row = [];
+        i += text.charAt(i + 1) === "\n" ? 2 : 1;
+        continue;
+      }
+      if (c === "\n") {
+        row.push(field); field = ""; rows.push(row); row = [];
+        i++; continue;
+      }
+      field += c; i++;
+    }
+
+    if (field !== "" || row.length > 0) { row.push(field); rows.push(row); }
+    return { rows: rows, unterminatedQuote: inQuotes };
+  }
+
+  /** Score each candidate delimiter on the first dozen lines: prefer the one
+      that yields the most columns while staying consistent row to row. */
+  function detectDelimiter(text) {
+    var candidates = [",", ";", "\t", "|"];
+    var sample = text.split(/\r\n|\r|\n/).slice(0, 12).join("\n");
+    var best = ",", bestScore = -1;
+    candidates.forEach(function (d) {
+      var rows = parseCSV(sample, d).rows.filter(function (r) { return !(r.length === 1 && r[0] === ""); });
+      if (!rows.length) return;
+      var counts = rows.map(function (r) { return r.length; });
+      var cols = counts[0];
+      if (cols <= 1) return;
+      var consistent = counts.filter(function (c) { return c === cols; }).length / counts.length;
+      var score = consistent * cols;
+      if (score > bestScore) { bestScore = score; best = d; }
+    });
+    return best;
+  }
+
+  function delimName(d) {
+    if (d === ",") return "comma";
+    if (d === ";") return "semicolon";
+    if (d === "\t") return "tab";
+    if (d === "|") return "pipe";
+    return "'" + d + "'";
+  }
+
+  function uniqueHeaders(list) {
+    var seen = {};
+    return list.map(function (h) {
+      var name = h || "column";
+      if (seen[name] == null) { seen[name] = 0; return name; }
+      seen[name]++;
+      return name + " (" + (seen[name] + 1) + ")";
+    });
+  }
+
+  /* --- type inference -------------------------------------------------------- */
+
+  function isNumericCell(s) {
+    var t = s.trim();
+    if (t === "") return true; // blank is compatible with either type
+    return /^[+-]?(\d+\.?\d*|\.\d+)(e[+-]?\d+)?$/i.test(t);
+  }
+
+  function colIsNumeric(idx) {
+    var any = false;
+    for (var r = 0; r < dataRows.length; r++) {
+      var v = dataRows[r][idx];
+      if (v.trim() === "") continue;
+      any = true;
+      if (!isNumericCell(v)) return false;
+    }
+    return any;
+  }
+
+  function fmtNum(n) {
+    if (Math.abs(n - Math.round(n)) < 1e-9) return Bench.num(Math.round(n));
+    return Bench.num(n, 2);
+  }
+
+  function numericStats(idx) {
+    var nums = [];
+    dataRows.forEach(function (r) {
+      var v = r[idx];
+      if (v.trim() === "") return;
+      nums.push(parseFloat(v));
+    });
+    if (!nums.length) return null;
+    var min = Math.min.apply(null, nums), max = Math.max.apply(null, nums);
+    var mean = nums.reduce(function (a, b) { return a + b; }, 0) / nums.length;
+    return { min: min, max: max, mean: mean };
+  }
+
+  function distinctCount(idx) {
+    var set = {};
+    dataRows.forEach(function (r) { set[r[idx]] = true; });
+    return Object.keys(set).length;
+  }
+
+  /* --- filter / sort pipeline -------------------------------------------------- */
+
+  function getFiltered() {
+    var q = searchText.trim().toLowerCase();
+    return dataRows.filter(function (row) {
+      for (var i = 0; i < headers.length; i++) {
+        var f = filters[i];
+        if (f && row[i].toLowerCase().indexOf(f.toLowerCase()) === -1) return false;
+      }
+      if (q && !row.some(function (c) { return c.toLowerCase().indexOf(q) !== -1; })) return false;
+      return true;
+    });
+  }
+
+  function getSorted(rows) {
+    if (sortCol < 0) return rows;
+    var type = colTypes[sortCol];
+    var col = sortCol, dir = sortDir;
+    var copy = rows.slice();
+    copy.sort(function (a, b) {
+      var av = a[col], bv = b[col];
+      if (type === "numeric") {
+        var aBlank = av.trim() === "", bBlank = bv.trim() === "";
+        if (aBlank && bBlank) return 0;
+        if (aBlank) return 1;   // blanks sort last regardless of direction
+        if (bBlank) return -1;
+        var an = parseFloat(av), bn = parseFloat(bv);
+        return dir === 1 ? an - bn : bn - an;
+      }
+      var cmp = av.localeCompare(bv, undefined, { sensitivity: "base", numeric: true });
+      return dir === 1 ? cmp : -cmp;
+    });
+    return copy;
+  }
+
+  /* --- rendering ------------------------------------------------------------- */
+
+  function renderColSummary() {
+    colsummaryBody.innerHTML = headers.map(function (h, i) {
+      var summary;
+      if (colTypes[i] === "numeric") {
+        var s = numericStats(i);
+        summary = s ? "min " + fmtNum(s.min) + " · max " + fmtNum(s.max) + " · mean " + fmtNum(s.mean) : "—";
+      } else {
+        summary = Bench.plural(distinctCount(i), "distinct value");
+      }
+      return "<tr><td>" + esc(h) + "</td><td>" + (colTypes[i] === "numeric" ? "Numeric" : "Text")
+        + "</td><td>" + esc(summary) + "</td></tr>";
+    }).join("");
+  }
+
+  function renderHeadRow() {
+    headRow.innerHTML = headers.map(function (h, i) {
+      var dir = sortCol === i ? (sortDir === 1 ? "ascending" : "descending") : "none";
+      var arrow = sortCol === i ? (sortDir === 1 ? " ▲" : " ▼") : "";
+      return '<th aria-sort="' + dir + '"><button type="button" class="csv-sortbtn" data-col="' + i
+        + '">' + esc(h) + '<span class="csv-sortarrow">' + arrow + "</span></button></th>";
+    }).join("");
+  }
+
+  function renderFilterRow() {
+    filterRow.innerHTML = headers.map(function (h, i) {
+      return '<td><input class="input csv-filterinput" data-col="' + i
+        + '" placeholder="Filter…" aria-label="Filter ' + esc(h) + '"></td>';
+    }).join("");
+    $$(".csv-filterinput", filterRow).forEach(function (inp) {
+      inp.addEventListener("input", Bench.debounce(function () {
+        filters[Number(inp.dataset.col)] = inp.value;
+        visibleCount = PAGE_SIZE;
+        renderTable();
+      }, 150));
+    });
+  }
+
+  function renderTable() {
+    var filtered = getFiltered();
+    var sorted = getSorted(filtered);
+    var toShow = sorted.slice(0, visibleCount);
+
+    tbody.innerHTML = toShow.length
+      ? toShow.map(function (row) {
+          return "<tr>" + row.map(function (cell, i) {
+            return "<td" + (colTypes[i] === "numeric" ? ' class="num"' : "") + ">" + esc(cell) + "</td>";
+          }).join("") + "</tr>";
+        }).join("")
+      : '<tr><td colspan="' + Math.max(1, headers.length) + '"><span class="empty">No rows match your filters.</span></td></tr>';
+
+    var remaining = sorted.length - toShow.length;
+    moreBtn.hidden = remaining <= 0;
+    if (remaining > 0) moreBtn.textContent = "Show more (" + Bench.num(remaining) + " remaining)";
+
+    shownLabel.textContent = sorted.length
+      ? "Showing " + Bench.num(toShow.length) + " of " + Bench.num(sorted.length) + " matching row" + (sorted.length === 1 ? "" : "s")
+      : "";
+
+    statsMatches.textContent = Bench.num(sorted.length);
+  }
+
+  function renderNote(delimKey, delim, unterminated) {
+    var html = '<div class="note note--ok"><span class="note__mark">✓</span><span>'
+      + esc(Bench.plural(dataRows.length, "row") + ", " + Bench.plural(headers.length, "column")
+        + " · delimiter: " + delimName(delim) + (delimKey === "auto" ? " (auto-detected)" : "")) + ".</span></div>";
+    if (unterminated) {
+      html += '<div class="note note--warn" style="margin-top:8px"><span class="note__mark">!</span><span>'
+        + "A quoted field was never closed — check for a stray <code>\"</code> near the end of the input. "
+        + "Parsed on a best-effort basis.</span></div>";
+    }
+    parsenote.innerHTML = html;
+  }
+
+  function showEmpty() {
+    headers = []; dataRows = []; colTypes = []; filters = [];
+    parsenote.innerHTML = "";
+    dataEmpty.hidden = false;
+    dataArea.hidden = true;
+  }
+
+  /* --- pull it all together ---------------------------------------------------- */
+
+  function computeAll() {
+    var text = src.value;
+    if (text.trim() === "") { showEmpty(); return; }
+
+    var delimKey = delimSel.value;
+    var delim = delimKey === "auto" ? detectDelimiter(text) : DELIM_MAP[delimKey];
+    var parsed = parseCSV(text, delim);
+
+    var colCount = parsed.rows.reduce(function (m, r) { return Math.max(m, r.length); }, 1);
+    var hasHeader = headerChk.checked;
+    var headerRow = hasHeader ? parsed.rows[0] : null;
+    var body = hasHeader ? parsed.rows.slice(1) : parsed.rows;
+
+    var rawHeaders = [];
+    for (var i = 0; i < colCount; i++) {
+      var h = headerRow && headerRow[i] ? headerRow[i] : "Column " + (i + 1);
+      rawHeaders.push(h);
+    }
+    headers = uniqueHeaders(rawHeaders);
+
+    dataRows = body.map(function (r) {
+      var row = r.slice();
+      while (row.length < colCount) row.push("");
+      return row;
+    });
+
+    activeDelim = delim;
+    colTypes = headers.map(function (_, i) { return colIsNumeric(i) ? "numeric" : "text"; });
+    filters = headers.map(function () { return ""; });
+    searchText = ""; searchInput.value = "";
+    sortCol = -1; sortDir = 1;
+    visibleCount = PAGE_SIZE;
+
+    renderNote(delimKey, delim, parsed.unterminatedQuote);
+    statsRows.textContent = Bench.num(dataRows.length);
+    statsCols.textContent = Bench.num(headers.length);
+    renderColSummary();
+    renderHeadRow();
+    renderFilterRow();
+    renderTable();
+
+    dataEmpty.hidden = true;
+    dataArea.hidden = false;
+  }
+
+  /* --- export ------------------------------------------------------------- */
+
+  function csvEscape(field, delim) {
+    var needsQuote = field.indexOf(delim) !== -1 || field.indexOf('"') !== -1
+      || field.indexOf("\n") !== -1 || field.indexOf("\r") !== -1;
+    var out = field.replace(/"/g, '""');
+    return needsQuote ? '"' + out + '"' : out;
+  }
+
+  function toCSV(rows) {
+    var lines = [];
+    if (headerChk.checked) lines.push(headers.map(function (h) { return csvEscape(h, activeDelim); }).join(activeDelim));
+    rows.forEach(function (r) { lines.push(r.map(function (c) { return csvEscape(c, activeDelim); }).join(activeDelim)); });
+    return lines.join("\r\n");
+  }
+
+  function toJSON(rows) {
+    if (!headerChk.checked) return JSON.stringify(rows, null, 2);
+    return JSON.stringify(rows.map(function (r) {
+      var o = {};
+      headers.forEach(function (h, i) { o[h] = r[i]; });
+      return o;
+    }), null, 2);
+  }
+
+  /* --- wiring -------------------------------------------------------------- */
+
+  Bench.live(src, Bench.debounce(computeAll, 150));
+  delimSel.addEventListener("change", computeAll);
+  headerChk.addEventListener("change", computeAll);
+
+  Bench.live(searchInput, Bench.debounce(function () {
+    searchText = searchInput.value;
+    visibleCount = PAGE_SIZE;
+    renderTable();
+  }, 120));
+
+  headRow.addEventListener("click", function (e) {
+    var btn = e.target.closest(".csv-sortbtn");
+    if (!btn) return;
+    var col = Number(btn.dataset.col);
+    if (sortCol !== col) { sortCol = col; sortDir = 1; }
+    else if (sortDir === 1) { sortDir = -1; }
+    else { sortCol = -1; sortDir = 1; }
+    visibleCount = PAGE_SIZE;
+    renderHeadRow();
+    renderTable();
+  });
+
+  moreBtn.addEventListener("click", function () {
+    visibleCount += PAGE_SIZE;
+    renderTable();
+  });
+
+  $("#resetfilters").addEventListener("click", function () {
+    filters = filters.map(function () { return ""; });
+    $$(".csv-filterinput", filterRow).forEach(function (inp) { inp.value = ""; });
+    searchText = ""; searchInput.value = "";
+    visibleCount = PAGE_SIZE;
+    renderTable();
+  });
+
+  $("#sample").addEventListener("click", function () {
+    src.value = SAMPLE;
+    delimSel.value = "auto";
+    headerChk.checked = true;
+    computeAll();
+  });
+
+  $("#clear").addEventListener("click", function () { src.value = ""; computeAll(); src.focus(); });
+
+  $("#exportcsv").addEventListener("click", function () {
+    if (!dataRows.length) { Bench.toast("Nothing to export", "bad"); return; }
+    Bench.download("data.csv", toCSV(getSorted(getFiltered())), "text/csv");
+  });
+
+  $("#exportjson").addEventListener("click", function () {
+    if (!dataRows.length) { Bench.toast("Nothing to export", "bad"); return; }
+    Bench.download("data.json", toJSON(getSorted(getFiltered())), "application/json");
+  });
+
+  $("#paste").addEventListener("click", function () {
+    if (!navigator.clipboard || !navigator.clipboard.readText) {
+      Bench.toast("Use Ctrl+V in the box", "bad");
+      src.focus();
+      return;
+    }
+    navigator.clipboard.readText().then(function (t) { src.value = t; computeAll(); })
+      .catch(function () { Bench.toast("Clipboard access was blocked — paste with Ctrl+V", "bad"); src.focus(); });
+  });
+
+  $("#open").addEventListener("click", function () { fileInput.click(); });
+  fileInput.addEventListener("change", function () {
+    var f = fileInput.files[0];
+    if (!f) return;
+    Bench.readFile(f).then(function (t) { src.value = t; computeAll(); })
+      .catch(function (e) { Bench.toast(e.message, "bad"); });
+    fileInput.value = "";
+  });
+
+  Bench.dropzone(src, function (files) {
+    Bench.readFile(files[0]).then(function (t) { src.value = t; computeAll(); })
+      .catch(function (e) { Bench.toast(e.message, "bad"); });
+  });
+
+  computeAll();
+});
+</script>
+
+</body>
+</html>

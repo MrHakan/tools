@@ -257,15 +257,42 @@
 
   /* --- crypto ------------------------------------------------------------- */
 
-  /** Cryptographically strong random integer in [0, max). */
+  var POW32 = 4294967296;          // 2^32
+  var POW53 = 9007199254740992;    // 2^53, the largest exact integer range
+
+  /**
+   * Cryptographically strong random integer in [0, max), uniform.
+   *
+   * Rejection sampling, sized to the range: one 32-bit draw is only enough
+   * below 2^32. Above that, floor(2^32 / max) is 0, the rejection test can
+   * never pass, and the loop spins forever — so ranges like a span of
+   * milliseconds across decades need the full 53 bits.
+   */
   function randInt(max) {
-    var a = new Uint32Array(1);
-    var limit = Math.floor(0xffffffff / max) * max;
-    do { crypto.getRandomValues(a); } while (a[0] >= limit);
-    return a[0] % max;
+    max = Math.floor(max);
+    if (!(max > 0)) return 0;
+    if (max > POW53) throw new RangeError("randInt: max exceeds 2^53");
+
+    if (max <= POW32) {
+      var a = new Uint32Array(1);
+      var limit = Math.floor(POW32 / max) * max;
+      do { crypto.getRandomValues(a); } while (a[0] >= limit);
+      return a[0] % max;
+    }
+
+    var b = new Uint32Array(2);
+    var limit53 = Math.floor(POW53 / max) * max;
+    var v;
+    do {
+      crypto.getRandomValues(b);
+      v = (b[0] >>> 11) * POW32 + b[1];   // 21 high bits + 32 low bits = 53
+    } while (v >= limit53);
+    return v % max;
   }
 
-  function randPick(arr) { return arr[randInt(arr.length)]; }
+  function randPick(arr) {
+    return arr && arr.length ? arr[randInt(arr.length)] : undefined;
+  }
 
   function uuid() {
     if (crypto.randomUUID) return crypto.randomUUID();

@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Contrast Checker — Bench</title>
+<meta name="description" content="Score a colour pair against WCAG and adjust it until it passes.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/css/bench.css">
+<style>
+  /* Page-specific CSS only, prefixed cc__ (contrast-checker). */
+
+  .cc__side { display: grid; gap: 12px; align-content: start; }
+
+  .cc__formats { display: grid; gap: 8px; margin-top: 2px; }
+  .cc__formats .row { flex-wrap: nowrap; }
+  .cc__formats-k {
+    flex: none; width: 32px;
+    font-family: var(--mono); font-size: 11px; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--steel);
+  }
+  .cc__formats-v { flex: 1 1 auto; }
+
+  .cc__err { margin-top: 8px; }
+
+  .cc__result-top { align-items: center; gap: 16px; margin-bottom: 16px; }
+
+  .cc__ratio { display: flex; align-items: baseline; gap: 7px; font-family: var(--mono); }
+  .cc__ratio-n {
+    font-size: clamp(2.3rem, 1.5rem + 3vw, 3.6rem);
+    font-weight: 700; letter-spacing: -0.02em; line-height: 1;
+  }
+  .cc__ratio-u { font-size: 1.05rem; color: var(--steel); }
+
+  .cc__badges { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 8px; }
+
+  .cc__swatch {
+    display: inline-block; width: 16px; height: 16px; border-radius: 3px;
+    border: 1px solid var(--edge-2); vertical-align: -3px; margin-right: 7px; flex: none;
+  }
+
+  .cc__preview {
+    border: 1px solid var(--edge); border-radius: var(--r); padding: 22px 24px;
+    display: grid; gap: 18px; overflow: hidden;
+  }
+  .cc__sample { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 14px; }
+  .cc__sample-text { flex: 1 1 260px; min-width: 0; overflow-wrap: break-word; }
+  .cc__sample-tag {
+    font-family: var(--mono); font-size: 10.5px; text-transform: uppercase;
+    letter-spacing: 0.06em; padding: 2px 7px; border-radius: 2px; flex: none;
+  }
+  .cc__sample-tag.is-ok { background: var(--verify-soft); color: var(--verify); }
+  .cc__sample-tag.is-bad { background: var(--fault-soft); color: var(--fault); }
+
+  @media (max-width: 600px) {
+    .cc__preview { padding: 16px; }
+    .cc__result-top { flex-direction: column; align-items: flex-start; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__home" href="../../index.html"><span class="topbar__mark">▚</span> bench</a>
+  <span class="topbar__sep">/</span>
+  <span class="topbar__here">Contrast Checker</span>
+  <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
+</header>
+
+<main class="wrap">
+
+  <div class="toolhead">
+    <p class="toolhead__spec mono">4.5 : 1  AA</p>
+    <h1 class="toolhead__title">Contrast Checker</h1>
+    <p class="toolhead__desc">Score a colour pair against WCAG and adjust it until it passes. Everything is computed in this tab.</p>
+  </div>
+
+  <div class="stack" style="gap:20px">
+
+    <section class="panel">
+      <h2 class="panel__title">Colours</h2>
+      <div class="split">
+
+        <div class="cc__side" data-role="fg">
+          <div class="row row--between">
+            <label class="label" style="margin-bottom:0" for="fg-text">Foreground (text)</label>
+            <input type="color" id="fg-picker" aria-label="Foreground colour picker" value="#858585">
+          </div>
+          <label class="sr-only" for="fg-text">Foreground colour value — hex, rgb() or hsl()</label>
+          <input class="input input--mono" id="fg-text" spellcheck="false" autocomplete="off" placeholder="#858585, rgb(133 133 133), hsl(0 0% 52%)">
+          <div id="fg-err"></div>
+          <div class="cc__formats">
+            <div class="row"><span class="cc__formats-k">Hex</span><input class="input input--mono cc__formats-v" id="fg-hex" readonly aria-label="Foreground as hex"><button class="btn btn--sm" data-copy="#fg-hex">Copy</button></div>
+            <div class="row"><span class="cc__formats-k">RGB</span><input class="input input--mono cc__formats-v" id="fg-rgb" readonly aria-label="Foreground as rgb"><button class="btn btn--sm" data-copy="#fg-rgb">Copy</button></div>
+            <div class="row"><span class="cc__formats-k">HSL</span><input class="input input--mono cc__formats-v" id="fg-hsl" readonly aria-label="Foreground as hsl"><button class="btn btn--sm" data-copy="#fg-hsl">Copy</button></div>
+          </div>
+        </div>
+
+        <div class="cc__side" data-role="bg">
+          <div class="row row--between">
+            <label class="label" style="margin-bottom:0" for="bg-text">Background</label>
+            <input type="color" id="bg-picker" aria-label="Background colour picker" value="#ffffff">
+          </div>
+          <label class="sr-only" for="bg-text">Background colour value — hex, rgb() or hsl()</label>
+          <input class="input input--mono" id="bg-text" spellcheck="false" autocomplete="off" placeholder="#ffffff, rgb(255 255 255), hsl(0 0% 100%)">
+          <div id="bg-err"></div>
+          <div class="cc__formats">
+            <div class="row"><span class="cc__formats-k">Hex</span><input class="input input--mono cc__formats-v" id="bg-hex" readonly aria-label="Background as hex"><button class="btn btn--sm" data-copy="#bg-hex">Copy</button></div>
+            <div class="row"><span class="cc__formats-k">RGB</span><input class="input input--mono cc__formats-v" id="bg-rgb" readonly aria-label="Background as rgb"><button class="btn btn--sm" data-copy="#bg-rgb">Copy</button></div>
+            <div class="row"><span class="cc__formats-k">HSL</span><input class="input input--mono cc__formats-v" id="bg-hsl" readonly aria-label="Background as hsl"><button class="btn btn--sm" data-copy="#bg-hsl">Copy</button></div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel__title">Result</h2>
+      <div class="row cc__result-top">
+        <div class="cc__ratio">
+          <span class="cc__ratio-n" id="ratio-n">—</span>
+          <span class="cc__ratio-u">: 1</span>
+        </div>
+        <div class="row">
+          <button class="btn btn--sm" id="swap" title="Swap foreground and background">⇄ Swap colours</button>
+          <button class="btn btn--sm btn--primary" id="suggest">Suggest an AA fix</button>
+        </div>
+      </div>
+      <div class="cc__badges" id="badges"></div>
+      <div id="suggest-note" style="margin-top:12px"></div>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel__title">Live preview</h2>
+      <div class="cc__preview" id="preview"></div>
+    </section>
+
+  </div>
+
+  <footer class="foot">
+    <a href="../../index.html">← All tools</a>
+    <span>·</span>
+    <span>Runs entirely in your browser</span>
+  </footer>
+
+</main>
+
+<script src="../../assets/js/bench.js" defer></script>
+<script defer>
+document.addEventListener("DOMContentLoaded", function () {
+  "use strict";
+  var $ = Bench.$, esc = Bench.esc;
+
+  /* --- colour parsing -------------------------------------------------------
+     Rather than hand-roll a hex/rgb()/hsl() grammar (and inevitably miss a
+     case), we hand the string to the browser's own CSS colour parser: set it
+     as an element's `color`, then read back the computed `rgb()` triple. This
+     accepts hex (3/4/6/8 digit), rgb()/rgba(), hsl()/hsla(), and named CSS
+     colours — a strict superset of what the brief asks for — with zero risk
+     of our regex disagreeing with what the browser actually renders. */
+
+  var probe = Bench.el("span", {
+    style: "position:absolute;width:0;height:0;overflow:hidden;opacity:0;pointer-events:none;"
+  });
+  document.body.appendChild(probe);
+
+  function parseColor(str) {
+    str = (str || "").trim();
+    if (!str) return null;
+    probe.style.color = "";
+    probe.style.color = str;
+    if (!probe.style.color) return null; // browser rejected the value outright
+    var m = /rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/.exec(getComputedStyle(probe).color);
+    if (!m) return null;
+    return { r: parseFloat(m[1]), g: parseFloat(m[2]), b: parseFloat(m[3]) };
+  }
+
+  /* --- colour conversion ----------------------------------------------------- */
+
+  function clamp8(n) { return Math.max(0, Math.min(255, Math.round(n))); }
+
+  function toHexByte(n) {
+    var h = clamp8(n).toString(16);
+    return h.length < 2 ? "0" + h : h;
+  }
+
+  function rgbToHex(rgb) { return "#" + toHexByte(rgb.r) + toHexByte(rgb.g) + toHexByte(rgb.b); }
+  function rgbToRgbStr(rgb) { return "rgb(" + clamp8(rgb.r) + ", " + clamp8(rgb.g) + ", " + clamp8(rgb.b) + ")"; }
+
+  function rgbToHsl(rgb) {
+    var r = rgb.r / 255, g = rgb.g / 255, b = rgb.b / 255;
+    var max = Math.max(r, g, b), min = Math.min(r, g, b);
+    var h = 0, s = 0, l = (max + min) / 2;
+    if (max !== min) {
+      var d = max - min;
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      switch (max) {
+        case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+        case g: h = (b - r) / d + 2; break;
+        default: h = (r - g) / d + 4;
+      }
+      h /= 6;
+    }
+    return { h: h * 360, s: s * 100, l: l * 100 };
+  }
+
+  function rgbToHslStr(rgb) {
+    var h = rgbToHsl(rgb);
+    return "hsl(" + Math.round(h.h) + ", " + Math.round(h.s) + "%, " + Math.round(h.l) + "%)";
+  }
+
+  function hue2rgb(p, q, t) {
+    if (t < 0) t += 1;
+    if (t > 1) t -= 1;
+    if (t < 1 / 6) return p + (q - p) * 6 * t;
+    if (t < 1 / 2) return q;
+    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+    return p;
+  }
+
+  function hslToRgb(hsl) {
+    var h = (((hsl.h % 360) + 360) % 360) / 360, s = hsl.s / 100, l = hsl.l / 100;
+    if (s === 0) return { r: l * 255, g: l * 255, b: l * 255 };
+    var q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    var p = 2 * l - q;
+    return {
+      r: hue2rgb(p, q, h + 1 / 3) * 255,
+      g: hue2rgb(p, q, h) * 255,
+      b: hue2rgb(p, q, h - 1 / 3) * 255
+    };
+  }
+
+  /* --- WCAG 2.1 contrast ------------------------------------------------------
+     Relative luminance requires linearising each sRGB channel first: below the
+     0.03928 threshold it's a straight division, above it a 2.4-gamma curve.
+     A naive (R+G+B)/3 average is NOT this — it ignores both the gamma curve
+     and the fact that green contributes far more perceived luminance than
+     blue, and would misjudge many real pairs. */
+
+  function linearize(c8) {
+    var s = c8 / 255;
+    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+  }
+
+  function relLuminance(rgb) {
+    return 0.2126 * linearize(rgb.r) + 0.7152 * linearize(rgb.g) + 0.0722 * linearize(rgb.b);
+  }
+
+  function contrastRatio(a, b) {
+    var l1 = relLuminance(a), l2 = relLuminance(b);
+    if (l1 < l2) { var t = l1; l1 = l2; l2 = t; }
+    return (l1 + 0.05) / (l2 + 0.05);
+  }
+
+  var CRITERIA = [
+    { label: "AA — normal text", min: 4.5 },
+    { label: "AA — large text", min: 3.0 },
+    { label: "AAA — normal text", min: 7.0 },
+    { label: "AAA — large text", min: 4.5 },
+    { label: "UI components & graphics", min: 3.0 }
+  ];
+
+  var SAMPLES = [
+    { px: 14, weight: 400, large: false },
+    { px: 16, weight: 400, large: false },
+    { px: 24, weight: 400, large: true },
+    { px: 19, weight: 700, large: true },
+    { px: 32, weight: 700, large: true }
+  ];
+
+  /* --- state ------------------------------------------------------------------
+     `fg`/`bg` hold the last successfully parsed colour. Bad text input shows an
+     error but never blanks these, so the ratio, badges and preview always
+     reflect the last valid pair. */
+
+  var fg = { r: 0x85, g: 0x85, b: 0x85 };
+  var bg = { r: 0xff, g: 0xff, b: 0xff };
+
+  var fgPicker = $("#fg-picker"), fgText = $("#fg-text"), fgErr = $("#fg-err");
+  var bgPicker = $("#bg-picker"), bgText = $("#bg-text"), bgErr = $("#bg-err");
+
+  // Updates everything derived from fg/bg *except* the free-text inputs —
+  // those are only overwritten when the change came from somewhere else
+  // (the picker, swap, apply-suggestion), never while the text field itself
+  // is the thing the user is mid-typing into.
+  function syncDerived(rgb, picker, hexOut, rgbOut, hslOut) {
+    var hex = rgbToHex(rgb);
+    picker.value = hex;
+    hexOut.value = hex;
+    rgbOut.value = rgbToRgbStr(rgb);
+    hslOut.value = rgbToHslStr(rgb);
+  }
+
+  function render() {
+    syncDerived(fg, fgPicker, $("#fg-hex"), $("#fg-rgb"), $("#fg-hsl"));
+    syncDerived(bg, bgPicker, $("#bg-hex"), $("#bg-rgb"), $("#bg-hsl"));
+
+    var ratio = contrastRatio(fg, bg);
+    $("#ratio-n").textContent = ratio.toFixed(2);
+
+    $("#badges").innerHTML = CRITERIA.map(function (c) {
+      var pass = ratio >= c.min;
+      return '<div class="note ' + (pass ? "note--ok" : "note--bad") + '">'
+        + '<span class="note__mark">' + (pass ? "✓" : "✕") + "</span>"
+        + "<span><b>" + esc(c.label) + "</b> — needs " + c.min.toFixed(1) + ":1 — "
+        + (pass ? "pass" : "fail") + "</span></div>";
+    }).join("");
+
+    var bgCss = rgbToRgbStr(bg), fgCss = rgbToRgbStr(fg);
+    var preview = $("#preview");
+    preview.style.background = bgCss;
+    preview.style.color = fgCss;
+    preview.innerHTML = SAMPLES.map(function (s) {
+      var need = s.large ? 3.0 : 4.5;
+      var pass = ratio >= need;
+      return '<div class="cc__sample">'
+        + '<span class="cc__sample-text" style="font-size:' + s.px + 'px;font-weight:' + s.weight + '">'
+        + "The quick brown fox jumps over the lazy dog.</span>"
+        + '<span class="cc__sample-tag ' + (pass ? "is-ok" : "is-bad") + '">'
+        + s.px + "px " + (s.weight === 700 ? "bold" : "regular") + " · "
+        + (s.large ? "large text" : "normal text") + " · AA " + (pass ? "pass" : "fail")
+        + "</span></div>";
+    }).join("");
+
+    // Clear a stale suggestion once the pair itself has changed underneath it.
+    $("#suggest-note").innerHTML = "";
+  }
+
+  /* --- editing --------------------------------------------------------------- */
+
+  function wireSide(picker, text, err, setter) {
+    picker.addEventListener("input", function () {
+      var c = parseColor(picker.value);
+      if (c) { setter(c); text.value = picker.value; err.innerHTML = ""; render(); }
+    });
+
+    Bench.live(text, Bench.debounce(function () {
+      var v = text.value.trim();
+      if (!v) { err.innerHTML = ""; return; }
+      var c = parseColor(v);
+      if (c) {
+        err.innerHTML = "";
+        setter(c);
+        render();
+      } else {
+        err.innerHTML = '<div class="note note--bad cc__err"><span class="note__mark">✕</span>'
+          + "<span>Not a colour Bench recognises. Try a hex code (#858585), "
+          + "an rgb() value (rgb(133 133 133)) or an hsl() value (hsl(0 0% 52%)).</span></div>";
+      }
+    }, 200));
+  }
+
+  wireSide(fgPicker, fgText, fgErr, function (c) { fg = c; });
+  wireSide(bgPicker, bgText, bgErr, function (c) { bg = c; });
+
+  $("#swap").addEventListener("click", function () {
+    var t = fg; fg = bg; bg = t;
+    fgText.value = rgbToHex(fg);
+    bgText.value = rgbToHex(bg);
+    fgErr.innerHTML = ""; bgErr.innerHTML = "";
+    render();
+  });
+
+  /* --- suggest a fix ----------------------------------------------------------
+     Walk the foreground's HSL lightness away from its current value, one
+     percentage point at a time in both directions, until AA-normal (4.5:1) is
+     met. Report whichever direction got there first — that's the nearest
+     passing colour on this hue/saturation line. */
+
+  function suggestFix() {
+    var target = 4.5;
+    if (contrastRatio(fg, bg) >= target) return { already: true };
+
+    var hsl = rgbToHsl(fg);
+    var l0 = Math.round(hsl.l);
+
+    function passesAt(l) {
+      return contrastRatio(hslToRgb({ h: hsl.h, s: hsl.s, l: l }), bg) >= target;
+    }
+
+    var darker = null, lighter = null;
+    for (var d = l0; d >= 0; d--) { if (passesAt(d)) { darker = d; break; } }
+    for (var u = l0; u <= 100; u++) { if (passesAt(u)) { lighter = u; break; } }
+
+    var chosenL = null;
+    if (darker !== null && lighter !== null) {
+      chosenL = (l0 - darker <= lighter - l0) ? darker : lighter;
+    } else if (darker !== null) chosenL = darker;
+    else if (lighter !== null) chosenL = lighter;
+
+    if (chosenL === null) return { none: true };
+    return { rgb: hslToRgb({ h: hsl.h, s: hsl.s, l: chosenL }) };
+  }
+
+  $("#suggest").addEventListener("click", function () {
+    var result = suggestFix();
+    var note = $("#suggest-note");
+
+    if (result.already) {
+      note.innerHTML = '<div class="note note--ok"><span class="note__mark">✓</span>'
+        + "<span>This pair already passes AA for normal text (" + contrastRatio(fg, bg).toFixed(2) + ":1). Nothing to fix.</span></div>";
+      return;
+    }
+    if (result.none) {
+      note.innerHTML = '<div class="note note--bad"><span class="note__mark">✕</span>'
+        + "<span>No lightness on this hue reaches 4.5:1 against this background — try changing the background too.</span></div>";
+      return;
+    }
+
+    var hex = rgbToHex(result.rgb);
+    var newRatio = contrastRatio(result.rgb, bg);
+    note.innerHTML = '<div class="note note--ok"><span class="note__mark">✓</span><span>'
+      + '<span class="cc__swatch" style="background:' + rgbToRgbStr(result.rgb) + '"></span>'
+      + "Nearest passing foreground: <b class=\"mono\">" + esc(hex) + "</b> — " + newRatio.toFixed(2) + ":1. "
+      + '<button class="btn btn--sm" id="apply-suggest" type="button" style="margin-left:8px">Apply this colour</button>'
+      + "</span></div>";
+
+    $("#apply-suggest").addEventListener("click", function () {
+      fg = result.rgb;
+      fgText.value = rgbToHex(fg);
+      fgErr.innerHTML = "";
+      note.innerHTML = "";
+      render();
+    });
+  });
+
+  /* --- boot -------------------------------------------------------------------- */
+
+  fgText.value = rgbToHex(fg);
+  bgText.value = rgbToHex(bg);
+  render();
+});
+</script>
+
+</body>
+</html>

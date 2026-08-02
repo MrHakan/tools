@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Timestamp Converter — Bench</title>
+<meta name="description" content="Turn Unix timestamps into readable dates and back, in any time zone.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/css/bench.css">
+<style>
+  /* Two big ticking readouts at the top of the page. */
+  .tsc__now { min-width: 190px; }
+  .tsc__nowval { font-size: 1.3rem; font-weight: 500; letter-spacing: -0.01em; }
+
+  /* Key/value table used for the timestamp -> date breakdown: a row header
+     column (th) reads like a label, not a sortable column head. */
+  .tsc__facts th { width: 1%; white-space: nowrap; position: static; }
+  .tsc__facts td { width: 100%; }
+
+  .tsc__zoneval { margin-top: 8px; font-size: 13px; color: var(--steel); }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__home" href="../../index.html"><span class="topbar__mark">▚</span> bench</a>
+  <span class="topbar__sep">/</span>
+  <span class="topbar__here">Timestamp Converter</span>
+  <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
+</header>
+
+<main class="wrap">
+
+  <div class="toolhead">
+    <p class="toolhead__spec mono">1754092800</p>
+    <h1 class="toolhead__title">Timestamp Converter</h1>
+    <p class="toolhead__desc">Turn Unix timestamps into readable dates and back, in any time zone.</p>
+  </div>
+
+  <div class="stack">
+
+    <section class="panel">
+      <h2 class="panel__title">Right now</h2>
+      <div class="row" style="gap:32px">
+        <div class="tsc__now">
+          <div class="label">Seconds</div>
+          <div class="row">
+            <span class="mono tsc__nowval" id="now-s">—</span>
+            <button class="btn btn--sm" data-copy="#now-s">Copy</button>
+          </div>
+        </div>
+        <div class="tsc__now">
+          <div class="label">Milliseconds</div>
+          <div class="row">
+            <span class="mono tsc__nowval" id="now-ms">—</span>
+            <button class="btn btn--sm" data-copy="#now-ms">Copy</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="split">
+
+      <section class="panel">
+        <h2 class="panel__title">Timestamp → date</h2>
+
+        <div class="field">
+          <label class="label" for="ts-input">Unix timestamp</label>
+          <div class="row">
+            <input class="input input--mono grow" id="ts-input" inputmode="numeric" autocomplete="off" spellcheck="false">
+            <button class="btn btn--sm" id="ts-now" type="button">Now</button>
+            <button class="btn btn--sm" id="ts-sample" type="button">Sample</button>
+          </div>
+        </div>
+        <div id="ts-note" style="margin-bottom:14px"></div>
+
+        <div class="tablewrap">
+          <table class="table tsc__facts">
+            <tbody>
+              <tr><th>ISO 8601</th><td class="mono" id="r-iso"></td></tr>
+              <tr><th>UTC</th><td class="mono" id="r-utc"></td></tr>
+              <tr><th>Local</th><td id="r-local"></td></tr>
+              <tr><th>RFC 2822</th><td class="mono" id="r-rfc"></td></tr>
+              <tr><th>Relative</th><td id="r-rel"></td></tr>
+              <tr><th>Day of week</th><td id="r-dow"></td></tr>
+              <tr><th>Day of year</th><td id="r-doy"></td></tr>
+              <tr><th>ISO week</th><td id="r-week"></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <button class="btn btn--sm" data-copy="#r-iso">Copy ISO 8601</button>
+        </div>
+
+        <div class="field" style="margin-top:18px">
+          <label class="label" for="tz-select">Same instant in time zone</label>
+          <select class="select" id="tz-select"></select>
+          <p class="mono tsc__zoneval" id="r-zone"></p>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2 class="panel__title">Date → timestamp</h2>
+
+        <div class="field">
+          <label class="label" for="dt-input">Pick a date &amp; time (this device's local zone)</label>
+          <input class="input" type="datetime-local" id="dt-input" step="1">
+        </div>
+
+        <div class="field">
+          <label class="label" for="free-input">Or type a date</label>
+          <div class="row">
+            <input class="input grow" id="free-input" placeholder='e.g. "5 January 2024, 3pm"' autocomplete="off" spellcheck="false">
+            <button class="btn btn--sm" id="free-parse" type="button">Parse</button>
+          </div>
+          <div id="free-note" style="margin-top:10px"></div>
+        </div>
+
+        <div class="stats" style="margin-top:16px">
+          <div class="stat">
+            <span class="stat__n mono" id="out-s">0</span>
+            <span class="stat__k">Seconds</span>
+          </div>
+          <div class="stat">
+            <span class="stat__n mono" id="out-ms">0</span>
+            <span class="stat__k">Milliseconds</span>
+          </div>
+        </div>
+        <div class="row" style="margin-top:12px">
+          <button class="btn btn--sm" data-copy="#out-s">Copy seconds</button>
+          <button class="btn btn--sm" data-copy="#out-ms">Copy milliseconds</button>
+        </div>
+      </section>
+
+    </div>
+
+    <section class="panel">
+      <h2 class="panel__title">Reference points</h2>
+      <div class="tablewrap">
+        <table class="table">
+          <thead><tr><th>Event</th><th>Timestamp (s)</th><th>UTC date</th><th></th></tr></thead>
+          <tbody id="ref-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+  </div>
+
+  <footer class="foot">
+    <a href="../../index.html">← All tools</a>
+    <span>·</span>
+    <span>Runs entirely in your browser</span>
+  </footer>
+
+</main>
+
+<script src="../../assets/js/bench.js" defer></script>
+<script defer>
+document.addEventListener("DOMContentLoaded", function () {
+  "use strict";
+  var $ = Bench.$, esc = Bench.esc, el = Bench.el;
+
+  var tsInput = $("#ts-input"), tsNote = $("#ts-note");
+  var dtInput = $("#dt-input");
+  var freeInput = $("#free-input"), freeNote = $("#free-note");
+  var tzSelect = $("#tz-select");
+  var refBody = $("#ref-body");
+
+  // The one thing every part of this page reads from or writes to: the
+  // instant currently being examined. Whichever input last changed it wins;
+  // every output re-renders from here.
+  var current = new Date();
+
+  var FALLBACK_ZONES = [
+    "UTC", "America/New_York", "America/Chicago", "America/Denver",
+    "America/Los_Angeles", "America/Anchorage", "America/Sao_Paulo",
+    "America/Mexico_City", "America/Toronto", "Europe/London", "Europe/Paris",
+    "Europe/Berlin", "Europe/Madrid", "Europe/Moscow", "Africa/Cairo",
+    "Africa/Johannesburg", "Africa/Lagos", "Asia/Istanbul", "Asia/Dubai",
+    "Asia/Karachi", "Asia/Kolkata", "Asia/Dhaka", "Asia/Bangkok",
+    "Asia/Shanghai", "Asia/Tokyo", "Asia/Seoul", "Asia/Singapore",
+    "Australia/Sydney", "Australia/Perth", "Pacific/Auckland", "Pacific/Honolulu"
+  ];
+
+  function pad(n, w) {
+    n = String(Math.trunc(Math.abs(n)));
+    w = w || 2;
+    while (n.length < w) n = "0" + n;
+    return n;
+  }
+
+  /* --- detecting the unit of a typed timestamp ----------------------------- */
+
+  function parseTimestampRaw(raw) {
+    raw = String(raw).trim();
+    if (!raw) return { empty: true };
+    if (!/^[+-]?\d+(\.\d+)?$/.test(raw)) {
+      return { error: "Enter a whole number of seconds, milliseconds or microseconds since the epoch." };
+    }
+    var value = Number(raw);
+    if (!isFinite(value)) return { error: "That number is out of range." };
+
+    var absVal = Math.abs(value);
+    var digits = String(Math.trunc(absVal)).length;
+    var unit, ms;
+    // ~10 digits today for seconds, ~13 for milliseconds, ~16 for microseconds.
+    // Cutoffs sit between those bands so ordinary timestamps land cleanly.
+    if (absVal < 1e11) { unit = "seconds"; ms = value * 1000; }
+    else if (absVal < 1e14) { unit = "milliseconds"; ms = value; }
+    else { unit = "microseconds"; ms = value / 1000; }
+
+    var date = new Date(ms);
+    if (isNaN(date.getTime())) {
+      return { error: "That timestamp is outside the range JavaScript dates can represent." };
+    }
+    return { date: date, unit: unit, digits: digits };
+  }
+
+  /* --- date maths ----------------------------------------------------------- */
+
+  function isLeap(y) { return (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0; }
+
+  function dayOfYear(d) {
+    var start = new Date(d.getFullYear(), 0, 1);
+    var today = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    return Math.round((today - start) / 86400000) + 1;
+  }
+
+  // Standard ISO 8601 week: weeks start Monday; week 1 holds the year's first Thursday.
+  function isoWeek(d) {
+    var date = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    var dow = (date.getDay() + 6) % 7;
+    date.setDate(date.getDate() - dow + 3);
+    var firstThu = new Date(date.getFullYear(), 0, 4);
+    var firstDow = (firstThu.getDay() + 6) % 7;
+    firstThu.setDate(firstThu.getDate() - firstDow + 3);
+    var week = 1 + Math.round((date - firstThu) / (7 * 86400000));
+    return { week: week, year: date.getFullYear() };
+  }
+
+  function toRFC2822(d) {
+    var days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    var months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    var off = -d.getTimezoneOffset();
+    var sign = off >= 0 ? "+" : "-";
+    return days[d.getDay()] + ", " + pad(d.getDate()) + " " + months[d.getMonth()] + " " + d.getFullYear()
+      + " " + pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds())
+      + " " + sign + pad(Math.floor(Math.abs(off) / 60)) + pad(Math.abs(off) % 60);
+  }
+
+  function formatLocal(d) {
+    try { return d.toLocaleString(undefined, { dateStyle: "full", timeStyle: "long" }); }
+    catch (e) { return d.toString(); }
+  }
+
+  // "3 days ago" / "in 5 hours" — the classic divide-by-unit walk, past MDN's
+  // own example for Intl.RelativeTimeFormat. Falls back to plain English if
+  // the runtime lacks the API.
+  function relative(target) {
+    var seconds = (target.getTime() - Date.now()) / 1000;
+    var divisions = [
+      { amount: 60, unit: "second" }, { amount: 60, unit: "minute" },
+      { amount: 24, unit: "hour" }, { amount: 7, unit: "day" },
+      { amount: 4.34524, unit: "week" }, { amount: 12, unit: "month" },
+      { amount: Infinity, unit: "year" }
+    ];
+    var duration = seconds;
+    for (var i = 0; i < divisions.length; i++) {
+      if (Math.abs(duration) < divisions[i].amount) {
+        var rounded = Math.round(duration);
+        if (global_rtf) return global_rtf.format(rounded, divisions[i].unit);
+        var abs = Math.abs(rounded), u = divisions[i].unit + (abs === 1 ? "" : "s");
+        return rounded === 0 ? "just now" : rounded < 0 ? abs + " " + u + " ago" : "in " + abs + " " + u;
+      }
+      duration /= divisions[i].amount;
+    }
+    return "";
+  }
+  var global_rtf = (typeof Intl !== "undefined" && Intl.RelativeTimeFormat)
+    ? new Intl.RelativeTimeFormat(undefined, { numeric: "auto" }) : null;
+
+  function toDatetimeLocalValue(d) {
+    return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate())
+      + "T" + pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds());
+  }
+
+  /* --- time zones ------------------------------------------------------------ */
+
+  var deviceZone = "UTC";
+  try { deviceZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"; } catch (e) {}
+
+  function buildZoneOptions() {
+    var zones = null;
+    try {
+      if (typeof Intl.supportedValuesOf === "function") zones = Intl.supportedValuesOf("timeZone");
+    } catch (e) { zones = null; }
+    if (!zones || !zones.length) zones = FALLBACK_ZONES.slice();
+    if (zones.indexOf(deviceZone) === -1) zones = zones.concat([deviceZone]);
+    if (zones.indexOf("UTC") === -1) zones = ["UTC"].concat(zones);
+    zones = zones.slice().sort();
+
+    tzSelect.innerHTML = "";
+    zones.forEach(function (z) {
+      tzSelect.appendChild(el("option", { value: z, text: z.replace(/_/g, " ") }));
+    });
+    tzSelect.value = deviceZone;
+  }
+
+  function renderZone() {
+    var zone = tzSelect.value || "UTC";
+    var text;
+    try {
+      text = new Intl.DateTimeFormat(undefined, { dateStyle: "full", timeStyle: "long", timeZone: zone }).format(current);
+    } catch (e) {
+      text = "This browser could not render that time zone.";
+    }
+    $("#r-zone").textContent = text;
+  }
+
+  /* --- rendering -------------------------------------------------------------
+     `source` names whichever control just changed `current`, so we never
+     overwrite the field a person is actively typing into. */
+
+  function resetFreeNote() {
+    freeNote.innerHTML = '<div class="note note--info"><span class="note__mark">i</span><span>'
+      + 'Type a date and time, then press Parse — e.g. "2024-01-05T15:00" or "5 January 2024, 3pm".</span></div>';
+  }
+
+  function renderAll(source) {
+    var ms = current.getTime();
+
+    if (source !== "ts") {
+      tsInput.value = String(Math.round(ms / 1000));
+      tsNote.innerHTML = '<div class="note note--info"><span class="note__mark">i</span><span>Showing whole seconds since the epoch.</span></div>';
+    }
+    if (source !== "dt" && document.activeElement !== dtInput) {
+      dtInput.value = toDatetimeLocalValue(current);
+    }
+
+    $("#r-iso").textContent = current.toISOString();
+    $("#r-utc").textContent = current.toUTCString();
+    $("#r-local").textContent = formatLocal(current);
+    $("#r-rfc").textContent = toRFC2822(current);
+    $("#r-rel").textContent = relative(current);
+    $("#r-dow").textContent = current.toLocaleDateString(undefined, { weekday: "long" });
+    $("#r-doy").textContent = dayOfYear(current) + " of " + (isLeap(current.getFullYear()) ? 366 : 365);
+    var iw = isoWeek(current);
+    $("#r-week").textContent = "Week " + iw.week + ", " + iw.year;
+
+    renderZone();
+
+    $("#out-s").textContent = String(Math.round(ms / 1000));
+    $("#out-ms").textContent = String(Math.round(ms));
+  }
+
+  /* --- input handlers --------------------------------------------------------- */
+
+  function onTsInput() {
+    var result = parseTimestampRaw(tsInput.value);
+    if (result.empty) {
+      tsNote.innerHTML = '<div class="note note--info"><span class="note__mark">i</span><span>Enter a Unix timestamp above to decode it.</span></div>';
+      return;
+    }
+    if (result.error) {
+      tsNote.innerHTML = '<div class="note note--bad"><span class="note__mark">✕</span><span>' + esc(result.error) + "</span></div>";
+      return;
+    }
+    current = result.date;
+    tsNote.innerHTML = '<div class="note note--ok"><span class="note__mark">✓</span><span>Detected '
+      + esc(result.unit) + " (" + result.digits + " digits).</span></div>";
+    renderAll("ts");
+  }
+
+  function onDtInput() {
+    var v = dtInput.value;
+    if (!v) return;
+    var d = new Date(v);
+    if (isNaN(d.getTime())) return;
+    current = d;
+    renderAll("dt");
+  }
+
+  function onFreeParse() {
+    var text = freeInput.value.trim();
+    if (!text) { resetFreeNote(); return; }
+    var d = new Date(text);
+    if (isNaN(d.getTime())) {
+      freeNote.innerHTML = '<div class="note note--bad"><span class="note__mark">✕</span><span>'
+        + 'Could not parse that as a date. Try something like "2024-01-05T15:00" or "5 January 2024, 3pm".</span></div>';
+      return;
+    }
+    current = d;
+    freeNote.innerHTML = '<div class="note note--ok"><span class="note__mark">✓</span><span>Parsed as '
+      + esc(formatLocal(d)) + ".</span></div>";
+    renderAll("free");
+  }
+
+  /* --- the ticking "right now" readout ---------------------------------------- */
+
+  function tickNow() {
+    var now = Date.now();
+    $("#now-s").textContent = String(Math.floor(now / 1000));
+    $("#now-ms").textContent = String(now);
+    $("#r-rel").textContent = relative(current);
+  }
+
+  /* --- reference points -------------------------------------------------------- */
+
+  function buildReference() {
+    var thisYear = new Date().getFullYear();
+    var rows = [
+      { label: "Unix epoch", date: new Date(0) },
+      { label: "32-bit signed overflow (“Y2038”)", date: new Date(2147483647 * 1000) },
+      { label: "Start of " + thisYear + " (UTC)", date: new Date(Date.UTC(thisYear, 0, 1)) }
+    ];
+    refBody.innerHTML = "";
+    rows.forEach(function (r) {
+      var loadBtn = el("button", { class: "btn btn--sm", type: "button", text: "Load" });
+      loadBtn.addEventListener("click", function () {
+        tsInput.value = String(Math.round(r.date.getTime() / 1000));
+        onTsInput();
+        tsInput.focus();
+      });
+      refBody.appendChild(el("tr", {}, [
+        el("td", { text: r.label }),
+        el("td", { class: "mono num", text: String(Math.round(r.date.getTime() / 1000)) }),
+        el("td", { class: "mono", text: r.date.toISOString() }),
+        el("td", {}, [loadBtn])
+      ]));
+    });
+  }
+
+  /* --- wiring -------------------------------------------------------------------- */
+
+  buildZoneOptions();
+  buildReference();
+  resetFreeNote();
+
+  tsInput.value = String(Math.floor(Date.now() / 1000));
+  onTsInput();
+  tickNow();
+  setInterval(tickNow, 250);
+
+  tsInput.addEventListener("input", Bench.debounce(onTsInput, 150));
+  dtInput.addEventListener("input", Bench.debounce(onDtInput, 150));
+  dtInput.addEventListener("change", onDtInput);
+  freeInput.addEventListener("input", Bench.debounce(onFreeParse, 350));
+  freeInput.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") { e.preventDefault(); onFreeParse(); }
+  });
+  $("#free-parse").addEventListener("click", onFreeParse);
+  $("#ts-now").addEventListener("click", function () {
+    tsInput.value = String(Math.floor(Date.now() / 1000));
+    onTsInput();
+    tsInput.focus();
+  });
+  $("#ts-sample").addEventListener("click", function () {
+    tsInput.value = "1754092800";
+    onTsInput();
+    tsInput.focus();
+  });
+  tzSelect.addEventListener("change", renderZone);
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SemVer Calculator — Bench</title>
+<meta name="description" content="Bump versions, test ranges and draft the changelog entry.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/css/bench.css">
+<style>
+  /* Page-specific CSS only, prefixed .semver__ */
+  /* JetBrains Mono ligates ">=" and "<=" into single glyphs (>=, <=), which
+     reads as the wrong character in a tool whose whole point is showing
+     comparator operators literally. .mono already disables this; extend it
+     to every mono-set element on this page. */
+  body { font-variant-ligatures: none; }
+  .semver__verdict {
+    display: flex; align-items: center; justify-content: center; gap: 18px;
+    padding: 14px 0 6px;
+  }
+  .semver__vpart { font-family: var(--mono); font-size: 15px; overflow-wrap: anywhere; text-align: center; flex: 1; min-width: 0; }
+  .semver__vsym { font-family: var(--mono); font-size: 26px; font-weight: 700; color: var(--signal); flex: none; }
+  .semver__legend { font-size: 13px; }
+  .semver__legend th, .semver__legend td { white-space: normal; }
+  .semver__legend td.mono, .semver__legend th.mono { white-space: nowrap; }
+  .semver__hint { color: var(--steel); font-size: 13.5px; margin-bottom: 12px; }
+  .semver__idcell { color: var(--steel); }
+  summary.semver__sum { cursor: pointer; font-family: var(--mono); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--steel); }
+  summary.semver__sum:hover { color: var(--signal); }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__home" href="../../index.html"><span class="topbar__mark">▚</span> bench</a>
+  <span class="topbar__sep">/</span>
+  <span class="topbar__here">SemVer Calculator</span>
+  <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
+</header>
+
+<main class="wrap">
+
+  <div class="toolhead">
+    <p class="toolhead__spec mono">1.4.2 → 2.0.0</p>
+    <h1 class="toolhead__title">SemVer Calculator</h1>
+    <p class="toolhead__desc">Bump versions, test ranges and draft the changelog entry.</p>
+  </div>
+
+  <div class="stack">
+
+    <!-- ================= (a) Bumper ================= -->
+    <section class="panel">
+      <h2 class="panel__title">Version bumper</h2>
+      <p class="semver__hint">Enter a version and see every possible bump at once.</p>
+      <div class="row" style="margin-bottom:12px">
+        <div class="field" style="width:200px">
+          <label class="label" for="cur-version">Current version</label>
+          <input class="input input--mono" id="cur-version" value="1.4.2" spellcheck="false">
+        </div>
+        <div class="field" style="width:160px">
+          <label class="label" for="pre-id">Pre-release identifier</label>
+          <input class="input input--mono" id="pre-id" value="alpha" spellcheck="false">
+        </div>
+      </div>
+      <div id="bump-status"></div>
+      <div class="tablewrap" style="margin-top:14px">
+        <table class="table">
+          <thead><tr><th>Bump</th><th>New version</th><th>When to use it</th><th></th></tr></thead>
+          <tbody id="bump-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ================= (b) Comparator ================= -->
+    <section class="panel">
+      <h2 class="panel__title">Compare two versions</h2>
+      <p class="semver__hint">Numeric identifiers compare numerically, alphanumeric identifiers by ASCII, a pre-release always ranks below its release, and build metadata is ignored.</p>
+      <div class="row">
+        <div class="field grow">
+          <label class="label" for="cmp-a">Version A</label>
+          <input class="input input--mono" id="cmp-a" value="1.4.2" spellcheck="false">
+        </div>
+        <button class="btn btn--sm btn--ghost" id="cmp-swap" aria-label="Swap the two versions" style="margin-top:18px">⇄ Swap</button>
+        <div class="field grow">
+          <label class="label" for="cmp-b">Version B</label>
+          <input class="input input--mono" id="cmp-b" value="1.4.2-alpha" spellcheck="false">
+        </div>
+      </div>
+      <div id="cmp-out" style="margin-top:6px"></div>
+    </section>
+
+    <!-- ================= (c) Range tester ================= -->
+    <section class="panel">
+      <h2 class="panel__title">Range tester</h2>
+      <p class="semver__hint">npm-style ranges: <span class="mono">^</span> <span class="mono">~</span> <span class="mono">&gt;=</span> <span class="mono">&gt;</span> <span class="mono">&lt;</span> <span class="mono">&lt;=</span> <span class="mono">=</span>, <span class="mono">x</span>/<span class="mono">*</span> wildcards, hyphen ranges and <span class="mono">||</span> unions.</p>
+      <div class="row">
+        <div class="field grow">
+          <label class="label" for="rt-version">Version</label>
+          <input class="input input--mono" id="rt-version" value="1.4.2" spellcheck="false">
+        </div>
+        <div class="field grow">
+          <label class="label" for="rt-range">Range</label>
+          <input class="input input--mono" id="rt-range" value="^1.4.0" spellcheck="false">
+        </div>
+      </div>
+      <div class="chips" style="margin:4px 0 12px" id="rt-presets">
+        <button class="chip" type="button" data-range="^1.4.0">^1.4.0</button>
+        <button class="chip" type="button" data-range="~1.4.0">~1.4.0</button>
+        <button class="chip" type="button" data-range=">=1.0.0 &lt;2.0.0" data-raw=">=1.0.0 <2.0.0">&gt;=1.0.0 &lt;2.0.0</button>
+        <button class="chip" type="button" data-range="1.4.x">1.4.x</button>
+        <button class="chip" type="button" data-range="1.2.3 - 2.3.4">1.2.3 - 2.3.4</button>
+        <button class="chip" type="button" data-raw="1.2.7 || >=1.2.9 <2.0.0">1.2.7 || &gt;=1.2.9 &lt;2.0.0</button>
+      </div>
+      <div id="rt-out"></div>
+      <details style="margin-top:14px">
+        <summary class="semver__sum">Range syntax reference</summary>
+        <div class="tablewrap semver__legend" style="margin-top:10px">
+          <table class="table">
+            <thead><tr><th class="mono">Syntax</th><th>Meaning</th></tr></thead>
+            <tbody>
+              <tr><td class="mono">^1.2.3</td><td>Compatible: the leftmost non-zero part stays fixed, everything to the right can grow.</td></tr>
+              <tr><td class="mono">~1.2.3</td><td>Approximately: patch can grow, minor and major stay fixed.</td></tr>
+              <tr><td class="mono">1.2.x / 1.2.*</td><td>Any patch release of 1.2.</td></tr>
+              <tr><td class="mono">*</td><td>Any version at all.</td></tr>
+              <tr><td class="mono">&gt;=1.2.3 &lt;2.0.0</td><td>Space-separated comparators are ANDed together.</td></tr>
+              <tr><td class="mono">1.2.3 - 2.3.4</td><td>Inclusive hyphen range.</td></tr>
+              <tr><td class="mono">1.2.7 || &gt;=1.4.0</td><td>Either side of <span class="mono">||</span> can satisfy the range.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </details>
+    </section>
+
+    <!-- ================= (d) Bump wizard + changelog ================= -->
+    <div class="split">
+      <section class="panel">
+        <h2 class="panel__title">Which bump do I need?</h2>
+        <p class="semver__hint">Pick the most significant change in this release. Uses the version from the bumper above.</p>
+        <div class="chips" id="wiz-chips">
+          <button class="chip" type="button" data-wiz="major">Breaking change</button>
+          <button class="chip" type="button" data-wiz="minor">New feature</button>
+          <button class="chip" type="button" data-wiz="patch">Bug fix</button>
+        </div>
+        <div id="wiz-out" style="margin-top:14px"></div>
+      </section>
+
+      <section class="panel">
+        <h2 class="panel__title">Changelog entry</h2>
+        <div class="field">
+          <label class="label" for="cl-kind">Release</label>
+          <select class="select" id="cl-kind">
+            <option value="major">Major</option>
+            <option value="minor" selected>Minor</option>
+            <option value="patch">Patch</option>
+            <option value="premajor">Premajor</option>
+            <option value="preminor">Preminor</option>
+            <option value="prepatch">Prepatch</option>
+            <option value="prerelease">Prerelease</option>
+          </select>
+        </div>
+        <label class="sr-only" for="cl-out">Changelog entry</label>
+        <textarea class="textarea" id="cl-out" style="min-height:250px" spellcheck="false"></textarea>
+        <div class="row" style="margin-top:10px">
+          <button class="btn btn--sm" data-copy="#cl-out">Copy</button>
+          <button class="btn btn--sm" id="cl-download">Download</button>
+        </div>
+      </section>
+    </div>
+
+  </div>
+
+  <footer class="foot">
+    <a href="../../index.html">← All tools</a>
+    <span>·</span>
+    <span>Runs entirely in your browser</span>
+  </footer>
+
+</main>
+
+<script src="../../assets/js/bench.js" defer></script>
+<script defer>
+document.addEventListener("DOMContentLoaded", function () {
+  "use strict";
+  var $ = Bench.$, $$ = Bench.$$, esc = Bench.esc;
+
+  /* ==========================================================================
+     SemVer 2.0.0 core — parsing, precedence, bumping, ranges.
+     The regular expressions below are the grammar published at semver.org
+     (§9 for the full BNF), transcribed directly rather than approximated.
+     ========================================================================== */
+
+  // A leading "v" is not part of the spec, but accepting it is a harmless
+  // convenience most tag-based version strings use ("v1.2.3").
+  var FULL_RE = /^v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/;
+
+  function parseFull(str) {
+    var m = FULL_RE.exec(String(str || "").trim());
+    if (!m) return null;
+    return {
+      major: Number(m[1]), minor: Number(m[2]), patch: Number(m[3]),
+      prerelease: m[4] ? m[4].split(".") : [],
+      build: m[5] ? m[5].split(".") : []
+    };
+  }
+
+  function fmtV(v) {
+    return v.major + "." + v.minor + "." + v.patch + (v.prerelease.length ? "-" + v.prerelease.join(".") : "");
+  }
+
+  /* --- precedence (spec §11) ------------------------------------------------ */
+
+  function cmpIdentifier(a, b) {
+    var an = /^\d+$/.test(a), bn = /^\d+$/.test(b);
+    if (an && bn) { var d = Number(a) - Number(b); return d < 0 ? -1 : d > 0 ? 1 : 0; }
+    if (an && !bn) return -1;  // numeric identifiers always have lower precedence
+    if (!an && bn) return 1;
+    return a < b ? -1 : a > b ? 1 : 0; // ASCII sort order
+  }
+
+  function comparePre(a, b) {
+    if (a.length === 0 && b.length === 0) return 0;
+    if (a.length === 0) return 1;   // a release outranks any pre-release
+    if (b.length === 0) return -1;
+    var len = Math.min(a.length, b.length);
+    for (var i = 0; i < len; i++) {
+      var c = cmpIdentifier(a[i], b[i]);
+      if (c !== 0) return c;
+    }
+    // Equal so far: the pre-release with more fields wins.
+    return a.length === b.length ? 0 : (a.length < b.length ? -1 : 1);
+  }
+
+  function compareVersions(a, b) {
+    if (a.major !== b.major) return a.major < b.major ? -1 : 1;
+    if (a.minor !== b.minor) return a.minor < b.minor ? -1 : 1;
+    if (a.patch !== b.patch) return a.patch < b.patch ? -1 : 1;
+    return comparePre(a.prerelease, b.prerelease); // build metadata never enters precedence
+  }
+
+  /* --- bumping --------------------------------------------------------------
+     Mirrors the widely-used node-semver `inc()` behaviour: a bump on a version
+     that already carries a pre-release of the *same* identifier advances the
+     trailing numeric field; any other bump discards build metadata and any
+     existing pre-release. */
+
+  function bump(v, kind, ident) {
+    var major = v.major, minor = v.minor, patch = v.patch, pre = v.prerelease.slice();
+    ident = ident || "alpha";
+    switch (kind) {
+      case "major":
+        if (minor !== 0 || patch !== 0 || pre.length === 0) major++;
+        minor = 0; patch = 0; pre = [];
+        break;
+      case "minor":
+        if (patch !== 0 || pre.length === 0) minor++;
+        patch = 0; pre = [];
+        break;
+      case "patch":
+        if (pre.length === 0) patch++;
+        pre = [];
+        break;
+      case "premajor":
+        major++; minor = 0; patch = 0; pre = [ident, "0"];
+        break;
+      case "preminor":
+        minor++; patch = 0; pre = [ident, "0"];
+        break;
+      case "prepatch":
+        patch++; pre = [ident, "0"];
+        break;
+      case "prerelease":
+        if (pre.length === 0) { patch++; pre = [ident, "0"]; }
+        else if (pre[0] === ident) {
+          var last = pre[pre.length - 1];
+          if (/^\d+$/.test(last)) pre[pre.length - 1] = String(Number(last) + 1);
+          else pre.push("0");
+        } else { pre = [ident, "0"]; }
+        break;
+    }
+    return { major: major, minor: minor, patch: patch, prerelease: pre, build: [] };
+  }
+
+  var KINDS = [
+    { key: "major", label: "Major", when: "Breaking changes" },
+    { key: "minor", label: "Minor", when: "Backward-compatible feature" },
+    { key: "patch", label: "Patch", when: "Backward-compatible fix" },
+    { key: "premajor", label: "Premajor", when: "Pre-release of the next major" },
+    { key: "preminor", label: "Preminor", when: "Pre-release of the next minor" },
+    { key: "prepatch", label: "Prepatch", when: "Pre-release of the next patch" },
+    { key: "prerelease", label: "Prerelease", when: "Advance a pre-release, or start one from a release" }
+  ];
+
+  /* --- ranges -----------------------------------------------------------------
+     Ports npm's comparator-set algebra: hyphen ranges and `||` unions are
+     desugared first; caret/tilde/X-ranges each expand to a concrete AND-list
+     of >=/< comparators using the exact case split node-semver's
+     replaceCarets/replaceTildes/replaceXRange use. */
+
+  function isX(v) { return v == null || /^[xX*]$/.test(v); }
+
+  var TOKEN_RE = /^(<=|>=|<|>|=|\^|~)?\s*v?(\d+|[xX*])(?:\.(\d+|[xX*]))?(?:\.(\d+|[xX*]))?(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+[0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*)?$/;
+  var HYPHEN_RE = /^\s*(\S+)\s+-\s+(\S+)\s*$/;
+  var PARTIAL_RE = /^v?(\d+|[xX*])(?:\.(\d+|[xX*]))?(?:\.(\d+|[xX*]))?(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?$/;
+
+  function comp(op, M, m, p, pre) {
+    return { op: op, major: M, minor: m, patch: p, prerelease: pre ? pre.split(".") : [] };
+  }
+  function fmt3(M, m, p, pre) { return M + "." + m + "." + p + (pre ? "-" + pre : ""); }
+
+  function expandToken(raw) {
+    var m = TOKEN_RE.exec(raw.trim());
+    if (!m) return null;
+    var op = m[1] || "", M = m[2], mi = m[3], p = m[4], pre = m[5] || "";
+    var xM = isX(M), xm = xM || isX(mi), xp = xm || isX(p);
+    if (op === "=" && xp) op = "";
+
+    if (op === "^") {
+      if (xM) return { any: true, text: "any version" };
+      var Mn = Number(M);
+      if (xm) return { list: [comp(">=", Mn, 0, 0), comp("<", Mn + 1, 0, 0)], text: "any " + Mn + ".x release" };
+      var mn = Number(mi);
+      if (xp) {
+        if (Mn === 0) return { list: [comp(">=", Mn, mn, 0), comp("<", Mn, mn + 1, 0)], text: fmt3(Mn, mn, 0) + " up to but not including " + fmt3(Mn, mn + 1, 0) };
+        return { list: [comp(">=", Mn, mn, 0), comp("<", Mn + 1, 0, 0)], text: fmt3(Mn, mn, 0) + " up to but not including " + fmt3(Mn + 1, 0, 0) };
+      }
+      var pn = Number(p);
+      if (Mn === 0) {
+        if (mn === 0) return { list: [comp(">=", Mn, mn, pn, pre), comp("<", Mn, mn, pn + 1)], text: fmt3(Mn, mn, pn, pre) + " up to but not including " + fmt3(Mn, mn, pn + 1) };
+        return { list: [comp(">=", Mn, mn, pn, pre), comp("<", Mn, mn + 1, 0)], text: fmt3(Mn, mn, pn, pre) + " up to but not including " + fmt3(Mn, mn + 1, 0) };
+      }
+      return { list: [comp(">=", Mn, mn, pn, pre), comp("<", Mn + 1, 0, 0)], text: fmt3(Mn, mn, pn, pre) + " up to but not including " + fmt3(Mn + 1, 0, 0) };
+    }
+
+    if (op === "~") {
+      if (xM) return { any: true, text: "any version" };
+      var Mt = Number(M);
+      if (xm) return { list: [comp(">=", Mt, 0, 0), comp("<", Mt + 1, 0, 0)], text: fmt3(Mt, 0, 0) + " up to but not including " + fmt3(Mt + 1, 0, 0) };
+      var mt = Number(mi);
+      if (xp) return { list: [comp(">=", Mt, mt, 0), comp("<", Mt, mt + 1, 0)], text: fmt3(Mt, mt, 0) + " up to but not including " + fmt3(Mt, mt + 1, 0) };
+      var pt = Number(p);
+      return { list: [comp(">=", Mt, mt, pt, pre), comp("<", Mt, mt + 1, 0)], text: fmt3(Mt, mt, pt, pre) + " up to but not including " + fmt3(Mt, mt + 1, 0) };
+    }
+
+    // Plain comparator or X-range: op is '', '=', '>=', '<=', '>' or '<'.
+    if (xM) {
+      if (op === ">" || op === "<") return { none: true, text: "nothing — this range excludes every version" };
+      return { any: true, text: "any version" };
+    }
+    var Ma = Number(M);
+    if (op && xp) {
+      var ma = xm ? 0 : Number(mi);
+      if (op === ">") {
+        if (xm) return { list: [comp(">=", Ma + 1, 0, 0)], text: fmt3(Ma + 1, 0, 0) + " or later" };
+        return { list: [comp(">=", Ma, ma + 1, 0)], text: fmt3(Ma, ma + 1, 0) + " or later" };
+      }
+      if (op === "<=") {
+        if (xm) return { list: [comp("<", Ma + 1, 0, 0)], text: "up to but not including " + fmt3(Ma + 1, 0, 0) };
+        return { list: [comp("<", Ma, ma + 1, 0)], text: "up to but not including " + fmt3(Ma, ma + 1, 0) };
+      }
+      return { list: [comp(op, Ma, ma, 0)], text: (op === ">=" ? fmt3(Ma, ma, 0) + " or later" : "up to but not including " + fmt3(Ma, ma, 0)) };
+    }
+    if (xm) return { list: [comp(">=", Ma, 0, 0), comp("<", Ma + 1, 0, 0)], text: fmt3(Ma, 0, 0) + " up to but not including " + fmt3(Ma + 1, 0, 0) };
+    if (xp) return { list: [comp(">=", Ma, Number(mi), 0), comp("<", Ma, Number(mi) + 1, 0)], text: fmt3(Ma, Number(mi), 0) + " up to but not including " + fmt3(Ma, Number(mi) + 1, 0) };
+
+    var pf = Number(p), mf = Number(mi);
+    var word = op === ">" ? "later than " + fmt3(Ma, mf, pf, pre)
+      : op === ">=" ? fmt3(Ma, mf, pf, pre) + " or later"
+      : op === "<" ? "earlier than " + fmt3(Ma, mf, pf, pre)
+      : op === "<=" ? fmt3(Ma, mf, pf, pre) + " or earlier"
+      : "exactly " + fmt3(Ma, mf, pf, pre);
+    return { list: [comp(op || "=", Ma, mf, pf, pre)], text: word };
+  }
+
+  function expandHyphen(a, b) {
+    var pa = PARTIAL_RE.exec(a.trim()), pb = PARTIAL_RE.exec(b.trim());
+    if (!pa || !pb) return null;
+    var loM = Number(isX(pa[1]) ? 0 : pa[1]), lom = isX(pa[2]) ? 0 : Number(pa[2]), lop = isX(pa[3]) ? 0 : Number(pa[3]);
+    var lower = comp(">=", loM, lom, lop, pa[4] || "");
+    var upper;
+    if (isX(pb[1])) upper = null;
+    else if (isX(pb[2])) upper = comp("<", Number(pb[1]) + 1, 0, 0);
+    else if (isX(pb[3])) upper = comp("<", Number(pb[1]), Number(pb[2]) + 1, 0);
+    else upper = comp("<=", Number(pb[1]), Number(pb[2]), Number(pb[3]), pb[4] || "");
+    var list = upper ? [lower, upper] : [lower];
+    var text = fmt3(loM, lom, lop, pa[4]) + " up to " +
+      (upper && upper.op === "<=" ? "and including " + fmt3(upper.major, upper.minor, upper.patch, pb[4]) : "but not including " + (upper ? fmt3(upper.major, upper.minor, upper.patch) : "anything"));
+    return { list: list, text: text };
+  }
+
+  function parseRange(rangeStr) {
+    var orParts = String(rangeStr || "").split("||");
+    var sets = [], phrases = [];
+    for (var i = 0; i < orParts.length; i++) {
+      var part = orParts[i].trim();
+      if (!part) { sets.push({ any: true }); phrases.push("any version"); continue; }
+      var hy = HYPHEN_RE.exec(part);
+      if (hy) {
+        var expanded = expandHyphen(hy[1], hy[2]);
+        if (!expanded) return { invalid: true, bad: part };
+        sets.push(expanded); phrases.push(expanded.text);
+        continue;
+      }
+      var tokens = part.split(/\s+/).filter(Boolean);
+      var list = [], none = false, tphrases = [];
+      for (var j = 0; j < tokens.length; j++) {
+        var ex = expandToken(tokens[j]);
+        if (!ex) return { invalid: true, bad: tokens[j] };
+        if (ex.none) none = true;
+        if (ex.list) list = list.concat(ex.list);
+        tphrases.push(ex.text);
+      }
+      sets.push({ list: list, none: none });
+      phrases.push(tphrases.join(" and "));
+    }
+    return { sets: sets, phrase: phrases.join("; or ") };
+  }
+
+  function testComparator(c, v) {
+    var d = compareVersions(v, { major: c.major, minor: c.minor, patch: c.patch, prerelease: c.prerelease || [] });
+    switch (c.op) {
+      case ">=": return d >= 0;
+      case "<=": return d <= 0;
+      case ">": return d > 0;
+      case "<": return d < 0;
+      default: return d === 0;
+    }
+  }
+
+  function satisfies(v, rangeStr) {
+    var r = parseRange(rangeStr);
+    if (r.invalid) return { error: "Could not parse the range near “" + r.bad + "”" };
+    var results = r.sets.map(function (set) {
+      if (set.any) return true;
+      if (set.none) return false;
+      if (!set.list.every(function (c) { return testComparator(c, v); })) return false;
+      if (v.prerelease.length) {
+        // npm's rule: a pre-release only satisfies a set if some comparator
+        // in that set shares its major.minor.patch and itself carries a
+        // pre-release — otherwise "-next" builds would leak into ordinary
+        // ranges that never asked for pre-releases.
+        return set.list.some(function (c) {
+          return c.prerelease && c.prerelease.length && c.major === v.major && c.minor === v.minor && c.patch === v.patch;
+        });
+      }
+      return true;
+    });
+    return { ok: results.some(Boolean), phrase: r.phrase };
+  }
+
+  /* ==========================================================================
+     UI — bumper
+     ========================================================================== */
+
+  var curVersion = $("#cur-version"), preId = $("#pre-id"), bumpStatus = $("#bump-status"), bumpBody = $("#bump-body");
+  var lastBumpResults = null; // [{key,label,when,version}] for the wizard/changelog panels below
+
+  function renderBumper() {
+    var raw = curVersion.value;
+    var v = parseFull(raw);
+    var ident = (preId.value.trim() || "alpha").replace(/[^0-9A-Za-z-]/g, "") || "alpha";
+
+    if (!raw.trim()) {
+      bumpStatus.innerHTML = '<div class="note note--info">Type a version above, e.g. <span class="mono">1.4.2</span> or <span class="mono">2.0.0-rc.1+build.9</span>.</div>';
+      bumpBody.innerHTML = "";
+      lastBumpResults = null;
+      renderWizard(); renderChangelog();
+      return;
+    }
+    if (!v) {
+      bumpStatus.innerHTML = '<div class="note note--bad"><span class="note__mark">✕</span><span>“' + esc(raw) + '” is not a valid SemVer version. Expected <span class="mono">major.minor.patch</span>, optionally with <span class="mono">-prerelease</span> and/or <span class="mono">+build</span> — e.g. <span class="mono">1.4.2-rc.1+20260101</span>.</span></div>';
+      bumpBody.innerHTML = "";
+      lastBumpResults = null;
+      renderWizard(); renderChangelog();
+      return;
+    }
+
+    var msg = '<div class="note note--ok"><span class="note__mark">✓</span><span>Valid — major ' + v.major + ', minor ' + v.minor + ', patch ' + v.patch
+      + (v.prerelease.length ? ", pre-release <span class=\"mono\">" + esc(v.prerelease.join(".")) + "</span>" : ", no pre-release")
+      + (v.build.length ? ", build metadata <span class=\"mono\">" + esc(v.build.join(".")) + "</span> (dropped on any bump)" : "")
+      + ".</span></div>";
+    bumpStatus.innerHTML = msg;
+
+    lastBumpResults = KINDS.map(function (k) {
+      return { key: k.key, label: k.label, when: k.when, version: fmtV(bump(v, k.key, ident)) };
+    });
+
+    bumpBody.innerHTML = lastBumpResults.map(function (r, i) {
+      return "<tr><td>" + esc(r.label) + "</td><td class=\"mono\">" + esc(r.version) + "</td><td class=\"semver__idcell\">" + esc(r.when)
+        + "</td><td><button class=\"btn btn--sm\" data-copy-row=\"" + i + "\">Copy</button></td></tr>";
+    }).join("");
+
+    renderWizard(); renderChangelog();
+  }
+
+  bumpBody.addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-copy-row]");
+    if (!btn || !lastBumpResults) return;
+    Bench.copy(lastBumpResults[Number(btn.dataset.copyRow)].version, btn);
+  });
+
+  Bench.live(curVersion, Bench.debounce(renderBumper, 120));
+  Bench.live(preId, Bench.debounce(renderBumper, 120));
+
+  /* ==========================================================================
+     UI — comparator
+     ========================================================================== */
+
+  var cmpA = $("#cmp-a"), cmpB = $("#cmp-b"), cmpOut = $("#cmp-out");
+
+  function explainCompare(pa, pb) {
+    if (pa.major !== pb.major) return "The major version differs: " + pa.major + " vs " + pb.major + ".";
+    if (pa.minor !== pb.minor) return "Major is equal; the minor version differs: " + pa.minor + " vs " + pb.minor + ".";
+    if (pa.patch !== pb.patch) return "Major and minor are equal; the patch version differs: " + pa.patch + " vs " + pb.patch + ".";
+    if (pa.prerelease.length === 0 && pb.prerelease.length === 0) return "Identical — same major, minor and patch, neither has a pre-release.";
+    if (pa.prerelease.length === 0 || pb.prerelease.length === 0) return "Same major.minor.patch, but a version without a pre-release always outranks one with a pre-release tag.";
+    var len = Math.min(pa.prerelease.length, pb.prerelease.length);
+    for (var i = 0; i < len; i++) {
+      if (cmpIdentifier(pa.prerelease[i], pb.prerelease[i]) !== 0) {
+        var an = /^\d+$/.test(pa.prerelease[i]), bn = /^\d+$/.test(pb.prerelease[i]);
+        return "Same major.minor.patch; pre-release identifier " + (i + 1) + " differs: “" + esc(pa.prerelease[i]) + "” vs “" + esc(pb.prerelease[i]) + "”"
+          + (an !== bn ? " — a numeric identifier always ranks below an alphanumeric one." : (an && bn ? " (compared numerically)." : " (compared by ASCII order)."));
+      }
+    }
+    return "Same identifiers up to the shorter list — the pre-release with more fields (" + Math.max(pa.prerelease.length, pb.prerelease.length) + " vs " + Math.min(pa.prerelease.length, pb.prerelease.length) + ") ranks higher.";
+  }
+
+  function renderCompare() {
+    var ta = cmpA.value.trim(), tb = cmpB.value.trim();
+    if (!ta || !tb) {
+      cmpOut.innerHTML = '<div class="note note--info">Enter two versions to compare their precedence.</div>';
+      return;
+    }
+    var pa = parseFull(ta), pb = parseFull(tb);
+    if (!pa || !pb) {
+      var bad = !pa ? ta : tb;
+      cmpOut.innerHTML = '<div class="note note--bad"><span class="note__mark">✕</span><span>“' + esc(bad) + '” is not a valid SemVer version.</span></div>';
+      return;
+    }
+    var d = compareVersions(pa, pb);
+    var sym = d < 0 ? "&lt;" : d > 0 ? "&gt;" : "=";
+    cmpOut.innerHTML = '<div class="semver__verdict">'
+      + '<span class="semver__vpart">' + esc(ta) + '</span>'
+      + '<span class="semver__vsym">' + sym + '</span>'
+      + '<span class="semver__vpart">' + esc(tb) + '</span>'
+      + '</div>'
+      + '<div class="note note--' + (d === 0 ? "ok" : "info") + '"><span>' + explainCompare(pa, pb) + '</span></div>';
+  }
+
+  Bench.live(cmpA, Bench.debounce(renderCompare, 120));
+  Bench.live(cmpB, Bench.debounce(renderCompare, 120));
+  $("#cmp-swap").addEventListener("click", function () {
+    var t = cmpA.value; cmpA.value = cmpB.value; cmpB.value = t; renderCompare();
+  });
+
+  /* ==========================================================================
+     UI — range tester
+     ========================================================================== */
+
+  var rtVersion = $("#rt-version"), rtRange = $("#rt-range"), rtOut = $("#rt-out");
+
+  function renderRange() {
+    var vt = rtVersion.value.trim(), rs = rtRange.value.trim();
+    if (!vt || !rs) {
+      rtOut.innerHTML = '<div class="note note--info">Enter a version and a range to test satisfaction.</div>';
+      return;
+    }
+    var v = parseFull(vt);
+    if (!v) {
+      rtOut.innerHTML = '<div class="note note--bad"><span class="note__mark">✕</span><span>“' + esc(vt) + '” is not a valid SemVer version.</span></div>';
+      return;
+    }
+    var r = satisfies(v, rs);
+    if (r.error) {
+      rtOut.innerHTML = '<div class="note note--bad"><span class="note__mark">✕</span><span>' + esc(r.error) + '.</span></div>';
+      return;
+    }
+    rtOut.innerHTML = '<div class="note note--' + (r.ok ? "ok" : "bad") + '"><span class="note__mark">' + (r.ok ? "✓" : "✕") + '</span><span>'
+      + '<span class="mono">' + esc(vt) + '</span> ' + (r.ok ? "satisfies" : "does not satisfy") + ' <span class="mono">' + esc(rs) + '</span>'
+      + '</span></div>'
+      + '<div class="note note--info" style="margin-top:8px"><span><span class="mono">' + esc(rs) + '</span> allows ' + r.phrase + '.</span></div>';
+  }
+
+  Bench.live(rtVersion, Bench.debounce(renderRange, 120));
+  Bench.live(rtRange, Bench.debounce(renderRange, 120));
+
+  $$("#rt-presets [data-range], #rt-presets [data-raw]").forEach(function (chip) {
+    chip.addEventListener("click", function () {
+      rtRange.value = chip.dataset.raw || chip.dataset.range;
+      renderRange();
+    });
+  });
+
+  /* ==========================================================================
+     UI — bump wizard + changelog
+     ========================================================================== */
+
+  var wizOut = $("#wiz-out"), clKind = $("#cl-kind"), clOut = $("#cl-out");
+  var wizChoice = null;
+
+  $$("#wiz-chips [data-wiz]").forEach(function (chip) {
+    chip.addEventListener("click", function () {
+      wizChoice = chip.dataset.wiz;
+      $$("#wiz-chips [data-wiz]").forEach(function (c) { c.classList.toggle("chip--on", c === chip); });
+      clKind.value = wizChoice; // carry the recommendation into the changelog panel
+      renderWizard(); renderChangelog();
+    });
+  });
+
+  function renderWizard() {
+    if (!wizChoice) {
+      wizOut.innerHTML = '<div class="note note--info">Pick an option above to see the recommended bump.</div>';
+      return;
+    }
+    if (!lastBumpResults) {
+      wizOut.innerHTML = '<div class="note note--info">Enter a valid current version above to see the exact release number.</div>';
+      return;
+    }
+    var r = lastBumpResults.filter(function (x) { return x.key === wizChoice; })[0];
+    var label = wizChoice === "major" ? "breaking change" : wizChoice === "minor" ? "new, backward-compatible feature" : "backward-compatible bug fix";
+    wizOut.innerHTML = '<div class="note note--ok"><span class="note__mark">✓</span><span>A ' + label + ' calls for a <b>' + r.label.toLowerCase()
+      + '</b> bump — <span class="mono">' + esc(r.version) + '</span>.</span></div>';
+  }
+
+  function buildChangelog(version, dateStr) {
+    return "## [" + version + "] - " + dateStr + "\n"
+      + "### Added\n- \n\n"
+      + "### Changed\n- \n\n"
+      + "### Deprecated\n- \n\n"
+      + "### Removed\n- \n\n"
+      + "### Fixed\n- \n\n"
+      + "### Security\n- \n";
+  }
+
+  function renderChangelog() {
+    var today = new Date();
+    var dateStr = today.getFullYear() + "-" + String(today.getMonth() + 1).padStart(2, "0") + "-" + String(today.getDate()).padStart(2, "0");
+    var version = "0.0.0";
+    if (lastBumpResults) {
+      var match = lastBumpResults.filter(function (x) { return x.key === clKind.value; })[0];
+      if (match) version = match.version;
+    }
+    clOut.value = buildChangelog(version, dateStr);
+  }
+
+  clKind.addEventListener("change", renderChangelog);
+  $("#cl-download").addEventListener("click", function () {
+    Bench.download("CHANGELOG-entry.md", clOut.value, "text/markdown");
+  });
+
+  /* ==========================================================================
+     Boot
+     ========================================================================== */
+
+  renderBumper();
+  renderCompare();
+  renderRange();
+});
+</script>
+
+</body>
+</html>

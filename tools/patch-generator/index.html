@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Patch Generator — Bench</title>
+<meta name="description" content="Produce a unified diff from two versions of a file, ready for git apply. Runs entirely in your browser.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/css/bench.css">
+<style>
+  /* Page-specific CSS only. Everything is prefixed .pg- (patch-generator). */
+
+  .pg-toolbar { margin-bottom: 14px; }
+  .pg-opts { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--edge); }
+  .pg-ctx { width: 76px; padding: 7px 8px; }
+
+  /* Unified diff colouring: context plain, removed red, added green, hunk
+     headers signal-coloured so they read as landmarks while scanning. */
+  .pg-out .pg-hdr { color: var(--signal); }
+  .pg-out .pg-file { color: var(--ink); font-weight: 500; }
+  .pg-out .pg-add { color: var(--verify); background: var(--verify-soft); display: block; }
+  .pg-out .pg-del { color: var(--fault); background: var(--fault-soft); display: block; }
+  .pg-out .pg-ctxline { color: var(--steel); display: block; }
+  .pg-out .pg-nonl { color: var(--steel); font-style: italic; display: block; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__home" href="../../index.html"><span class="topbar__mark">▚</span> bench</a>
+  <span class="topbar__sep">/</span>
+  <span class="topbar__here">Patch Generator</span>
+  <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
+</header>
+
+<main class="wrap">
+
+  <div class="toolhead">
+    <p class="toolhead__spec mono">@@ -1,4 +1,6 @@</p>
+    <h1 class="toolhead__title">Patch Generator</h1>
+    <p class="toolhead__desc">Produce a unified diff from two versions of a file, ready for <code>git apply</code>. Nothing you paste here leaves the tab.</p>
+  </div>
+
+  <section class="panel">
+    <h2 class="panel__title">Files</h2>
+    <div class="split">
+      <div class="field">
+        <label class="label" for="old-name">Old file path</label>
+        <input class="input input--mono" id="old-name" spellcheck="false" autocomplete="off" value="a/file.txt">
+      </div>
+      <div class="field">
+        <label class="label" for="new-name">New file path</label>
+        <input class="input input--mono" id="new-name" spellcheck="false" autocomplete="off" value="b/file.txt">
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2 class="panel__title">Content</h2>
+    <div class="row pg-toolbar">
+      <button class="btn btn--sm" id="sample">Load sample</button>
+      <button class="btn btn--sm" id="swap">Swap sides</button>
+      <button class="btn btn--sm btn--danger" id="clear">Clear</button>
+    </div>
+
+    <div class="split">
+      <div class="field">
+        <label class="label" for="old">Old content</label>
+        <textarea class="textarea" id="old" spellcheck="false" placeholder="Paste the original file contents"></textarea>
+      </div>
+      <div class="field">
+        <label class="label" for="new">New content</label>
+        <textarea class="textarea" id="new" spellcheck="false" placeholder="Paste the changed file contents"></textarea>
+      </div>
+    </div>
+
+    <div class="row pg-opts">
+      <label class="label" for="ctx" style="margin:0">Context lines</label>
+      <input class="input input--mono pg-ctx" id="ctx" type="number" min="0" max="50" value="3">
+      <label class="check"><input type="checkbox" id="opt-ws"> Ignore whitespace differences</label>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2 class="panel__title">Patch</h2>
+    <div class="row row--between" style="margin-bottom:12px">
+      <span class="note note--info" style="border:0;padding:0;background:transparent"><span>Applies with <code class="mono">git apply</code> or <code class="mono">patch -p1</code>.</span></span>
+      <div class="row">
+        <button class="btn btn--sm" id="copy">Copy</button>
+        <button class="btn btn--sm" id="download">Download .patch</button>
+      </div>
+    </div>
+
+    <div id="warn"></div>
+    <div class="out out--wrap pg-out" id="out"><span class="empty">Paste an old and a new version of a file above to produce a patch.</span></div>
+
+    <div class="stats" id="stats" style="margin-top:12px" hidden>
+      <div class="stat"><span class="stat__n" id="s-hunks">0</span><span class="stat__k">Hunks</span></div>
+      <div class="stat"><span class="stat__n" id="s-add">0</span><span class="stat__k">Lines added</span></div>
+      <div class="stat"><span class="stat__n" id="s-del">0</span><span class="stat__k">Lines removed</span></div>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <a href="../../index.html">← All tools</a>
+    <span>·</span>
+    <span>Runs entirely in your browser</span>
+  </footer>
+
+</main>
+
+<script src="../../assets/js/bench.js" defer></script>
+<script defer>
+document.addEventListener("DOMContentLoaded", function () {
+  "use strict";
+  var $ = Bench.$, esc = Bench.esc;
+
+  /* ==========================================================================
+     Diff engine — Myers O(ND) over line arrays, plus a prefix/suffix trim
+     wrapper that makes the common case (mostly-identical text) fast. Same
+     shape as diff-checker and word-diff; duplicated here on purpose so every
+     tool page stays a single self-contained file.
+     ========================================================================== */
+
+  var MAX_LINES = 8000; // guard against pathological input
+
+  function myers(a, b) {
+    var n = a.length, m = b.length;
+    var max = n + m;
+    if (max === 0) return [];
+
+    var offset = max;
+    var v = new Int32Array(2 * max + 1);
+    v[offset + 1] = 0;
+    var trace = [];
+
+    for (var d = 0; d <= max; d++) {
+      for (var k = -d; k <= d; k += 2) {
+        var x, y;
+        if (k === -d || (k !== d && v[offset + k - 1] < v[offset + k + 1])) {
+          x = v[offset + k + 1];
+        } else {
+          x = v[offset + k - 1] + 1;
+        }
+        y = x - k;
+        while (x < n && y < m && a[x] === b[y]) { x++; y++; }
+        v[offset + k] = x;
+        if (x >= n && y >= m) {
+          trace.push(v.slice());
+          return backtrack(trace, a, b, offset);
+        }
+      }
+      trace.push(v.slice());
+    }
+    return backtrack(trace, a, b, offset); // unreachable: Myers always finds d <= max
+  }
+
+  function backtrack(trace, a, b, offset) {
+    var x = a.length, y = b.length;
+    var ops = [];
+    for (var d = trace.length - 1; d >= 0; d--) {
+      var v = trace[d];
+      var k = x - y;
+      var prevK;
+      if (k === -d || (k !== d && v[offset + k - 1] < v[offset + k + 1])) prevK = k + 1;
+      else prevK = k - 1;
+      var prevX = d === 0 ? 0 : v[offset + prevK];
+      var prevY = prevX - prevK;
+      while (x > prevX && y > prevY) { ops.push({ type: "eq", a: x - 1, b: y - 1 }); x--; y--; }
+      if (d > 0) {
+        if (x === prevX) ops.push({ type: "add", a: null, b: y - 1 });
+        else ops.push({ type: "del", a: x - 1, b: null });
+      }
+      x = prevX; y = prevY;
+    }
+    ops.reverse();
+    return ops;
+  }
+
+  /** Trim common prefix/suffix, then run Myers on the shrunken middle. */
+  function diffArrays(a, b) {
+    var prefix = 0, minLen = Math.min(a.length, b.length);
+    while (prefix < minLen && a[prefix] === b[prefix]) prefix++;
+    var suffix = 0, maxSuffix = minLen - prefix;
+    while (suffix < maxSuffix && a[a.length - 1 - suffix] === b[b.length - 1 - suffix]) suffix++;
+
+    var midOps = myers(a.slice(prefix, a.length - suffix), b.slice(prefix, b.length - suffix));
+    var ops = [];
+    var i, j;
+    for (i = 0; i < prefix; i++) ops.push({ type: "eq", a: i, b: i });
+    midOps.forEach(function (op) {
+      ops.push({ type: op.type, a: op.a == null ? null : op.a + prefix, b: op.b == null ? null : op.b + prefix });
+    });
+    var aBase = a.length - suffix, bBase = b.length - suffix;
+    for (j = 0; j < suffix; j++) ops.push({ type: "eq", a: aBase + j, b: bBase + j });
+    return ops;
+  }
+
+  /* Cluster the changed lines into hunks, expanding each by `context` lines
+     of surrounding unchanged text, merging hunks whose context would
+     otherwise overlap. This is the standard unified-diff hunk algorithm —
+     same shape as diff-checker's window builder. */
+  function buildWindows(rows, context) {
+    var n = rows.length;
+    var changeIdxs = [];
+    for (var i = 0; i < n; i++) if (rows[i].type !== "eq") changeIdxs.push(i);
+    if (!changeIdxs.length) return [];
+    var clusters = [];
+    var s = changeIdxs[0], e = changeIdxs[0];
+    for (var c = 1; c < changeIdxs.length; c++) {
+      var idx = changeIdxs[c];
+      if (idx - e - 1 <= 2 * context) e = idx;
+      else { clusters.push([s, e]); s = idx; e = idx; }
+    }
+    clusters.push([s, e]);
+    return clusters.map(function (cl) {
+      return { start: Math.max(0, cl[0] - context), end: Math.min(n - 1, cl[1] + context) };
+    });
+  }
+
+  /* ==========================================================================
+     Line splitting — tracks whether the text ends with a trailing newline, so
+     "\ No newline at end of file" can be emitted where it actually applies.
+     A synthetic marker is appended to the LAST line's comparison key only
+     (never its displayed text) when that side lacks a trailing newline, so a
+     final line that gained or lost its newline is treated as a real edit
+     rather than silently matching a same-content line elsewhere. ------------ */
+
+  var NONL_MARK = " <<NONL>>";
+
+  function splitLines(text) {
+    if (text === "") return { lines: [], noTrailingNL: false };
+    var endsWithNL = /\n$/.test(text);
+    var body = endsWithNL ? text.slice(0, -1) : text;
+    return { lines: body.split("\n"), noTrailingNL: !endsWithNL };
+  }
+
+  /* ==========================================================================
+     Unified diff builder. The hunk arithmetic:
+       oldStart/newStart/oldCount/newCount all come from counting how many
+       old- and new-referencing ops precede and fall within each window —
+       exactly what a hunk header promises, so `git apply` can verify it.
+       When a window has zero lines on one side (a pure insertion or pure
+       deletion), that side's start is the line number immediately before the
+       hunk (0 if at the very top of the file) with a count of 0, matching
+       GNU diff's convention.
+     ========================================================================== */
+
+  function buildPatch(oldFile, newFile, oldText, newText, context, ignoreWs) {
+    var oldSplit = splitLines(oldText), newSplit = splitLines(newText);
+    var oldLines = oldSplit.lines, newLines = newSplit.lines;
+
+    function norm(l) { return ignoreWs ? l.replace(/\s+/g, "") : l; }
+
+    var normOld = oldLines.map(function (l, i) {
+      return norm(l) + (i === oldLines.length - 1 && oldSplit.noTrailingNL ? NONL_MARK : "");
+    });
+    var normNew = newLines.map(function (l, i) {
+      return norm(l) + (i === newLines.length - 1 && newSplit.noTrailingNL ? NONL_MARK : "");
+    });
+
+    var ops = diffArrays(normOld, normNew);
+    var windows = buildWindows(ops, context);
+
+    if (!windows.length) return { text: "", hunks: 0, added: 0, removed: 0 };
+
+    var n = ops.length;
+    var cumOld = new Array(n), cumNew = new Array(n);
+    var co = 0, cn = 0;
+    for (var i = 0; i < n; i++) {
+      if (ops[i].a != null) co++;
+      if (ops[i].b != null) cn++;
+      cumOld[i] = co; cumNew[i] = cn;
+    }
+
+    var lines = ["--- " + oldFile, "+++ " + newFile];
+    var addedTotal = 0, removedTotal = 0;
+
+    windows.forEach(function (w) {
+      var oldBefore = w.start > 0 ? cumOld[w.start - 1] : 0;
+      var newBefore = w.start > 0 ? cumNew[w.start - 1] : 0;
+      var oldCount = 0, newCount = 0;
+      for (var k = w.start; k <= w.end; k++) {
+        if (ops[k].a != null) oldCount++;
+        if (ops[k].b != null) newCount++;
+      }
+      var oldStart = oldCount > 0 ? oldBefore + 1 : oldBefore;
+      var newStart = newCount > 0 ? newBefore + 1 : newBefore;
+
+      lines.push("@@ -" + oldStart + "," + oldCount + " +" + newStart + "," + newCount + " @@");
+
+      for (var j = w.start; j <= w.end; j++) {
+        var op = ops[j];
+        if (op.type === "eq") {
+          lines.push(" " + oldLines[op.a]);
+          if (op.a === oldLines.length - 1 && oldSplit.noTrailingNL) lines.push("\\ No newline at end of file");
+        } else if (op.type === "del") {
+          lines.push("-" + oldLines[op.a]);
+          removedTotal++;
+          if (op.a === oldLines.length - 1 && oldSplit.noTrailingNL) lines.push("\\ No newline at end of file");
+        } else {
+          lines.push("+" + newLines[op.b]);
+          addedTotal++;
+          if (op.b === newLines.length - 1 && newSplit.noTrailingNL) lines.push("\\ No newline at end of file");
+        }
+      }
+    });
+
+    return { text: lines.join("\n") + "\n", hunks: windows.length, added: addedTotal, removed: removedTotal };
+  }
+
+  /* --- syntax colouring for the on-page preview (the copied/downloaded text
+     is always the plain patch string built above, never this markup) ------- */
+
+  function highlight(patchText) {
+    return patchText.split("\n").map(function (line) {
+      if (line.slice(0, 4) === "--- " || line.slice(0, 4) === "+++ ") return '<span class="pg-file">' + esc(line) + "</span>";
+      if (line.slice(0, 2) === "@@") return '<span class="pg-hdr">' + esc(line) + "</span>";
+      if (line.charAt(0) === "+") return '<span class="pg-add">' + esc(line) + "</span>";
+      if (line.charAt(0) === "-") return '<span class="pg-del">' + esc(line) + "</span>";
+      if (line.charAt(0) === "\\") return '<span class="pg-nonl">' + esc(line) + "</span>";
+      return '<span class="pg-ctxline">' + esc(line || " ") + "</span>";
+    }).join("\n");
+  }
+
+  /* ==========================================================================
+     Tool wiring
+     ========================================================================== */
+
+  var oldNameIn = $("#old-name"), newNameIn = $("#new-name");
+  var oldTa = $("#old"), newTa = $("#new");
+  var ctxIn = $("#ctx"), optWs = $("#opt-ws");
+  var out = $("#out"), warnBox = $("#warn"), stats = $("#stats");
+  var lastPatch = "";
+
+  var SAMPLE_OLD = [
+    'function greet(name) {',
+    '  return "Hello, " + name + "!";',
+    '}',
+    '',
+    'function farewell(name) {',
+    '  return "Goodbye, " + name + ".";',
+    '}',
+    '',
+    'var DEFAULT_NAME = "friend";',
+    '',
+    'module.exports = {',
+    '  greet: greet,',
+    '  farewell: farewell,',
+    '  DEFAULT_NAME: DEFAULT_NAME',
+    '};'
+  ].join("\n") + "\n";
+
+  var SAMPLE_NEW = [
+    'function greet(name) {',
+    '  return "Hi, " + name + "!";',
+    '}',
+    '',
+    'function shout(name) {',
+    '  return (name || DEFAULT_NAME).toUpperCase() + "!!!";',
+    '}',
+    '',
+    'function farewell(name) {',
+    '  return "Goodbye, " + name + "!";',
+    '}',
+    '',
+    'var DEFAULT_NAME = "friend";',
+    '',
+    'module.exports = {',
+    '  greet: greet,',
+    '  shout: shout,',
+    '  farewell: farewell,',
+    '  DEFAULT_NAME: DEFAULT_NAME',
+    '};'
+  ].join("\n") + "\n";
+
+  function patchFilename() {
+    var nf = (newNameIn.value.trim() || "b/file.txt").replace(/^[ab]\//, "");
+    var base = nf.replace(/\.[^./]+$/, "") || "changes";
+    return base + ".patch";
+  }
+
+  function render() {
+    var oldText = oldTa.value, newText = newTa.value;
+
+    if (!oldText && !newText) {
+      out.innerHTML = '<span class="empty">Paste an old and a new version of a file above to produce a patch.</span>';
+      stats.hidden = true;
+      warnBox.innerHTML = "";
+      lastPatch = "";
+      return;
+    }
+
+    var oldLineCount = oldText ? oldText.split("\n").length : 0;
+    var newLineCount = newText ? newText.split("\n").length : 0;
+    var truncated = oldLineCount > MAX_LINES || newLineCount > MAX_LINES;
+    if (truncated) {
+      warnBox.innerHTML = '<div class="note note--warn" style="margin-bottom:12px"><span class="note__mark">!</span><span>Input is very large — '
+        + "results may be slow or incomplete beyond " + Bench.num(MAX_LINES) + " lines per side.</span></div>";
+    } else {
+      warnBox.innerHTML = "";
+    }
+
+    var context = Math.max(0, Math.min(50, parseInt(ctxIn.value, 10) || 0));
+    var oldFile = oldNameIn.value.trim() || "a/file.txt";
+    var newFile = newNameIn.value.trim() || "b/file.txt";
+
+    var result = buildPatch(oldFile, newFile, oldText, newText, context, optWs.checked);
+    lastPatch = result.text;
+
+    $("#s-hunks").textContent = Bench.num(result.hunks);
+    $("#s-add").textContent = "+" + Bench.num(result.added);
+    $("#s-del").textContent = "−" + Bench.num(result.removed);
+    stats.hidden = false;
+
+    if (result.hunks === 0) {
+      out.innerHTML = '<div class="note note--ok"><span class="note__mark">✓</span><span>No differences — nothing to patch.</span></div>';
+      return;
+    }
+
+    out.innerHTML = highlight(result.text);
+  }
+
+  Bench.live(oldTa, Bench.debounce(render, 150));
+  Bench.live(newTa, Bench.debounce(render, 150));
+  [oldNameIn, newNameIn, ctxIn, optWs].forEach(function (el) {
+    el.addEventListener("input", Bench.debounce(render, 150));
+    el.addEventListener("change", render);
+  });
+
+  $("#sample").addEventListener("click", function () {
+    oldTa.value = SAMPLE_OLD; newTa.value = SAMPLE_NEW; render();
+  });
+  $("#swap").addEventListener("click", function () {
+    var t = oldTa.value; oldTa.value = newTa.value; newTa.value = t;
+    var n = oldNameIn.value; oldNameIn.value = newNameIn.value; newNameIn.value = n;
+    render();
+  });
+  $("#clear").addEventListener("click", function () {
+    oldTa.value = ""; newTa.value = ""; render(); oldTa.focus();
+  });
+  $("#copy").addEventListener("click", function (e) {
+    if (!lastPatch) { Bench.toast("Nothing to copy yet", "bad"); return; }
+    Bench.copy(lastPatch, e.currentTarget);
+  });
+  $("#download").addEventListener("click", function () {
+    if (!lastPatch) { Bench.toast("Nothing to download yet", "bad"); return; }
+    Bench.download(patchFilename(), lastPatch, "text/x-diff");
+  });
+
+  render();
+});
+</script>
+
+</body>
+</html>
