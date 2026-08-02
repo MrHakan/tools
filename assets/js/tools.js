@@ -55,7 +55,7 @@ window.BENCH_TOOLS = [
     blurb: "Pick your stack, get the ignore rules.", keys: "git ignore template language framework vcs" },
   { slug: "license-picker", cat: "Developer utilities", spec: "SPDX: MIT", name: "License Picker",
     blurb: "Compare open-source licenses and get the full text.", keys: "mit gpl apache bsd copyleft legal choose open source" },
-  { soon: true, slug: "env-generator", cat: "Developer utilities", spec: "API_KEY=", name: ".env Builder",
+  { slug: "env-generator", cat: "Developer utilities", spec: "API_KEY=", name: ".env Builder",
     blurb: "Draft .env templates and find missing variables.", keys: "environment dotenv variable config secret validate" },
   { slug: "rate-limit-calculator", cat: "Developer utilities", spec: "100 req/s", name: "Rate Limit Calculator",
     blurb: "Work out quota burn-down and safe request spacing.", keys: "api quota throttle burst requests per second budget" },

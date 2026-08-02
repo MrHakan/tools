@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>.env Builder — Bench</title>
+<meta name="description" content="Draft .env files and matching .env.example templates, and find the variables you forgot to set.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/css/bench.css">
+<style>
+  .env__row {
+    display: grid;
+    grid-template-columns: 1.1fr 1.4fr auto auto;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .env__row input[type="text"] { font-family: var(--mono); font-size: 13px; }
+  .env__del {
+    flex: none; width: 28px; height: 30px; display: grid; place-items: center;
+    background: transparent; border: 1px solid transparent; border-radius: var(--r);
+    color: var(--steel); font-size: 13px;
+  }
+  .env__del:hover { border-color: var(--fault); color: var(--fault); }
+  .env__secret { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--steel); white-space: nowrap; font-family: var(--mono); }
+  .env__bad input { border-color: var(--fault); }
+  @media (max-width: 720px) {
+    .env__row { grid-template-columns: 1fr auto auto; }
+    .env__row input:nth-child(2) { grid-column: 1 / -1; }
+  }
+  .env__key { color: var(--signal); }
+  .env__cmt { color: var(--steel); }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__home" href="../../index.html"><span class="topbar__mark">▚</span> bench</a>
+  <span class="topbar__sep">/</span>
+  <span class="topbar__here">.env Builder</span>
+  <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
+</header>
+
+<main class="wrap">
+
+  <div class="toolhead">
+    <p class="toolhead__spec mono">API_KEY=</p>
+    <h1 class="toolhead__title">.env Builder</h1>
+    <p class="toolhead__desc">Draft a <code class="mono">.env</code> and the matching <code class="mono">.env.example</code> at the same time, then check a real file for anything missing.</p>
+  </div>
+
+  <div class="row" style="margin-bottom:var(--gap)">
+    <button class="btn btn--on" data-tab="build">Build</button>
+    <button class="btn" data-tab="check">Check a file</button>
+  </div>
+
+  <!-- ============================================================= build -->
+  <div id="tab-build">
+    <div class="split split--narrow">
+
+      <section class="panel">
+        <h2 class="panel__title">Variables</h2>
+
+        <div class="env__row" style="margin-bottom:10px">
+          <span class="label" style="margin:0">Key</span>
+          <span class="label" style="margin:0">Value</span>
+          <span class="label" style="margin:0">Secret</span>
+          <span></span>
+        </div>
+
+        <div id="rows"></div>
+
+        <div class="row" style="margin-top:12px">
+          <button class="btn btn--sm" id="add">Add a variable</button>
+          <button class="btn btn--sm" id="load">Load an example</button>
+          <button class="btn btn--sm btn--danger" id="clear">Clear all</button>
+        </div>
+
+        <div id="build-note" style="margin-top:14px"></div>
+      </section>
+
+      <section class="panel">
+        <h2 class="panel__title">Output</h2>
+
+        <div class="row row--between" style="margin-bottom:12px">
+          <div class="row">
+            <button class="btn btn--sm btn--on" data-out="env">.env</button>
+            <button class="btn btn--sm" data-out="example">.env.example</button>
+            <button class="btn btn--sm" data-out="compose">compose</button>
+            <button class="btn btn--sm" data-out="k8s">ConfigMap</button>
+            <button class="btn btn--sm" data-out="sh">shell</button>
+            <button class="btn btn--sm" data-out="json">JSON</button>
+          </div>
+        </div>
+
+        <div class="row" style="margin-bottom:12px">
+          <button class="btn btn--sm" id="copy">Copy</button>
+          <button class="btn btn--sm" id="save">Save</button>
+        </div>
+
+        <div class="out" id="out"></div>
+        <div id="out-note" style="margin-top:12px"></div>
+      </section>
+
+    </div>
+  </div>
+
+  <!-- ============================================================= check -->
+  <div id="tab-check" hidden>
+    <div class="split">
+
+      <section class="panel">
+        <h2 class="panel__title">Your .env</h2>
+        <label class="sr-only" for="chk-a">Your .env file</label>
+        <textarea class="textarea" id="chk-a" spellcheck="false" placeholder="DATABASE_URL=postgres://localhost/app&#10;API_KEY=&#10;"></textarea>
+      </section>
+
+      <section class="panel">
+        <h2 class="panel__title">Required keys, or .env.example</h2>
+        <label class="sr-only" for="chk-b">The template to check against</label>
+        <textarea class="textarea" id="chk-b" spellcheck="false" placeholder="DATABASE_URL=&#10;API_KEY=&#10;SESSION_SECRET=&#10;"></textarea>
+      </section>
+
+    </div>
+
+    <div class="row" style="margin-top:var(--gap)">
+      <button class="btn btn--primary" id="chk-go">Compare</button>
+      <button class="btn" id="chk-sample">Load an example</button>
+    </div>
+
+    <div id="chk-out" style="margin-top:var(--gap)"></div>
+  </div>
+
+  <footer class="foot">
+    <a href="../../index.html">← All tools</a>
+    <span>·</span>
+    <span>Runs entirely in your browser</span>
+  </footer>
+
+</main>
+
+<script src="../../assets/js/bench.js" defer></script>
+<script defer>
+document.addEventListener("DOMContentLoaded", function () {
+  "use strict";
+  var $ = Bench.$, $$ = Bench.$$, esc = Bench.esc;
+  var store = Bench.store("env-generator");
+
+  var KEY_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+  var CONVENTIONAL = /^[A-Z_][A-Z0-9_]*$/;
+
+  // Shapes that mean a real credential has been pasted in. Deliberately narrow:
+  // a false positive here trains people to ignore the warning.
+  var SECRET_SHAPES = [
+    { re: /^AKIA[0-9A-Z]{16}$/, what: "an AWS access key id" },
+    { re: /^ASIA[0-9A-Z]{16}$/, what: "a temporary AWS access key id" },
+    { re: /^gh[pousr]_[A-Za-z0-9]{16,}$/, what: "a GitHub token" },
+    { re: /^sk-[A-Za-z0-9_-]{20,}$/, what: "an API secret key" },
+    { re: /^xox[baprs]-[A-Za-z0-9-]{10,}$/, what: "a Slack token" },
+    { re: /-----BEGIN [A-Z ]*PRIVATE KEY-----/, what: "a private key" },
+    { re: /^eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\./, what: "a JWT" }
+  ];
+
+  var DEFAULT_ROWS = [
+    { key: "NODE_ENV", value: "development", secret: false },
+    { key: "PORT", value: "3000", secret: false },
+    { key: "DATABASE_URL", value: "postgres://localhost:5432/app", secret: true },
+    { key: "SESSION_SECRET", value: "change-me", secret: true },
+    { key: "LOG_LEVEL", value: "debug", secret: false }
+  ];
+
+  var rows = store.get("rows", null) || DEFAULT_ROWS.slice();
+  var outFmt = "env";
+
+  /* --- quoting -------------------------------------------------------- */
+
+  // Bare values end at whitespace or a '#', and cannot span lines. Anything
+  // that needs more than that has to be quoted, and a double-quoted value has
+  // to escape backslashes, quotes and newlines.
+  function quote(v) {
+    if (v === "") return "";
+    if (/^[A-Za-z0-9_./:@,+-]+$/.test(v)) return v;
+    return '"' + v.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n") + '"';
+  }
+
+  /* --- rows ----------------------------------------------------------- */
+
+  function renderRows() {
+    $("#rows").innerHTML = rows.map(function (r, i) {
+      var bad = r.key && !KEY_RE.test(r.key);
+      return '<div class="env__row' + (bad ? " env__bad" : "") + '">'
+        + '<input type="text" class="input" data-i="' + i + '" data-f="key" value="' + esc(r.key) + '" placeholder="KEY_NAME" aria-label="Key ' + (i + 1) + '" spellcheck="false">'
+        + '<input type="text" class="input" data-i="' + i + '" data-f="value" value="' + esc(r.value) + '" placeholder="value" aria-label="Value for ' + esc(r.key || "variable " + (i + 1)) + '" spellcheck="false">'
+        + '<label class="env__secret"><input type="checkbox" data-i="' + i + '" data-f="secret"' + (r.secret ? " checked" : "") + ' aria-label="Mark ' + esc(r.key || "row " + (i + 1)) + ' as secret"> secret</label>'
+        + '<button class="env__del" data-del="' + i + '" title="Remove this variable" aria-label="Remove ' + esc(r.key || "row " + (i + 1)) + '">✕</button>'
+        + "</div>";
+    }).join("");
+    validate();
+    renderOut();
+    store.set("rows", rows);
+  }
+
+  $("#rows").addEventListener("input", function (e) {
+    var el = e.target;
+    if (el.dataset.i === undefined) return;
+    var r = rows[+el.dataset.i];
+    if (el.dataset.f === "secret") r.secret = el.checked;
+    else r[el.dataset.f] = el.value;
+
+    // Re-rendering on every keystroke would steal focus, so only the derived
+    // views update here; the row markup is rebuilt on structural changes.
+    if (el.dataset.f === "key") {
+      el.closest(".env__row").classList.toggle("env__bad", !!el.value && !KEY_RE.test(el.value));
+    }
+    validate();
+    renderOut();
+    store.set("rows", rows);
+  });
+
+  $("#rows").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-del]");
+    if (!b) return;
+    rows.splice(+b.dataset.del, 1);
+    renderRows();
+  });
+
+  $("#add").addEventListener("click", function () {
+    rows.push({ key: "", value: "", secret: false });
+    renderRows();
+    var inputs = $$("#rows [data-f='key']");
+    if (inputs.length) inputs[inputs.length - 1].focus();
+  });
+
+  $("#load").addEventListener("click", function () { rows = DEFAULT_ROWS.slice(); renderRows(); });
+  $("#clear").addEventListener("click", function () { rows = [{ key: "", value: "", secret: false }]; renderRows(); });
+
+  /* --- validation ----------------------------------------------------- */
+
+  function validate() {
+    var problems = [], seen = {};
+
+    rows.forEach(function (r) {
+      if (!r.key) return;
+      if (!KEY_RE.test(r.key)) {
+        problems.push(["bad", "<b>" + esc(r.key) + "</b> is not a valid name — use letters, digits and underscores, starting with a letter or underscore."]);
+      } else if (!CONVENTIONAL.test(r.key)) {
+        problems.push(["warn", "<b>" + esc(r.key) + "</b> is valid but unconventional. Environment variables are normally UPPER_SNAKE_CASE."]);
+      }
+      if (seen[r.key]) problems.push(["bad", "<b>" + esc(r.key) + "</b> appears more than once. The last one wins in most loaders."]);
+      seen[r.key] = true;
+
+      SECRET_SHAPES.forEach(function (s) {
+        if (s.re.test(r.value)) {
+          problems.push(["warn", "The value of <b>" + esc(r.key) + "</b> looks like " + s.what
+            + ". Keep it out of version control — mark it secret so it is blanked in the example file."]);
+        }
+      });
+    });
+
+    var host = $("#build-note");
+    if (!problems.length) {
+      var n = rows.filter(function (r) { return r.key; }).length;
+      host.innerHTML = n
+        ? '<div class="note note--ok"><span class="note__mark">✓</span><span>' + Bench.plural(n, "variable") + ", all well-formed.</span></div>"
+        : '<div class="note note--info"><span class="note__mark">i</span><span>Add a variable to get started.</span></div>';
+      return;
+    }
+    host.innerHTML = problems.slice(0, 6).map(function (p) {
+      return '<div class="note note--' + p[0] + '" style="margin-bottom:6px"><span class="note__mark">'
+        + (p[0] === "bad" ? "✕" : "!") + "</span><span>" + p[1] + "</span></div>";
+    }).join("");
+  }
+
+  /* --- output --------------------------------------------------------- */
+
+  function live() { return rows.filter(function (r) { return r.key && KEY_RE.test(r.key); }); }
+
+  function build(fmt) {
+    var rs = live();
+    if (!rs.length) return "";
+
+    if (fmt === "env") {
+      return rs.map(function (r) { return r.key + "=" + quote(r.value); }).join("\n") + "\n";
+    }
+
+    if (fmt === "example") {
+      return "# Copy to .env and fill in the blanks.\n"
+        + rs.map(function (r) {
+            return r.key + "=" + (r.secret ? "" : quote(r.value));
+          }).join("\n") + "\n";
+    }
+
+    if (fmt === "compose") {
+      return "services:\n  app:\n    environment:\n"
+        + rs.map(function (r) {
+            var v = r.value;
+            var needsQuote = v === "" || /[:#{}\[\],&*?|>'"%@`!\n]/.test(v) || /^\s|\s$/.test(v) || /^(true|false|yes|no|on|off|null|~)$/i.test(v) || /^-?\d/.test(v);
+            return "      " + r.key + ": " + (needsQuote ? '"' + v.replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"' : v);
+          }).join("\n") + "\n";
+    }
+
+    if (fmt === "k8s") {
+      return "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: app-config\ndata:\n"
+        + rs.filter(function (r) { return !r.secret; }).map(function (r) {
+            return "  " + r.key + ": " + JSON.stringify(r.value);
+          }).join("\n")
+        + "\n---\napiVersion: v1\nkind: Secret\nmetadata:\n  name: app-secrets\ntype: Opaque\nstringData:\n"
+        + rs.filter(function (r) { return r.secret; }).map(function (r) {
+            return "  " + r.key + ": " + JSON.stringify(r.value);
+          }).join("\n") + "\n";
+    }
+
+    if (fmt === "sh") {
+      return "#!/bin/sh\n" + rs.map(function (r) {
+        return "export " + r.key + "='" + String(r.value).replace(/'/g, "'\\''") + "'";
+      }).join("\n") + "\n";
+    }
+
+    var obj = {};
+    rs.forEach(function (r) { obj[r.key] = r.value; });
+    return JSON.stringify(obj, null, 2);
+  }
+
+  function renderOut() {
+    var text = build(outFmt);
+    $("#out").textContent = text || "";
+    if (!text) $("#out").innerHTML = '<span class="empty">Add a variable with a valid name to see the output.</span>';
+
+    var noteHost = $("#out-note");
+    if (outFmt === "example") {
+      var n = live().filter(function (r) { return r.secret; }).length;
+      noteHost.innerHTML = '<div class="note note--info"><span class="note__mark">i</span><span>'
+        + Bench.plural(n, "secret value") + " blanked. Commit this file; keep <code class=\"mono\">.env</code> out of git.</span></div>";
+    } else if (outFmt === "k8s") {
+      noteHost.innerHTML = '<div class="note note--warn"><span class="note__mark">!</span><span>'
+        + "A Kubernetes Secret is base64 in transit but stored unencrypted by default. This is a starting point, not a secrets manager.</span></div>";
+    } else if (outFmt === "env") {
+      noteHost.innerHTML = '<div class="note note--warn"><span class="note__mark">!</span><span>'
+        + "Add <code class=\"mono\">.env</code> to your <code class=\"mono\">.gitignore</code> before you commit anything.</span></div>";
+    } else {
+      noteHost.innerHTML = "";
+    }
+  }
+
+  $$("[data-out]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      outFmt = b.dataset.out;
+      $$("[data-out]").forEach(function (x) { x.classList.toggle("btn--on", x === b); });
+      renderOut();
+    });
+  });
+
+  $("#copy").addEventListener("click", function (e) { Bench.copy(build(outFmt), e.currentTarget); });
+  $("#save").addEventListener("click", function () {
+    var names = { env: ".env", example: ".env.example", compose: "compose.env.yaml",
+                  k8s: "configmap.yaml", sh: "env.sh", json: "env.json" };
+    Bench.download(names[outFmt], build(outFmt));
+  });
+
+  /* --- tabs ----------------------------------------------------------- */
+
+  $$("[data-tab]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      $$("[data-tab]").forEach(function (x) { x.classList.toggle("btn--on", x === b); });
+      $("#tab-build").hidden = b.dataset.tab !== "build";
+      $("#tab-check").hidden = b.dataset.tab !== "check";
+    });
+  });
+
+  /* --- parser --------------------------------------------------------- */
+
+  /**
+   * Parse real .env syntax: optional `export `, single and double quotes,
+   * multi-line quoted values, `#` comments (including trailing ones, but only
+   * outside quotes), and blank lines.
+   */
+  function parseEnv(text) {
+    var out = {}, order = [];
+    var src = text.replace(/\r\n?/g, "\n");
+    var i = 0;
+
+    while (i < src.length) {
+      // Skip whitespace, blank lines and whole-line comments.
+      while (i < src.length && /\s/.test(src[i])) i++;
+      if (i >= src.length) break;
+      if (src[i] === "#") { while (i < src.length && src[i] !== "\n") i++; continue; }
+
+      var lineStart = i;
+      while (i < src.length && src[i] !== "\n" && src[i] !== "=") i++;
+      if (i >= src.length || src[i] === "\n") continue;   // no '=', not an assignment
+
+      var key = src.slice(lineStart, i).trim().replace(/^export\s+/, "");
+      i++; // past '='
+
+      while (i < src.length && (src[i] === " " || src[i] === "\t")) i++;
+
+      var value = "";
+      if (src[i] === '"' || src[i] === "'") {
+        var q = src[i++];
+        while (i < src.length && src[i] !== q) {
+          if (q === '"' && src[i] === "\\" && i + 1 < src.length) {
+            var n = src[++i];
+            value += n === "n" ? "\n" : n === "t" ? "\t" : n === "r" ? "\r" : n;
+          } else {
+            value += src[i];
+          }
+          i++;
+        }
+        i++; // closing quote
+        while (i < src.length && src[i] !== "\n") i++;  // ignore the rest of the line
+      } else if (src[i] === "#") {
+        // The whole value is a comment, so the variable is set but empty —
+        // `API_KEY=   # not set yet` means API_KEY is "".
+        while (i < src.length && src[i] !== "\n") i++;
+        value = "";
+      } else {
+        var raw = "";
+        while (i < src.length && src[i] !== "\n") raw += src[i++];
+        // A '#' preceded by whitespace starts a trailing comment.
+        var hash = raw.search(/\s#/);
+        if (hash !== -1) raw = raw.slice(0, hash);
+        value = raw.trim();
+      }
+
+      if (key) {
+        if (!(key in out)) order.push(key);
+        out[key] = value;
+      }
+    }
+    return { map: out, order: order };
+  }
+
+  /* --- compare -------------------------------------------------------- */
+
+  $("#chk-go").addEventListener("click", function () {
+    var a = parseEnv($("#chk-a").value);
+    var b = parseEnv($("#chk-b").value);
+    var host = $("#chk-out");
+
+    if (!b.order.length) {
+      host.innerHTML = '<div class="note note--bad"><span class="note__mark">✕</span><span>The template side is empty — paste an .env.example or a list of required keys.</span></div>';
+      return;
+    }
+
+    var missing = b.order.filter(function (k) { return !(k in a.map); });
+    var empty = b.order.filter(function (k) { return k in a.map && a.map[k] === ""; });
+    var extra = a.order.filter(function (k) { return !(k in b.map); });
+
+    var risky = [];
+    a.order.forEach(function (k) {
+      SECRET_SHAPES.forEach(function (s) {
+        if (s.re.test(a.map[k])) risky.push([k, s.what]);
+      });
+    });
+
+    var html = '<div class="stats" style="margin-bottom:var(--gap)">'
+      + '<div class="stat"><span class="stat__n">' + b.order.length + '</span><span class="stat__k">Required</span></div>'
+      + '<div class="stat"><span class="stat__n" style="color:' + (missing.length ? "var(--fault)" : "var(--verify)") + '">' + missing.length + '</span><span class="stat__k">Missing</span></div>'
+      + '<div class="stat"><span class="stat__n" style="color:' + (empty.length ? "var(--signal)" : "var(--verify)") + '">' + empty.length + '</span><span class="stat__k">Empty</span></div>'
+      + '<div class="stat"><span class="stat__n">' + extra.length + '</span><span class="stat__k">Extra</span></div>'
+      + "</div>";
+
+    function block(kind, mark, title, keys, tail) {
+      if (!keys.length) return "";
+      return '<div class="note note--' + kind + '" style="margin-bottom:8px"><span class="note__mark">' + mark + "</span><span><b>"
+        + title + "</b><br>" + keys.map(function (k) { return '<code class="mono">' + esc(k) + "</code>"; }).join(", ")
+        + (tail ? "<br>" + tail : "") + "</span></div>";
+    }
+
+    html += block("bad", "✕", Bench.plural(missing.length, "variable") + " missing from your .env", missing,
+      "Add these before the app starts, or it will read undefined.");
+    html += block("warn", "!", Bench.plural(empty.length, "variable") + " present but empty", empty,
+      "Set a value, or remove them if they are genuinely optional.");
+    html += block("info", "i", Bench.plural(extra.length, "variable") + " not in the template", extra,
+      "Either they are unused, or the template is out of date — worth adding so the next person knows.");
+
+    if (risky.length) {
+      html += '<div class="note note--warn" style="margin-bottom:8px"><span class="note__mark">!</span><span><b>'
+        + "Real credentials detected</b><br>"
+        + risky.map(function (r) { return '<code class="mono">' + esc(r[0]) + "</code> looks like " + r[1]; }).join("<br>")
+        + "<br>Make sure this file is gitignored.</span></div>";
+    }
+
+    if (!missing.length && !empty.length) {
+      html += '<div class="note note--ok"><span class="note__mark">✓</span><span>Every required variable is present and set.</span></div>';
+    }
+
+    host.innerHTML = html;
+  });
+
+  $("#chk-sample").addEventListener("click", function () {
+    $("#chk-a").value = "# local dev\nexport NODE_ENV=development\nPORT=3000\nDATABASE_URL=\"postgres://localhost:5432/app\"\n"
+      + "API_KEY=   # not set yet\nLEGACY_FLAG=true\nGITHUB_TOKEN=ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ012345\n";
+    $("#chk-b").value = "NODE_ENV=\nPORT=\nDATABASE_URL=\nAPI_KEY=\nSESSION_SECRET=\n";
+    $("#chk-go").click();
+  });
+
+  renderRows();
+});
+</script>
+
+</body>
+</html>
