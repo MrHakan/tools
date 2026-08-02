@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Encoder &amp; Hasher — Bench</title>
+<meta name="description" content="Base64, URL and hex encoding both ways, plus SHA hashes, in one place.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/css/bench.css">
+<style>
+  /* Page-specific CSS only, prefixed .ed */
+  .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: var(--gap); }
+
+  .ed__hrow {
+    display: grid;
+    grid-template-columns: 200px 1fr auto;
+    gap: 10px;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--edge);
+  }
+  .ed__hrow:last-child { border-bottom: 0; }
+
+  .ed__hlabel { font-family: var(--mono); font-size: 13px; display: flex; align-items: center; gap: 8px; }
+  .ed__hout {
+    font-family: var(--mono); font-size: 12.5px;
+    background: var(--sunk); border: 1px solid var(--edge); border-radius: var(--r);
+    padding: 8px 10px; overflow-x: auto; white-space: nowrap;
+  }
+
+  @media (max-width: 640px) {
+    .ed__hrow { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__home" href="../../index.html"><span class="topbar__mark">▚</span> bench</a>
+  <span class="topbar__sep">/</span>
+  <span class="topbar__here">Encoder &amp; Hasher</span>
+  <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
+</header>
+
+<main class="wrap">
+
+  <div class="toolhead">
+    <p class="toolhead__spec mono">SGVsbG8=</p>
+    <h1 class="toolhead__title">Encoder &amp; Hasher</h1>
+    <p class="toolhead__desc">Base64, URL and hex encoding both ways, plus SHA hashes, in one place.</p>
+  </div>
+
+  <div class="tabs">
+    <button class="btn btn--sm btn--on" data-tab="base64">Base64</button>
+    <button class="btn btn--sm" data-tab="url">URL</button>
+    <button class="btn btn--sm" data-tab="hex">Hex</button>
+    <button class="btn btn--sm" data-tab="hash">Hashing</button>
+  </div>
+
+  <!-- ===================================================================
+       Base64
+       =================================================================== -->
+  <section class="panel" data-panel="base64">
+    <div class="row" style="margin-bottom:14px">
+      <label class="check"><input type="checkbox" id="b64-urlsafe"> URL-safe alphabet (<code class="mono">-_</code>, no padding)</label>
+    </div>
+
+    <div class="split">
+      <div>
+        <div class="row row--between" style="margin-bottom:8px">
+          <span class="label" style="margin:0">Plain text</span>
+          <button class="btn btn--sm" data-copy="#b64-plain">Copy</button>
+        </div>
+        <label class="sr-only" for="b64-plain">Plain text</label>
+        <textarea class="textarea textarea--prose" id="b64-plain" spellcheck="false"></textarea>
+      </div>
+      <div>
+        <div class="row row--between" style="margin-bottom:8px">
+          <span class="label" style="margin:0">Base64</span>
+          <button class="btn btn--sm" data-copy="#b64-encoded">Copy</button>
+        </div>
+        <label class="sr-only" for="b64-encoded">Base64</label>
+        <textarea class="textarea" id="b64-encoded" spellcheck="false"></textarea>
+      </div>
+    </div>
+
+    <div id="b64-error" style="margin-top:12px"></div>
+
+    <div class="stats" id="b64-stats" style="margin-top:12px">
+      <div class="stat"><span class="stat__n" id="b64-chars">0</span><span class="stat__k">Characters</span></div>
+      <div class="stat"><span class="stat__n" id="b64-bytes">0</span><span class="stat__k">UTF-8 bytes</span></div>
+      <div class="stat"><span class="stat__n" id="b64-outlen">0</span><span class="stat__k">Base64 length</span></div>
+    </div>
+  </section>
+
+  <!-- ===================================================================
+       URL encoding
+       =================================================================== -->
+  <section class="panel" data-panel="url" hidden>
+    <div class="row" style="margin-bottom:14px">
+      <div class="chips">
+        <button class="chip chip--on" data-urlmode="component" type="button">encodeURIComponent</button>
+        <button class="chip" data-urlmode="full" type="button">encodeURI</button>
+      </div>
+    </div>
+    <p class="note note--info" style="margin-bottom:14px">
+      <span class="note__mark">i</span>
+      <span><b>encodeURIComponent</b> escapes everything except <span class="mono">A-Za-z0-9 - _ . ~ ! * ' ( )</span> — use it for a value going inside a query string or path segment.
+      <b>encodeURI</b> also leaves reserved URL punctuation (<span class="mono">: / ? # [ ] @ & = + $ , ;</span>) alone — use it for a whole URL.</span>
+    </p>
+
+    <div class="split">
+      <div>
+        <div class="row row--between" style="margin-bottom:8px">
+          <span class="label" style="margin:0">Plain text</span>
+          <button class="btn btn--sm" data-copy="#url-plain">Copy</button>
+        </div>
+        <label class="sr-only" for="url-plain">Plain text</label>
+        <textarea class="textarea textarea--prose" id="url-plain" spellcheck="false"></textarea>
+      </div>
+      <div>
+        <div class="row row--between" style="margin-bottom:8px">
+          <span class="label" style="margin:0">URL-encoded</span>
+          <button class="btn btn--sm" data-copy="#url-encoded">Copy</button>
+        </div>
+        <label class="sr-only" for="url-encoded">URL-encoded</label>
+        <textarea class="textarea" id="url-encoded" spellcheck="false"></textarea>
+      </div>
+    </div>
+
+    <div id="url-error" style="margin-top:12px"></div>
+
+    <div class="stats" id="url-stats" style="margin-top:12px">
+      <div class="stat"><span class="stat__n" id="url-chars">0</span><span class="stat__k">Characters</span></div>
+      <div class="stat"><span class="stat__n" id="url-bytes">0</span><span class="stat__k">UTF-8 bytes</span></div>
+      <div class="stat"><span class="stat__n" id="url-outlen">0</span><span class="stat__k">Encoded length</span></div>
+    </div>
+  </section>
+
+  <!-- ===================================================================
+       Hex
+       =================================================================== -->
+  <section class="panel" data-panel="hex" hidden>
+    <div class="row" style="margin-bottom:14px">
+      <label class="check"><input type="checkbox" id="hex-spaced" checked> Space-separated bytes</label>
+    </div>
+
+    <div class="split">
+      <div>
+        <div class="row row--between" style="margin-bottom:8px">
+          <span class="label" style="margin:0">Plain text</span>
+          <button class="btn btn--sm" data-copy="#hex-plain">Copy</button>
+        </div>
+        <label class="sr-only" for="hex-plain">Plain text</label>
+        <textarea class="textarea textarea--prose" id="hex-plain" spellcheck="false"></textarea>
+      </div>
+      <div>
+        <div class="row row--between" style="margin-bottom:8px">
+          <span class="label" style="margin:0">Hex</span>
+          <button class="btn btn--sm" data-copy="#hex-encoded">Copy</button>
+        </div>
+        <label class="sr-only" for="hex-encoded">Hex</label>
+        <textarea class="textarea" id="hex-encoded" spellcheck="false"></textarea>
+      </div>
+    </div>
+
+    <div id="hex-error" style="margin-top:12px"></div>
+
+    <div class="stats" id="hex-stats" style="margin-top:12px">
+      <div class="stat"><span class="stat__n" id="hex-chars">0</span><span class="stat__k">Characters</span></div>
+      <div class="stat"><span class="stat__n" id="hex-bytes">0</span><span class="stat__k">UTF-8 bytes</span></div>
+      <div class="stat"><span class="stat__n" id="hex-outlen">0</span><span class="stat__k">Hex length</span></div>
+    </div>
+  </section>
+
+  <!-- ===================================================================
+       Hashing
+       =================================================================== -->
+  <section class="panel" data-panel="hash" hidden>
+    <div class="row row--between" style="margin-bottom:8px">
+      <span class="label" style="margin:0">Plain text</span>
+      <button class="btn btn--sm" data-copy="#hash-plain">Copy</button>
+    </div>
+    <label class="sr-only" for="hash-plain">Text to hash</label>
+    <textarea class="textarea textarea--prose" id="hash-plain" spellcheck="false"></textarea>
+
+    <div class="stats" id="hash-stats" style="margin:12px 0">
+      <div class="stat"><span class="stat__n" id="hash-chars">0</span><span class="stat__k">Characters</span></div>
+      <div class="stat"><span class="stat__n" id="hash-bytes">0</span><span class="stat__k">UTF-8 bytes</span></div>
+    </div>
+
+    <div class="note note--warn" id="hash-warn" hidden style="margin-bottom:14px">
+      <span class="note__mark">!</span>
+      <span>Hashing uses the browser's Web Crypto API, which only runs in a secure context. Open this page over HTTPS or from localhost to see digests.</span>
+    </div>
+
+    <p class="note note--info" style="margin-bottom:14px">
+      <span class="note__mark">i</span>
+      <span>MD5 isn't offered here — it's cryptographically broken and needs a bundled library to boot. <b>SHA-256</b> is the right default for checksums, fingerprints and most everyday hashing.</span>
+    </p>
+
+    <div>
+      <div class="ed__hrow">
+        <span class="ed__hlabel">SHA-1</span>
+        <div class="ed__hout mono" id="hash-sha1">—</div>
+        <button class="btn btn--sm" data-copy="#hash-sha1" aria-label="Copy SHA-1 hash">Copy</button>
+      </div>
+      <div class="ed__hrow">
+        <span class="ed__hlabel">SHA-256 <span class="chip chip--on">recommended</span></span>
+        <div class="ed__hout mono" id="hash-sha256">—</div>
+        <button class="btn btn--sm" data-copy="#hash-sha256" aria-label="Copy SHA-256 hash">Copy</button>
+      </div>
+      <div class="ed__hrow">
+        <span class="ed__hlabel">SHA-384</span>
+        <div class="ed__hout mono" id="hash-sha384">—</div>
+        <button class="btn btn--sm" data-copy="#hash-sha384" aria-label="Copy SHA-384 hash">Copy</button>
+      </div>
+      <div class="ed__hrow">
+        <span class="ed__hlabel">SHA-512</span>
+        <div class="ed__hout mono" id="hash-sha512">—</div>
+        <button class="btn btn--sm" data-copy="#hash-sha512" aria-label="Copy SHA-512 hash">Copy</button>
+      </div>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <a href="../../index.html">← All tools</a>
+    <span>·</span>
+    <span>Runs entirely in your browser</span>
+  </footer>
+
+</main>
+
+<script src="../../assets/js/bench.js" defer></script>
+<script defer>
+document.addEventListener("DOMContentLoaded", function () {
+  "use strict";
+  var $ = Bench.$, $$ = Bench.$$, esc = Bench.esc;
+
+  var SAMPLE = "héllo ☺";
+
+  /* --- byte helpers -----------------------------------------------------
+     Everything here goes through TextEncoder/TextDecoder so multi-byte
+     characters round-trip correctly — btoa/atob alone only understand
+     Latin-1 and mangle anything outside it. ------------------------------ */
+
+  function toBytes(str) { return new TextEncoder().encode(str); }
+  function fromBytes(bytes) { return new TextDecoder("utf-8", { fatal: true }).decode(bytes); }
+
+  function bytesToBinary(bytes) {
+    var s = "", chunk = 0x8000;
+    for (var i = 0; i < bytes.length; i += chunk) s += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+    return s;
+  }
+  function binaryToBytes(bin) {
+    var bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes;
+  }
+
+  function bytesToHex(bytes, spaced) {
+    var out = [];
+    for (var i = 0; i < bytes.length; i++) out.push(bytes[i].toString(16).padStart(2, "0"));
+    return out.join(spaced ? " " : "");
+  }
+  function hexToBytes(hex) {
+    var clean = hex.replace(/\s+/g, "");
+    if (clean.length === 0) return new Uint8Array(0);
+    if (!/^[0-9a-fA-F]+$/.test(clean)) throw new Error("Hex can only contain 0-9 and a-f.");
+    if (clean.length % 2 !== 0) throw new Error("Odd number of hex digits — bytes come in pairs.");
+    var bytes = new Uint8Array(clean.length / 2);
+    for (var i = 0; i < bytes.length; i++) bytes[i] = parseInt(clean.substr(i * 2, 2), 16);
+    return bytes;
+  }
+
+  function errNote(msg) {
+    return '<div class="note note--bad"><span class="note__mark">✕</span><span>' + esc(msg) + "</span></div>";
+  }
+
+  /* --- tabs --------------------------------------------------------------- */
+
+  $$("[data-tab]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      $$("[data-tab]").forEach(function (b) { b.classList.toggle("btn--on", b === btn); });
+      $$("[data-panel]").forEach(function (p) { p.hidden = p.dataset.panel !== btn.dataset.tab; });
+    });
+  });
+
+  /* ===========================================================================
+     Base64
+     =========================================================================== */
+
+  (function () {
+    var plain = $("#b64-plain"), encoded = $("#b64-encoded"), urlsafe = $("#b64-urlsafe");
+    var error = $("#b64-error");
+    var chars = $("#b64-chars"), bytesEl = $("#b64-bytes"), outlen = $("#b64-outlen");
+
+    function encode() {
+      var bytes = toBytes(plain.value);
+      var b64 = btoa(bytesToBinary(bytes));
+      if (urlsafe.checked) b64 = b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+      encoded.value = b64;
+      chars.textContent = Bench.num(plain.value.length);
+      bytesEl.textContent = Bench.bytes(bytes.length);
+      outlen.textContent = Bench.num(b64.length);
+      error.innerHTML = "";
+    }
+
+    function decode() {
+      var raw = encoded.value.replace(/\s+/g, "");
+      try {
+        var std = raw.replace(/-/g, "+").replace(/_/g, "/");
+        while (std.length % 4) std += "=";
+        var bytes = binaryToBytes(atob(std));
+        plain.value = fromBytes(bytes);
+        chars.textContent = Bench.num(plain.value.length);
+        bytesEl.textContent = Bench.bytes(bytes.length);
+        outlen.textContent = Bench.num(encoded.value.length);
+        error.innerHTML = "";
+      } catch (e) {
+        error.innerHTML = errNote("Not valid Base64 — " + (e.name === "InvalidCharacterError" ? "it contains characters outside the Base64 alphabet." : "the decoded bytes aren't valid UTF-8."));
+      }
+    }
+
+    plain.addEventListener("input", encode);
+    encoded.addEventListener("input", decode);
+    urlsafe.addEventListener("change", encode);
+
+    plain.value = SAMPLE;
+    encode();
+  })();
+
+  /* ===========================================================================
+     URL encoding
+     =========================================================================== */
+
+  (function () {
+    var plain = $("#url-plain"), encoded = $("#url-encoded");
+    var error = $("#url-error");
+    var chars = $("#url-chars"), bytesEl = $("#url-bytes"), outlen = $("#url-outlen");
+    var mode = "component";
+
+    $$("[data-urlmode]").forEach(function (chip) {
+      chip.addEventListener("click", function () {
+        mode = chip.dataset.urlmode;
+        $$("[data-urlmode]").forEach(function (c) { c.classList.toggle("chip--on", c === chip); });
+        encode();
+      });
+    });
+
+    function encode() {
+      var fn = mode === "full" ? encodeURI : encodeURIComponent;
+      var out = fn(plain.value);
+      encoded.value = out;
+      chars.textContent = Bench.num(plain.value.length);
+      bytesEl.textContent = Bench.bytes(toBytes(plain.value).length);
+      outlen.textContent = Bench.num(out.length);
+      error.innerHTML = "";
+    }
+
+    function decode() {
+      var fn = mode === "full" ? decodeURI : decodeURIComponent;
+      try {
+        plain.value = fn(encoded.value);
+        chars.textContent = Bench.num(plain.value.length);
+        bytesEl.textContent = Bench.bytes(toBytes(plain.value).length);
+        outlen.textContent = Bench.num(encoded.value.length);
+        error.innerHTML = "";
+      } catch (e) {
+        error.innerHTML = errNote("Not a valid percent-encoded string — check for a stray % not followed by two hex digits.");
+      }
+    }
+
+    plain.addEventListener("input", encode);
+    encoded.addEventListener("input", decode);
+
+    plain.value = SAMPLE;
+    encode();
+  })();
+
+  /* ===========================================================================
+     Hex
+     =========================================================================== */
+
+  (function () {
+    var plain = $("#hex-plain"), encoded = $("#hex-encoded"), spaced = $("#hex-spaced");
+    var error = $("#hex-error");
+    var chars = $("#hex-chars"), bytesEl = $("#hex-bytes"), outlen = $("#hex-outlen");
+
+    function encode() {
+      var bytes = toBytes(plain.value);
+      var hex = bytesToHex(bytes, spaced.checked);
+      encoded.value = hex;
+      chars.textContent = Bench.num(plain.value.length);
+      bytesEl.textContent = Bench.bytes(bytes.length);
+      outlen.textContent = Bench.num(hex.length);
+      error.innerHTML = "";
+    }
+
+    function decode() {
+      try {
+        var bytes = hexToBytes(encoded.value);
+        plain.value = fromBytes(bytes);
+        chars.textContent = Bench.num(plain.value.length);
+        bytesEl.textContent = Bench.bytes(bytes.length);
+        outlen.textContent = Bench.num(encoded.value.length);
+        error.innerHTML = "";
+      } catch (e) {
+        error.innerHTML = errNote(e.message.indexOf("UTF-8") === -1 && e.message.indexOf("hex") === -1 ? "The decoded bytes aren't valid UTF-8." : e.message);
+      }
+    }
+
+    plain.addEventListener("input", encode);
+    encoded.addEventListener("input", decode);
+    spaced.addEventListener("change", encode);
+
+    plain.value = SAMPLE;
+    encode();
+  })();
+
+  /* ===========================================================================
+     Hashing — SHA-1/256/384/512 via crypto.subtle. No MD5: it is broken and
+     would need a bundled JS implementation, which this offline-only site
+     doesn't ship. SHA-256 is called out as the default to reach for.
+     =========================================================================== */
+
+  (function () {
+    var input = $("#hash-plain"), warn = $("#hash-warn");
+    var chars = $("#hash-chars"), bytesEl = $("#hash-bytes");
+    var secure = !!(window.crypto && window.crypto.subtle);
+    var algos = ["SHA-1", "SHA-256", "SHA-384", "SHA-512"];
+    var gen = 0;
+
+    warn.hidden = secure;
+
+    function update() {
+      var text = input.value;
+      var bytes = toBytes(text);
+      chars.textContent = Bench.num(text.length);
+      bytesEl.textContent = Bench.bytes(bytes.length);
+
+      if (!secure) return;
+
+      var my = ++gen;
+      algos.forEach(function (algo) {
+        var out = $("#hash-" + algo.toLowerCase().replace("-", ""));
+        crypto.subtle.digest(algo, bytes).then(function (buf) {
+          if (my !== gen) return; // a newer keystroke has already superseded this
+          out.textContent = bytesToHex(new Uint8Array(buf), false);
+        }).catch(function (e) {
+          if (my !== gen) return;
+          out.textContent = "Error: " + e.message;
+        });
+      });
+    }
+
+    Bench.live(input, Bench.debounce(update, 150));
+    input.value = SAMPLE;
+    update();
+  })();
+});
+</script>
+
+</body>
+</html>

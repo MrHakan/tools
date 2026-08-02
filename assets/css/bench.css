@@ -410,6 +410,13 @@ a { color: var(--signal); text-decoration-thickness: 1px; text-underline-offset:
 
 .stack { display: grid; gap: var(--gap); }
 .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+
+/* Grid and flex items default to min-width:auto, so one <pre>, wide table or
+   long <option> inside sets the track's min-content width and pushes the whole
+   page sideways. Let these containers' children shrink; anything that needs to
+   stay wide scrolls inside its own box (.out, .tablewrap). */
+.stack > *, .split > * { min-width: 0; }
+.panel, .field { min-width: 0; }
 .row--end { justify-content: flex-end; }
 .row--between { justify-content: space-between; }
 .grow { flex: 1; min-width: 0; }
@@ -435,6 +442,7 @@ a { color: var(--signal); text-decoration-thickness: 1px; text-underline-offset:
 
 .input, .textarea, .select {
   width: 100%;
+  min-width: 0;
   background: var(--card);
   border: 1px solid var(--edge-2);
   border-radius: var(--r);
@@ -572,7 +580,14 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--signal); width
   border-radius: var(--r);
   font-size: 13.5px;
   background: var(--card);
+  /* Notes carry timestamps, ids and paths. Left unbroken, one long token sets
+     the note's min-content width and drags the whole layout wider than the
+     screen, so let them break rather than push. */
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
+
+.note > * { min-width: 0; }
 
 .note__mark { font-family: var(--mono); font-weight: 700; flex: none; }
 
@@ -877,6 +892,32 @@ button.chip:hover { border-color: var(--signal); color: var(--signal); }
   font-weight: 600;
   letter-spacing: -0.015em;
   line-height: 1.25;
+}
+
+/* Not built yet — shown so the set is legible as a whole, but inert rather
+   than a link to a page that would 404. */
+.tool--soon {
+  border-style: dashed;
+  background: transparent;
+  cursor: default;
+}
+
+.tool--soon:hover { border-color: var(--edge); transform: none; }
+.tool--soon .tool__spec, .tool--soon .tool__name, .tool--soon .tool__desc { opacity: 0.5; }
+.tool--soon:hover .tool__spec { color: var(--steel); }
+
+.tool__flag {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--steel);
+  border: 1px solid var(--edge-2);
+  border-radius: 2px;
+  padding: 1px 4px;
+  vertical-align: 1px;
+  white-space: nowrap;
 }
 
 .tool__desc {

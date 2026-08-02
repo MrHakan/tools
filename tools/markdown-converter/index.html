@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Markdown Editor — Bench</title>
+<meta name="description" content="Write Markdown with a live preview, then export it as HTML or print it to PDF.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/css/bench.css">
+<style>
+  /* Toolbar of formatting buttons above the split editor. */
+  .mdconv__toolbar { margin-bottom: 12px; }
+  .mdconv__toolbar button { font-family: var(--mono); min-width: 34px; }
+
+  /* The editor/preview split. Taller than the default panel so a real
+     document is comfortable to write. */
+  .mdconv__editor {
+    min-height: 460px;
+    height: 56vh;
+  }
+  .mdconv__preview {
+    min-height: 460px;
+    height: 56vh;
+    overflow: auto;
+    background: var(--sunk);
+    border: 1px solid var(--edge);
+    border-radius: var(--r);
+    padding: 18px 22px;
+  }
+
+  /* --- rendered Markdown typography (scoped to the preview pane) -------- */
+  .mdconv__preview h1, .mdconv__preview h2, .mdconv__preview h3,
+  .mdconv__preview h4, .mdconv__preview h5, .mdconv__preview h6 {
+    font-family: var(--display);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.25;
+    margin: 1.2em 0 0.5em;
+  }
+  .mdconv__preview h1:first-child, .mdconv__preview h2:first-child,
+  .mdconv__preview h3:first-child { margin-top: 0; }
+  .mdconv__preview h1 { font-size: 1.9rem; border-bottom: 1px solid var(--edge); padding-bottom: .3em; }
+  .mdconv__preview h2 { font-size: 1.5rem; border-bottom: 1px solid var(--edge); padding-bottom: .25em; }
+  .mdconv__preview h3 { font-size: 1.22rem; }
+  .mdconv__preview h4 { font-size: 1.05rem; }
+  .mdconv__preview h5, .mdconv__preview h6 { font-size: 0.95rem; color: var(--steel); }
+  .mdconv__preview p { margin: 0.8em 0; }
+  .mdconv__preview a { color: var(--signal); }
+  .mdconv__preview strong { font-weight: 700; }
+  .mdconv__preview em { font-style: italic; }
+  .mdconv__preview del { color: var(--steel); }
+  .mdconv__preview code {
+    font-family: var(--mono); font-size: 0.88em; background: var(--card);
+    border: 1px solid var(--edge); border-radius: 3px; padding: 0.1em 0.35em;
+  }
+  .mdconv__preview pre {
+    background: var(--card); border: 1px solid var(--edge); border-radius: var(--r);
+    padding: 12px 14px; overflow-x: auto; margin: 0.9em 0;
+  }
+  .mdconv__preview pre code { background: none; border: 0; padding: 0; font-size: 0.85em; line-height: 1.6; }
+  .mdconv__preview blockquote {
+    margin: 0.9em 0; padding: 2px 16px; border-left: 3px solid var(--edge-2);
+    color: var(--steel);
+  }
+  .mdconv__preview blockquote blockquote { margin: 0.6em 0; }
+  .mdconv__preview ul, .mdconv__preview ol { margin: 0.7em 0; padding-left: 1.6em; }
+  .mdconv__preview li { margin: 0.2em 0; }
+  .mdconv__preview li > ul, .mdconv__preview li > ol { margin: 0.2em 0; }
+  .mdconv__preview li.mdconv-task { list-style: none; margin-left: -1.4em; }
+  .mdconv__preview li.mdconv-task input { margin-right: 0.4em; vertical-align: -2px; }
+  .mdconv__preview hr { border: 0; border-top: 1px solid var(--edge-2); margin: 1.6em 0; }
+  .mdconv__preview img { max-width: 100%; border-radius: var(--r); }
+  .mdconv__preview table { border-collapse: collapse; margin: 0.9em 0; font-size: 0.92em; width: auto; max-width: 100%; }
+  .mdconv__preview th, .mdconv__preview td { border: 1px solid var(--edge); padding: 6px 11px; }
+  .mdconv__preview th { background: var(--card); font-weight: 700; }
+  .mdconv__preview .empty { color: var(--steel); font-style: normal; }
+
+  @media (max-width: 860px) {
+    .mdconv__editor, .mdconv__preview { height: auto; min-height: 320px; }
+  }
+
+  /* Printing shows only the rendered preview, full width, on a plain page. */
+  @media print {
+    .mdconv__preview {
+      height: auto; max-height: none; overflow: visible;
+      border: 0; padding: 0; background: #fff; color: #000;
+    }
+    .mdconv__split { display: block; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__home" href="../../index.html"><span class="topbar__mark">▚</span> bench</a>
+  <span class="topbar__sep">/</span>
+  <span class="topbar__here">Markdown Editor</span>
+  <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
+</header>
+
+<main class="wrap">
+
+  <div class="toolhead no-print">
+    <p class="toolhead__spec mono"># Heading</p>
+    <h1 class="toolhead__title">Markdown Editor</h1>
+    <p class="toolhead__desc">Write Markdown with a live preview, then export it as HTML or print it to PDF.</p>
+  </div>
+
+  <section class="panel no-print" style="margin-bottom:var(--gap)">
+    <h2 class="panel__title">Format</h2>
+    <div class="row row--between mdconv__toolbar">
+      <div class="row" id="toolbar">
+        <button class="btn btn--sm" type="button" data-cmd="bold" title="Bold (Ctrl/Cmd+B)" aria-label="Bold"><b>B</b></button>
+        <button class="btn btn--sm" type="button" data-cmd="italic" title="Italic (Ctrl/Cmd+I)" aria-label="Italic"><i>I</i></button>
+        <button class="btn btn--sm" type="button" data-cmd="strike" title="Strikethrough" aria-label="Strikethrough"><s>S</s></button>
+        <button class="btn btn--sm" type="button" data-cmd="code" title="Inline code" aria-label="Inline code">&lt;/&gt;</button>
+        <button class="btn btn--sm" type="button" data-cmd="link" title="Link (Ctrl/Cmd+K)" aria-label="Link">Link</button>
+        <button class="btn btn--sm" type="button" data-cmd="heading" title="Heading — click again to go deeper" aria-label="Heading">H</button>
+        <button class="btn btn--sm" type="button" data-cmd="ul" title="Bullet list" aria-label="Bullet list">•—</button>
+        <button class="btn btn--sm" type="button" data-cmd="ol" title="Numbered list" aria-label="Numbered list">1.—</button>
+        <button class="btn btn--sm" type="button" data-cmd="quote" title="Quote" aria-label="Quote">”</button>
+      </div>
+      <button class="btn btn--sm" id="sample">Load sample</button>
+    </div>
+    <div class="row" style="align-items:center">
+      <label class="check"><input type="checkbox" id="allowHtml"> Allow raw HTML in preview</label>
+      <div class="note note--warn grow" style="min-width:240px">
+        <span class="note__mark">!</span>
+        <span>Raw HTML tags in your Markdown are inserted into the preview when this is on. <code>&lt;script&gt;</code>, <code>&lt;iframe&gt;</code>, <code>&lt;object&gt;</code>, <code>&lt;embed&gt;</code>, event-handler attributes and <code>javascript:</code> links are stripped either way — but only enable this for Markdown you trust, since other tags and styles still pass through.</span>
+      </div>
+    </div>
+  </section>
+
+  <div class="split mdconv__split">
+
+    <section class="panel no-print" id="editorPanel">
+      <h2 class="panel__title">Markdown</h2>
+      <label class="sr-only" for="src">Markdown source</label>
+      <textarea class="textarea mdconv__editor" id="src" spellcheck="false" placeholder="# Start writing…"></textarea>
+    </section>
+
+    <section class="panel" id="previewPanel">
+      <h2 class="panel__title no-print">Preview</h2>
+      <div class="mdconv__preview" id="preview"></div>
+    </section>
+
+  </div>
+
+  <div class="stats no-print" id="stats" style="margin-top:var(--gap)">
+    <div class="stat"><span class="stat__n" id="s-words">0</span><span class="stat__k">Words</span></div>
+    <div class="stat"><span class="stat__n" id="s-chars">0</span><span class="stat__k">Characters</span></div>
+    <div class="stat"><span class="stat__n" id="s-lines">0</span><span class="stat__k">Lines</span></div>
+    <div class="stat"><span class="stat__n" id="s-read">0 min</span><span class="stat__k">Reading time</span></div>
+  </div>
+
+  <section class="panel no-print" style="margin-top:var(--gap)">
+    <h2 class="panel__title">Export</h2>
+    <div class="row">
+      <button class="btn btn--sm" id="copyMd">Copy Markdown</button>
+      <button class="btn btn--sm" id="copyHtml">Copy rendered HTML</button>
+      <button class="btn btn--sm" id="downloadMd">Download .md</button>
+      <button class="btn btn--sm" id="downloadHtml">Download standalone .html</button>
+      <button class="btn btn--sm btn--primary" id="printBtn">Print / Save as PDF</button>
+      <button class="btn btn--sm btn--danger" id="clearBtn" style="margin-left:auto">Clear document</button>
+    </div>
+    <p class="note note--info" style="margin-top:12px"><span class="note__mark">i</span><span>Your document autosaves to this browser as you type. Nothing here is uploaded anywhere.</span></p>
+  </section>
+
+  <footer class="foot no-print">
+    <a href="../../index.html">← All tools</a>
+    <span>·</span>
+    <span>Runs entirely in your browser</span>
+  </footer>
+
+</main>
+
+<script src="../../assets/js/bench.js" defer></script>
+<script defer>
+document.addEventListener("DOMContentLoaded", function () {
+  "use strict";
+  var $ = Bench.$, $$ = Bench.$$, esc = Bench.esc;
+
+  /* ==========================================================================
+     Markdown → HTML.
+     A hand-written renderer covering CommonMark essentials plus GFM. It is
+     split in two passes, like every real Markdown implementation:
+       1. Block parsing: turn lines into a tree of block nodes (headings,
+          paragraphs, lists, quotes, code, tables…).
+       2. Inline rendering: turn the text inside each block into HTML,
+          handling emphasis, links, code spans, images, etc.
+     Security model: every plain-text run is escaped before it reaches
+     innerHTML. Raw HTML tags are only ever emitted when the caller opts in
+     (allowHtml), and even then dangerous tags/attributes are stripped in
+     `sanitizeTag`. This is what keeps a pasted document from executing.
+     ========================================================================== */
+
+  /* --- entities ------------------------------------------------------------- */
+
+  var ENTITY_MAP = {
+    amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ",
+    copy: "©", reg: "®", trade: "™", mdash: "—", ndash: "–",
+    hellip: "…", lsquo: "‘", rsquo: "’", ldquo: "“", rdquo: "”",
+    middot: "·", bull: "•", deg: "°", plusmn: "±", times: "×",
+    divide: "÷", frac12: "½", frac14: "¼", frac34: "¾",
+    euro: "€", pound: "£", yen: "¥", cent: "¢", sect: "§",
+    para: "¶", dagger: "†", Dagger: "‡", larr: "←", rarr: "→",
+    uarr: "↑", darr: "↓", harr: "↔", infin: "∞", ne: "≠",
+    le: "≤", ge: "≥", asymp: "≈", alpha: "α", beta: "β",
+    gamma: "γ", delta: "δ", pi: "π", sigma: "σ", omega: "ω",
+    spades: "♠", clubs: "♣", hearts: "♥", diams: "♦"
+  };
+
+  function decodeEntities(s) {
+    return String(s).replace(/&(#x[0-9a-fA-F]+|#[0-9]+|[a-zA-Z][a-zA-Z0-9]*);/g, function (m, ent) {
+      if (ent.charAt(0) === "#") {
+        var code = /^#x/i.test(ent) ? parseInt(ent.slice(2), 16) : parseInt(ent.slice(1), 10);
+        if (!isFinite(code) || code < 0 || code > 0x10ffff) return m;
+        try { return String.fromCodePoint(code); } catch (e) { return m; }
+      }
+      return ENTITY_MAP.hasOwnProperty(ent) ? ENTITY_MAP[ent] : m;
+    });
+  }
+
+  /* --- link / attribute safety ----------------------------------------------
+     Applies regardless of the "allow raw HTML" toggle — a Markdown *link*
+     pointing at a javascript: URL is just as dangerous as a raw <script>. */
+
+  function safeUrl(u) {
+    var s = String(u == null ? "" : u).trim();
+    var m = /^([a-zA-Z][a-zA-Z0-9+.-]*):/.exec(s);
+    if (m) {
+      var allowed = ["http", "https", "mailto", "ftp", "ftps", "tel"];
+      if (allowed.indexOf(m[1].toLowerCase()) === -1) return "#";
+    }
+    return s;
+  }
+
+  var BANNED_TAGS = ["script", "iframe", "object", "embed", "style", "link", "meta", "base", "form"];
+
+  function sanitizeTag(tag) {
+    var nm = /^<\/?([a-zA-Z][a-zA-Z0-9-]*)/.exec(tag);
+    var name = nm ? nm[1].toLowerCase() : "";
+    if (BANNED_TAGS.indexOf(name) !== -1) return "";
+    var cleaned = tag.replace(/\s+on[a-zA-Z]+\s*=\s*("(?:[^"]*)"|'(?:[^']*)'|[^\s>]+)/gi, "");
+    cleaned = cleaned.replace(/\s+(href|src)\s*=\s*("javascript:[^"]*"|'javascript:[^']*'|javascript:[^\s>]*)/gi, ' $1="#"');
+    return cleaned;
+  }
+
+  function stripToText(s) {
+    var t = String(s).replace(/\\([\\`*_{}\[\]()#+\-.!~])/g, "$1");
+    t = t.replace(/[*_~`]/g, "");
+    return decodeEntities(t);
+  }
+
+  /* --- inline code spans ----------------------------------------------------
+     Backtick-run matching: the opening run's length must match the closing
+     run's length exactly, so `` `a` `` and ```` ``a` `` ```` behave. */
+
+  function scanCodeSpans(text, protect) {
+    var out = "", i = 0, n = text.length;
+    while (i < n) {
+      if (text.charAt(i) === "`") {
+        var j = i;
+        while (j < n && text.charAt(j) === "`") j++;
+        var openLen = j - i, k = j, found = -1;
+        while (k < n) {
+          if (text.charAt(k) === "`") {
+            var k2 = k;
+            while (k2 < n && text.charAt(k2) === "`") k2++;
+            if (k2 - k === openLen) { found = k; break; }
+            k = k2;
+          } else k++;
+        }
+        if (found === -1) { out += text.slice(i, j); i = j; }
+        else {
+          var content = text.slice(j, found).replace(/\n/g, " ");
+          if (content.length >= 2 && content.charAt(0) === " " && content.charAt(content.length - 1) === " " && content.trim() !== "") {
+            content = content.slice(1, -1);
+          }
+          out += protect(esc(content));
+          i = found + openLen;
+        }
+      } else { out += text.charAt(i); i++; }
+    }
+    return out;
+  }
+
+  /* --- inline rendering ------------------------------------------------------
+     Runs the full pipeline for one span of text and returns fully-resolved
+     HTML (no leftover placeholder tokens) — safe for a caller to embed. */
+
+  function renderInline(raw, ctx) {
+    if (raw == null || raw === "") return "";
+    var store = [];
+    function protect(html) { store.push(html); return " " + (store.length - 1) + ""; }
+
+    // Hard line breaks: two-or-more trailing spaces, or a trailing backslash.
+    var s = String(raw).replace(/( {2,}|\\)\n/g, " BR\n");
+
+    // Backslash escapes for ASCII punctuation — consumed before anything else
+    // can interpret the character as syntax.
+    s = s.replace(/\\([\\`*_{}\[\]()#+\-.!~|<>"'])/g, function (m, ch) { return protect(esc(ch)); });
+
+    // Code spans.
+    s = scanCodeSpans(s, protect);
+
+    // Autolinks: <https://example.com> and <name@example.com>.
+    s = s.replace(/<((?:https?|ftp):[^\s<>]*|[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)+)>/g, function (m, addr) {
+      var isEmail = !/^[a-z]+:/i.test(addr);
+      var href = isEmail ? "mailto:" + addr : addr;
+      return protect('<a href="' + esc(safeUrl(href)) + '">' + esc(addr) + "</a>");
+    });
+
+    // Raw inline HTML — only when the caller opted in. Sanitised either way.
+    if (ctx.allowHtml) {
+      s = s.replace(/<\/?[a-zA-Z][a-zA-Z0-9-]*(?:\s+[^<>]*)?\/?>/g, function (m) { return protect(sanitizeTag(m)); });
+    }
+
+    // Images: ![alt](url "title") and ![alt][ref].
+    s = s.replace(/!\[((?:[^\[\]\\]|\\.)*)\]\(\s*(<[^<>]*>|[^()\s]*)(?:\s+"([^"]*)"|\s+'([^']*)')?\s*\)/g,
+      function (m, alt, url, t1, t2) {
+        url = url.replace(/^<|>$/g, "");
+        var title = t1 || t2 || "";
+        var html = '<img src="' + esc(safeUrl(decodeEntities(url))) + '" alt="' + esc(stripToText(alt)) + '"';
+        if (title) html += ' title="' + esc(decodeEntities(title)) + '"';
+        return protect(html + ">");
+      });
+    s = s.replace(/!\[((?:[^\[\]\\]|\\.)*)\]\[([^\]]*)\]/g, function (m, alt, ref) {
+      var label = (ref || alt).trim().toLowerCase().replace(/\s+/g, " ");
+      var r = ctx.refs[label];
+      if (!r) return m;
+      var html = '<img src="' + esc(safeUrl(decodeEntities(r.url))) + '" alt="' + esc(stripToText(alt)) + '"';
+      if (r.title) html += ' title="' + esc(decodeEntities(r.title)) + '"';
+      return protect(html + ">");
+    });
+
+    // Links: [text](url "title"), [text][ref], [text][], and [ref] shortcuts.
+    s = s.replace(/\[((?:[^\[\]\\]|\\.)*)\]\(\s*(<[^<>]*>|[^()\s]*)(?:\s+"([^"]*)"|\s+'([^']*)')?\s*\)/g,
+      function (m, text, url, t1, t2) {
+        url = (url || "").replace(/^<|>$/g, "");
+        var title = t1 || t2 || "";
+        var html = '<a href="' + esc(safeUrl(decodeEntities(url))) + '"';
+        if (title) html += ' title="' + esc(decodeEntities(title)) + '"';
+        return protect(html + ">" + renderInline(text, ctx) + "</a>");
+      });
+    s = s.replace(/\[((?:[^\[\]\\]|\\.)*)\]\[([^\]]*)\]/g, function (m, text, ref) {
+      var label = (ref || text).trim().toLowerCase().replace(/\s+/g, " ");
+      var r = ctx.refs[label];
+      if (!r) return m;
+      var html = '<a href="' + esc(safeUrl(decodeEntities(r.url))) + '"';
+      if (r.title) html += ' title="' + esc(decodeEntities(r.title)) + '"';
+      return protect(html + ">" + renderInline(text, ctx) + "</a>");
+    });
+    s = s.replace(/\[((?:[^\[\]\\]|\\.)*)\](?!\(|\[|:)/g, function (m, text) {
+      var label = text.trim().toLowerCase().replace(/\s+/g, " ");
+      var r = ctx.refs[label];
+      if (!r) return m;
+      var html = '<a href="' + esc(safeUrl(decodeEntities(r.url))) + '"';
+      if (r.title) html += ' title="' + esc(decodeEntities(r.title)) + '"';
+      return protect(html + ">" + renderInline(text, ctx) + "</a>");
+    });
+
+    // Everything left is plain text: decode entities, then escape for HTML —
+    // in that order, so a literal "&lt;script&gt;" still ends up inert.
+    s = esc(decodeEntities(s));
+
+    // Strikethrough, then emphasis, longest delimiter run first so
+    // ***x*** doesn't get eaten by the ** rule first.
+    s = s.replace(/~~([^\s~](?:[^~]*[^\s~])?)~~/g, "<del>$1</del>");
+    s = s.replace(/(\*\*\*|___)([^\s](?:[\s\S]*?[^\s])?)\1/g, "<strong><em>$2</em></strong>");
+    s = s.replace(/(\*\*|__)([^\s](?:[\s\S]*?[^\s])?)\1/g, "<strong>$2</strong>");
+    s = s.replace(/\*([^\s*](?:[\s\S]*?[^\s*])?)\*/g, "<em>$1</em>");
+    s = s.replace(/(^|[^A-Za-z0-9_])_([^\s_](?:[^_]*?[^\s_])?)_(?![A-Za-z0-9_])/g, "$1<em>$2</em>");
+
+    s = s.replace(/ BR/g, "<br>");
+    s = s.replace(/ (\d+)/g, function (m, idx) { return store[Number(idx)]; });
+    return s;
+  }
+
+  /* --- block parsing ---------------------------------------------------------- */
+
+  function leadingSpaces(l) { return /^ */.exec(l)[0].length; }
+
+  function detectMarker(line) {
+    var um = /^( {0,3})([-*+])(.*)$/.exec(line);
+    var om = /^( {0,3})(\d{1,9})([.)])(.*)$/.exec(line);
+    var lead, markerLen, rest, ordered = false, start = 1;
+    if (um) {
+      rest = um[3];
+      if (rest.length && !/^[ \t]/.test(rest)) return null;
+      lead = um[1].length; markerLen = 1;
+    } else if (om) {
+      rest = om[4];
+      if (rest.length && !/^[ \t]/.test(rest)) return null;
+      lead = om[1].length; markerLen = om[2].length + 1;
+      ordered = true; start = parseInt(om[2], 10);
+    } else return null;
+
+    var spaceLen = /^[ \t]*/.exec(rest)[0].length;
+    var content, contentIndent;
+    if (rest.trim() === "") { content = ""; contentIndent = lead + markerLen + 1; }
+    else if (spaceLen >= 5) { content = rest.slice(1); contentIndent = lead + markerLen + 1; }
+    else { content = rest.slice(spaceLen); contentIndent = lead + markerLen + spaceLen; }
+    return { ordered: ordered, start: start, content: content, contentIndent: contentIndent };
+  }
+
+  function isBlockStart(l) {
+    return /^ {0,3}#{1,6}(\s|$)/.test(l) ||
+      /^ {0,3}(`{3,}|~{3,})/.test(l) ||
+      /^ {0,3}>/.test(l) ||
+      /^ {0,3}([-*_])( *\1){2,} *$/.test(l) ||
+      detectMarker(l) != null;
+  }
+
+  function splitRow(line) {
+    line = line.trim();
+    if (line.charAt(0) === "|") line = line.slice(1);
+    if (line.length && line.charAt(line.length - 1) === "|" && line.charAt(line.length - 2) !== "\\") line = line.slice(0, -1);
+    var cells = [], cur = "";
+    for (var k = 0; k < line.length; k++) {
+      var c = line.charAt(k);
+      if (c === "\\" && line.charAt(k + 1) === "|") { cur += "|"; k++; continue; }
+      if (c === "|") { cells.push(cur); cur = ""; continue; }
+      cur += c;
+    }
+    cells.push(cur);
+    return cells.map(function (s) { return s.trim(); });
+  }
+
+  /** Pulls `[label]: url "title"` reference definitions out of the source,
+   *  skipping anything inside a fenced code block. */
+  function extractRefs(lines) {
+    var refs = {}, out = [], inFence = false, fenceChar = "", fenceLen = 0;
+    for (var idx = 0; idx < lines.length; idx++) {
+      var l = lines[idx];
+      var fm = /^ {0,3}(`{3,}|~{3,})/.exec(l);
+      if (fm) {
+        if (!inFence) { inFence = true; fenceChar = fm[1].charAt(0); fenceLen = fm[1].length; }
+        else if (fm[1].charAt(0) === fenceChar && fm[1].length >= fenceLen) inFence = false;
+        out.push(l); continue;
+      }
+      if (!inFence) {
+        var rm = /^ {0,3}\[([^\]]+)\]:\s*<?([^\s>]+)>?(?:\s+(?:"([^"]*)"|'([^']*)'|\(([^)]*)\)))?\s*$/.exec(l);
+        if (rm) {
+          var label = rm[1].trim().toLowerCase().replace(/\s+/g, " ");
+          if (!refs[label]) refs[label] = { url: rm[2], title: rm[3] || rm[4] || rm[5] || "" };
+          out.push(""); continue;
+        }
+      }
+      out.push(l);
+    }
+    return { lines: out, refs: refs };
+  }
+
+  function parseAlign(cell) {
+    var l = cell.charAt(0) === ":", r = cell.charAt(cell.length - 1) === ":";
+    return l && r ? "center" : r ? "right" : l ? "left" : "";
+  }
+
+  /** The main block-level parser. Recursive: blockquotes and list items call
+   *  back into this on their own (de-indented) slice of lines. */
+  function blockParse(lines) {
+    var i = 0, n = lines.length, blocks = [];
+
+    while (i < n) {
+      var line = lines[i];
+
+      if (/^\s*$/.test(line)) { i++; continue; }
+
+      // Fenced code block.
+      var fence = /^ {0,3}(`{3,}|~{3,})\s*([^\s`]*)/.exec(line);
+      if (fence) {
+        var fChar = fence[1].charAt(0), fLen = fence[1].length, lang = fence[2] || "";
+        var body = []; i++;
+        while (i < n) {
+          var close = /^ {0,3}(`{3,}|~{3,})\s*$/.exec(lines[i]);
+          if (close && close[1].charAt(0) === fChar && close[1].length >= fLen) { i++; break; }
+          body.push(lines[i]); i++;
+        }
+        blocks.push({ type: "code", lang: lang, text: body.join("\n") });
+        continue;
+      }
+
+      // Indented code block (4 spaces), only when not continuing a paragraph.
+      if (/^ {4}/.test(line)) {
+        var codeLines = [];
+        while (i < n && (/^ {4}/.test(lines[i]) || /^\s*$/.test(lines[i]))) {
+          codeLines.push(/^\s*$/.test(lines[i]) ? "" : lines[i].slice(4));
+          i++;
+        }
+        while (codeLines.length && codeLines[codeLines.length - 1] === "") codeLines.pop();
+        blocks.push({ type: "code", lang: "", text: codeLines.join("\n") });
+        continue;
+      }
+
+      // Thematic break.
+      if (/^ {0,3}([-*_])( *\1){2,} *$/.test(line)) { blocks.push({ type: "hr" }); i++; continue; }
+
+      // ATX heading.
+      var atx = /^ {0,3}(#{1,6})(?:\s+(.*?))?\s*$/.exec(line);
+      if (atx) {
+        var htext = (atx[2] || "").replace(/\s+#+\s*$/, "");
+        blocks.push({ type: "heading", level: atx[1].length, inline: htext });
+        i++; continue;
+      }
+
+      // Blockquote (with simple lazy continuation).
+      if (/^ {0,3}>/.test(line)) {
+        var qLines = [];
+        while (i < n) {
+          var qm = /^ {0,3}>[ ]?(.*)$/.exec(lines[i]);
+          if (qm) { qLines.push(qm[1]); i++; }
+          else if (lines[i].trim() !== "" && qLines.length && !isBlockStart(lines[i])) { qLines.push(lines[i]); i++; }
+          else break;
+        }
+        blocks.push({ type: "blockquote", children: blockParse(qLines) });
+        continue;
+      }
+
+      // List (ordered or unordered), possibly nested and multi-paragraph.
+      var marker = detectMarker(line);
+      if (marker) {
+        var ordered = marker.ordered, listStart = marker.start;
+        var items = [], blankBetween = false, sawBlankInside = false;
+
+        while (i < n) {
+          var m2 = detectMarker(lines[i]);
+          if (!m2 || m2.ordered !== ordered) break;
+          var contentIndent = m2.contentIndent;
+          var itemLines = [m2.content];
+          i++;
+          while (i < n) {
+            var l2 = lines[i];
+            if (/^\s*$/.test(l2)) {
+              var j = i + 1;
+              while (j < n && /^\s*$/.test(lines[j])) j++;
+              if (j >= n) { i = j; break; }
+              if (leadingSpaces(lines[j]) >= contentIndent) { itemLines.push(""); sawBlankInside = true; i++; continue; }
+              break;
+            }
+            var ind = leadingSpaces(l2);
+            if (ind >= contentIndent) { itemLines.push(l2.slice(contentIndent)); i++; continue; }
+            if (!isBlockStart(l2) && itemLines.length && itemLines[itemLines.length - 1] !== "") { itemLines.push(l2); i++; continue; }
+            break;
+          }
+          while (itemLines.length && itemLines[itemLines.length - 1] === "") itemLines.pop();
+
+          var task = null;
+          var tm = /^\[([ xX])\]\s+(.*)$/.exec(itemLines[0] || "");
+          if (tm) { task = /[xX]/.test(tm[1]); itemLines[0] = tm[2]; }
+
+          items.push({ children: blockParse(itemLines), task: task });
+
+          if (i < n && /^\s*$/.test(lines[i])) {
+            var k = i;
+            while (k < n && /^\s*$/.test(lines[k])) k++;
+            if (k < n && detectMarker(lines[k]) && detectMarker(lines[k]).ordered === ordered) { blankBetween = true; i = k; continue; }
+            i = k; break;
+          }
+        }
+
+        blocks.push({ type: "list", ordered: ordered, start: listStart, tight: !blankBetween && !sawBlankInside, items: items });
+        continue;
+      }
+
+      // GFM table: a row followed by a delimiter row.
+      if (line.indexOf("|") !== -1 && i + 1 < n && /^ {0,3}\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/.test(lines[i + 1]) && /-/.test(lines[i + 1])) {
+        var header = splitRow(line);
+        var aligns = splitRow(lines[i + 1]).map(parseAlign);
+        i += 2;
+        var rows = [];
+        while (i < n && lines[i].indexOf("|") !== -1 && !/^\s*$/.test(lines[i])) { rows.push(splitRow(lines[i])); i++; }
+        blocks.push({ type: "table", header: header, aligns: aligns, rows: rows });
+        continue;
+      }
+
+      // Paragraph — absorbs lines until a blank line or another block starts,
+      // watching for a setext underline that would turn it into a heading.
+      var paraLines = [line]; i++;
+      var becameHeading = false;
+      while (i < n) {
+        var l3 = lines[i];
+        if (/^\s*$/.test(l3)) break;
+        if (/^ {0,3}(=+|-+)\s*$/.test(l3) && paraLines.length) {
+          blocks.push({ type: "heading", level: l3.trim().charAt(0) === "=" ? 1 : 2, inline: paraLines.join(" ").trim() });
+          i++; becameHeading = true; break;
+        }
+        if (isBlockStart(l3)) break;
+        paraLines.push(l3); i++;
+      }
+      if (!becameHeading) blocks.push({ type: "paragraph", inline: paraLines.join("\n") });
+    }
+
+    return blocks;
+  }
+
+  /* --- block → HTML ----------------------------------------------------------- */
+
+  function renderBlocks(blocks, ctx) { return blocks.map(function (b) { return blockToHtml(b, ctx); }).join("\n"); }
+
+  function renderListItem(it, tight, ctx) {
+    var cls = it.task !== null ? ' class="mdconv-task"' : "";
+    var box = it.task !== null ? '<input type="checkbox" disabled' + (it.task ? " checked" : "") + "> " : "";
+    var inner;
+    if (tight) {
+      inner = it.children.map(function (c) { return c.type === "paragraph" ? renderInline(c.inline, ctx) : blockToHtml(c, ctx); }).join("\n");
+    } else {
+      inner = renderBlocks(it.children, ctx);
+    }
+    return "<li" + cls + ">" + box + inner + "</li>\n";
+  }
+
+  function renderTable(b, ctx) {
+    var thead = "<tr>" + b.header.map(function (c, idx) {
+      var a = b.aligns[idx] ? ' style="text-align:' + b.aligns[idx] + '"' : "";
+      return "<th" + a + ">" + renderInline(c, ctx) + "</th>";
+    }).join("") + "</tr>";
+    var tbody = b.rows.map(function (row) {
+      return "<tr>" + b.header.map(function (_, idx) {
+        var a = b.aligns[idx] ? ' style="text-align:' + b.aligns[idx] + '"' : "";
+        return "<td" + a + ">" + renderInline(row[idx] || "", ctx) + "</td>";
+      }).join("") + "</tr>";
+    }).join("\n");
+    return "<table>\n<thead>\n" + thead + "\n</thead>\n<tbody>\n" + tbody + "\n</tbody>\n</table>";
+  }
+
+  function blockToHtml(b, ctx) {
+    switch (b.type) {
+      case "heading": return "<h" + b.level + ">" + renderInline(b.inline, ctx) + "</h" + b.level + ">";
+      case "hr": return "<hr>";
+      case "code":
+        var cls = b.lang ? ' class="language-' + esc(b.lang.split(/\s+/)[0]) + '"' : "";
+        return "<pre><code" + cls + ">" + esc(b.text) + "</code></pre>";
+      case "blockquote": return "<blockquote>\n" + renderBlocks(b.children, ctx) + "\n</blockquote>";
+      case "list":
+        var tag = b.ordered ? "ol" : "ul";
+        var startAttr = b.ordered && b.start !== 1 ? ' start="' + b.start + '"' : "";
+        return "<" + tag + startAttr + ">\n" + b.items.map(function (it) { return renderListItem(it, b.tight, ctx); }).join("") + "</" + tag + ">";
+      case "table": return renderTable(b, ctx);
+      case "paragraph": return "<p>" + renderInline(b.inline, ctx) + "</p>";
+      default: return "";
+    }
+  }
+
+  function markdownToHtml(src, allowHtml) {
+    var lines = src.replace(/\r\n?/g, "\n").split("\n");
+    var extracted = extractRefs(lines);
+    var blocks = blockParse(extracted.lines);
+    var ctx = { allowHtml: !!allowHtml, refs: extracted.refs };
+    return renderBlocks(blocks, ctx);
+  }
+
+  /* ==========================================================================
+     UI
+     ========================================================================== */
+
+  var src = $("#src"), preview = $("#preview"), allowHtml = $("#allowHtml");
+  var store = Bench.store("markdown-converter");
+
+  var SAMPLE = [
+    "# Project notes",
+    "",
+    "A quick tour of what this editor supports — edit anything below.",
+    "",
+    "## Formatting",
+    "",
+    "**Bold**, *italic*, ***both***, ~~strikethrough~~, `inline code`, and a [link](https://example.com \"Example\").",
+    "",
+    "## Lists",
+    "",
+    "- Unordered items",
+    "  - Nested one level",
+    "- [x] Task done",
+    "- [ ] Task pending",
+    "",
+    "1. Ordered items",
+    "2. Second item",
+    "   1. Nested ordered",
+    "",
+    "## Quote and code",
+    "",
+    "> A blockquote can wrap onto\n> several lines, or nest:\n>> like this.",
+    "",
+    "```js",
+    "function greet(name) {",
+    "  return `Hello, ${name}!`;",
+    "}",
+    "```",
+    "",
+    "## Table",
+    "",
+    "| Feature | Status |",
+    "| :-- | --: |",
+    "| Tables | done |",
+    "| Alignment | done |",
+    "",
+    "---",
+    "",
+    "Autolinks work too: <https://example.com>."
+  ].join("\n");
+
+  /* --- render ----------------------------------------------------------------- */
+
+  function render() {
+    var text = src.value;
+    var html;
+    try { html = markdownToHtml(text, allowHtml.checked); }
+    catch (e) { preview.innerHTML = '<p class="empty">Could not render this document — ' + esc(e.message) + "</p>"; return; }
+    preview.innerHTML = html || '<p class="empty">Start typing Markdown on the left to see it rendered here.</p>';
+    updateStats(text);
+  }
+
+  function updateStats(text) {
+    var words = (text.match(/[A-Za-z0-9À-ÖØ-öø-ÿ'’_-]+/g) || []).length;
+    var lines = text === "" ? 0 : text.split("\n").length;
+    var minutes = Math.max(1, Math.round(words / 200));
+    $("#s-words").textContent = Bench.num(words);
+    $("#s-chars").textContent = Bench.num(text.length);
+    $("#s-lines").textContent = Bench.num(lines);
+    $("#s-read").textContent = words === 0 ? "0 min" : minutes + " min";
+  }
+
+  function saveDoc() {
+    store.set("doc", src.value);
+    store.set("allowHtml", allowHtml.checked);
+  }
+
+  /* --- load / autosave --------------------------------------------------------- */
+
+  var saved = store.get("doc", null);
+  src.value = saved == null ? SAMPLE : saved;
+  allowHtml.checked = !!store.get("allowHtml", false);
+
+  Bench.live(src, Bench.debounce(function () { render(); saveDoc(); }, 150));
+  allowHtml.addEventListener("change", function () { render(); saveDoc(); });
+
+  $("#sample").addEventListener("click", function () { src.value = SAMPLE; render(); saveDoc(); src.focus(); });
+
+  /* --- toolbar: wrap or insert around the current selection -------------------- */
+
+  function wrapSelection(before, after, placeholder) {
+    var start = src.selectionStart, end = src.selectionEnd, val = src.value;
+    var selected = val.slice(start, end) || placeholder || "";
+    src.value = val.slice(0, start) + before + selected + after + val.slice(end);
+    src.focus();
+    src.setSelectionRange(start + before.length, start + before.length + selected.length);
+    render(); saveDoc();
+  }
+
+  function linePrefix(prefix) {
+    var start = src.selectionStart, end = src.selectionEnd, val = src.value;
+    var lineStart = val.lastIndexOf("\n", start - 1) + 1;
+    var lineEndIdx = val.indexOf("\n", end);
+    if (lineEndIdx === -1) lineEndIdx = val.length;
+    var block = val.slice(lineStart, lineEndIdx);
+    var newBlock = block.split("\n").map(function (l) { return prefix + l; }).join("\n");
+    src.value = val.slice(0, lineStart) + newBlock + val.slice(lineEndIdx);
+    src.focus();
+    src.setSelectionRange(lineStart, lineStart + newBlock.length);
+    render(); saveDoc();
+  }
+
+  function toggleHeading() {
+    var start = src.selectionStart, val = src.value;
+    var lineStart = val.lastIndexOf("\n", start - 1) + 1;
+    var lineEndIdx = val.indexOf("\n", lineStart);
+    if (lineEndIdx === -1) lineEndIdx = val.length;
+    var line = val.slice(lineStart, lineEndIdx);
+    var m = /^(#{1,6})\s*/.exec(line);
+    var newLine = m ? (m[1].length < 6 ? "#" + line : line.replace(/^#{6}\s*/, "")) : "## " + line;
+    src.value = val.slice(0, lineStart) + newLine + val.slice(lineEndIdx);
+    src.focus();
+    var delta = newLine.length - line.length;
+    src.setSelectionRange(start + delta, start + delta);
+    render(); saveDoc();
+  }
+
+  function runCmd(cmd) {
+    if (cmd === "bold") wrapSelection("**", "**", "bold text");
+    else if (cmd === "italic") wrapSelection("*", "*", "italic text");
+    else if (cmd === "strike") wrapSelection("~~", "~~", "strikethrough");
+    else if (cmd === "code") wrapSelection("`", "`", "code");
+    else if (cmd === "link") wrapSelection("[", "](https://)", "link text");
+    else if (cmd === "heading") toggleHeading();
+    else if (cmd === "ul") linePrefix("- ");
+    else if (cmd === "ol") linePrefix("1. ");
+    else if (cmd === "quote") linePrefix("> ");
+  }
+
+  $$("#toolbar [data-cmd]").forEach(function (btn) {
+    btn.addEventListener("click", function () { runCmd(btn.dataset.cmd); });
+  });
+
+  src.addEventListener("keydown", function (e) {
+    var mod = e.ctrlKey || e.metaKey;
+    if (!mod) return;
+    var key = e.key.toLowerCase();
+    if (key === "b") { e.preventDefault(); runCmd("bold"); }
+    else if (key === "i") { e.preventDefault(); runCmd("italic"); }
+    else if (key === "k") { e.preventDefault(); runCmd("link"); }
+  });
+
+  /* --- synced scrolling --------------------------------------------------------- */
+
+  var syncing = false;
+  function syncScroll(from, to) {
+    if (syncing) return;
+    syncing = true;
+    var ratio = from.scrollTop / Math.max(1, from.scrollHeight - from.clientHeight);
+    to.scrollTop = ratio * Math.max(1, to.scrollHeight - to.clientHeight);
+    requestAnimationFrame(function () { syncing = false; });
+  }
+  src.addEventListener("scroll", function () { syncScroll(src, preview); });
+  preview.addEventListener("scroll", function () { syncScroll(preview, src); });
+
+  /* --- export ------------------------------------------------------------------ */
+
+  var STANDALONE_CSS = "body{font:16px/1.65 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:760px;margin:0 auto;padding:48px 24px 80px;color:#1a1a1a;background:#fff}"
+    + "h1,h2,h3,h4,h5,h6{line-height:1.25;margin:1.3em 0 .5em;font-weight:700}"
+    + "h1:first-child,h2:first-child{margin-top:0}"
+    + "h1{font-size:2rem;border-bottom:1px solid #ddd;padding-bottom:.3em}"
+    + "h2{font-size:1.5rem;border-bottom:1px solid #ddd;padding-bottom:.25em}"
+    + "p{margin:.9em 0}a{color:#c2410c}code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.9em;background:#f3f3f1;border:1px solid #e2e2df;border-radius:3px;padding:.1em .35em}"
+    + "pre{background:#f6f6f4;border:1px solid #e2e2df;border-radius:6px;padding:14px 16px;overflow-x:auto}"
+    + "pre code{background:none;border:0;padding:0}"
+    + "blockquote{margin:1em 0;padding:2px 18px;border-left:3px solid #ccc;color:#555}"
+    + "ul,ol{padding-left:1.6em}img{max-width:100%}"
+    + "table{border-collapse:collapse;margin:1em 0}th,td{border:1px solid #ddd;padding:6px 12px}th{background:#f6f6f4}"
+    + "hr{border:0;border-top:1px solid #ddd;margin:2em 0}";
+
+  function buildStandaloneHtml() {
+    var tm = /^#\s+(.+)$/m.exec(src.value);
+    var title = tm ? stripToText(tm[1]) : "Document";
+    var body = markdownToHtml(src.value, allowHtml.checked);
+    return "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n"
+      + "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
+      + "<title>" + esc(title) + "</title>\n<style>\n" + STANDALONE_CSS + "\n</style>\n</head>\n<body>\n<article>\n"
+      + body + "\n</article>\n</body>\n</html>\n";
+  }
+
+  $("#copyMd").addEventListener("click", function (e) { Bench.copy(src.value, e.currentTarget); });
+  $("#copyHtml").addEventListener("click", function (e) { Bench.copy(markdownToHtml(src.value, allowHtml.checked), e.currentTarget); });
+  $("#downloadMd").addEventListener("click", function () { Bench.download("document.md", src.value, "text/markdown"); });
+  $("#downloadHtml").addEventListener("click", function () { Bench.download("document.html", buildStandaloneHtml(), "text/html"); });
+  $("#printBtn").addEventListener("click", function () { window.print(); });
+
+  /* --- clear, with a two-click confirm instead of a native dialog -------------- */
+
+  (function () {
+    var btn = $("#clearBtn"), armed = false, timer = null, label = btn.textContent;
+    btn.addEventListener("click", function () {
+      if (!armed) {
+        armed = true;
+        btn.textContent = "Click again to clear";
+        btn.classList.add("btn--on");
+        timer = setTimeout(function () { armed = false; btn.textContent = label; btn.classList.remove("btn--on"); }, 2500);
+      } else {
+        clearTimeout(timer); armed = false;
+        btn.textContent = label; btn.classList.remove("btn--on");
+        src.value = ""; render(); saveDoc(); src.focus();
+        Bench.toast("Document cleared");
+      }
+    });
+  })();
+
+  render();
+});
+</script>
+
+</body>
+</html>

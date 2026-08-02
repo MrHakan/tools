@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HTTP Status Codes — Bench</title>
+<meta name="description" content="Every HTTP status code, searchable, with what it means and when to use it.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/css/bench.css">
+<style>
+  /* Page-specific CSS only, prefixed .status__ */
+
+  .status__subhead {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--steel);
+    margin-bottom: 10px;
+  }
+
+  .status__summary {
+    color: var(--steel);
+    font-size: 12px;
+    margin: 16px 0 10px;
+  }
+
+  .status__group + .status__group { margin-top: 28px; }
+
+  .status__cathead {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 10px;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    color: var(--ink);
+  }
+
+  .status__catrule { flex: 1; height: 1px; background: var(--edge); }
+
+  .status__count {
+    color: var(--steel);
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+
+  .status__rows { display: grid; gap: 8px; }
+
+  .status__row {
+    border: 1px solid var(--edge);
+    border-radius: var(--r);
+    background: var(--card);
+    overflow: hidden;
+    scroll-margin-top: 70px;
+  }
+
+  .status__row.is-open { border-color: var(--signal); }
+
+  .status__rowbtn {
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: 0;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    cursor: pointer;
+    color: inherit;
+    font: inherit;
+  }
+
+  .status__rowbtn:hover { background: var(--signal-soft); }
+
+  .status__head { display: flex; align-items: center; gap: 10px; }
+
+  .status__code {
+    font-family: var(--mono);
+    font-weight: 700;
+    font-size: 14.5px;
+    flex: none;
+    min-width: 40px;
+  }
+
+  .status__code--1 { color: var(--steel); }
+  .status__code--2 { color: var(--verify); }
+  .status__code--3 { color: var(--signal); }
+  .status__code--4 { color: var(--fault); }
+  .status__code--5 { color: var(--fault); }
+
+  .status__name { font-weight: 600; font-size: 14.5px; }
+
+  .status__tw {
+    margin-left: auto;
+    color: var(--steel);
+    font-family: var(--mono);
+    font-size: 11.5px;
+    flex: none;
+    white-space: nowrap;
+  }
+
+  .status__meaning { font-size: 13.5px; color: var(--ink); }
+  .status__use { font-size: 12.5px; color: var(--steel); }
+  .status__use b { color: var(--steel); font-weight: 600; }
+
+  .status__detail { padding: 2px 14px 14px; border-top: 1px solid var(--edge); }
+
+  .status__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 20px;
+    margin: 12px 0;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--steel);
+  }
+
+  .status__meta b { color: var(--ink); font-weight: 500; }
+
+  .status__example {
+    background: var(--sunk);
+    border: 1px solid var(--edge);
+    border-radius: var(--r);
+    padding: 10px 12px;
+    font-size: 12.5px;
+    white-space: pre;
+    overflow-x: auto;
+  }
+
+  mark.hl-hit { padding: 0 1px; border-radius: 2px; }
+
+  @media (max-width: 480px) {
+    .status__tw { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__home" href="../../index.html"><span class="topbar__mark">▚</span> bench</a>
+  <span class="topbar__sep">/</span>
+  <span class="topbar__here">HTTP Status Codes</span>
+  <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
+</header>
+
+<main class="wrap">
+
+  <div class="toolhead">
+    <p class="toolhead__spec mono">404 Not Found</p>
+    <h1 class="toolhead__title">HTTP Status Codes</h1>
+    <p class="toolhead__desc">Every IANA-registered HTTP status code, searchable, with what it means and when to use it.</p>
+  </div>
+
+  <div class="stack">
+
+    <section class="panel">
+      <h2 class="panel__title">The ones people always look up</h2>
+      <div class="stack">
+
+        <div>
+          <h3 class="status__subhead">301 vs 302 vs 307 vs 308 — which redirect?</h3>
+          <div class="tablewrap">
+            <table class="table">
+              <thead>
+                <tr><th>Code</th><th>Permanent?</th><th>Method &amp; body preserved?</th><th>Cacheable by default?</th><th>Use it when…</th></tr>
+              </thead>
+              <tbody>
+                <tr><td class="mono">301</td><td>Yes</td><td>Not guaranteed — some clients turn a POST into a GET</td><td>Yes</td><td>A GET-safe page moved for good</td></tr>
+                <tr><td class="mono">302</td><td>No</td><td>Not guaranteed — same historical quirk</td><td>No</td><td>A GET-safe page moved temporarily</td></tr>
+                <tr><td class="mono">307</td><td>No</td><td>Guaranteed</td><td>No</td><td>A temporary redirect that must keep the exact method and body, e.g. a POST</td></tr>
+                <tr><td class="mono">308</td><td>Yes</td><td>Guaranteed</td><td>Yes</td><td>A permanent redirect that must keep the exact method and body</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="note note--info" style="margin-top:10px"><span class="note__mark">i</span><span>Rule of thumb: reach for 307/308 unless you specifically need the older, looser 301/302 behaviour — 307 and 308 are the pair that guarantee the request is repeated exactly as sent.</span></p>
+        </div>
+
+        <div>
+          <h3 class="status__subhead">401 vs 403 — who's being told no?</h3>
+          <div class="tablewrap">
+            <table class="table">
+              <thead>
+                <tr><th>Code</th><th>Means</th><th>Fix</th><th>Response must include</th></tr>
+              </thead>
+              <tbody>
+                <tr><td class="mono">401 Unauthorized</td><td>You are not authenticated — the server doesn't know who you are</td><td>Log in, or send a valid token</td><td class="mono">WWW-Authenticate</td></tr>
+                <tr><td class="mono">403 Forbidden</td><td>You are authenticated, but not allowed to do this</td><td>Nothing, as this identity — you need different permissions</td><td>No specific header required</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="note note--info" style="margin-top:10px"><span class="note__mark">i</span><span>If re-sending the same credentials could ever fix it, that's 401. If the server would say no no matter who signs in with this account, that's 403.</span></p>
+        </div>
+
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel__title">Browse all codes</h2>
+
+      <div class="row" style="margin-bottom:14px">
+        <label class="sr-only" for="q">Search status codes</label>
+        <input class="input grow" id="q" type="text" placeholder="Search by code, name or meaning — try “404” or “redirect”" autocomplete="off">
+      </div>
+
+      <div class="chips" id="cats" style="margin-bottom:6px">
+        <button class="chip chip--on" type="button" data-cat="all">All <span class="mono" id="n-all"></span></button>
+        <button class="chip" type="button" data-cat="1">1xx <span class="mono" id="n-1"></span></button>
+        <button class="chip" type="button" data-cat="2">2xx <span class="mono" id="n-2"></span></button>
+        <button class="chip" type="button" data-cat="3">3xx <span class="mono" id="n-3"></span></button>
+        <button class="chip" type="button" data-cat="4">4xx <span class="mono" id="n-4"></span></button>
+        <button class="chip" type="button" data-cat="5">5xx <span class="mono" id="n-5"></span></button>
+      </div>
+
+      <p class="status__summary mono" id="summary"></p>
+
+      <div id="list"></div>
+    </section>
+
+  </div>
+
+  <footer class="foot">
+    <a href="../../index.html">← All tools</a>
+    <span>·</span>
+    <span>Runs entirely in your browser</span>
+  </footer>
+
+</main>
+
+<script src="../../assets/js/bench.js" defer></script>
+<script defer>
+document.addEventListener("DOMContentLoaded", function () {
+  "use strict";
+  var $ = Bench.$, $$ = Bench.$$, esc = Bench.esc;
+
+  /* --- the data ------------------------------------------------------------
+     Every IANA-registered HTTP status code. `cat` is derived from the code,
+     not hand-typed, so it can't drift out of sync. `ca` (cacheable) is only
+     filled in where it's actually notable — most 4xx/5xx codes simply aren't
+     cacheable by default and saying so 63 times would be noise. */
+
+  var DATA = [
+    { c: 100, n: "Continue", m: "The server has received the request headers and the client should proceed to send the request body.",
+      u: "Sent automatically when a client includes an Expect: 100-continue header before a large upload, so it doesn't send the body until the server confirms it will accept it.",
+      rfc: "RFC 9110 §15.2.1", ex: `HTTP/1.1 100 Continue` },
+    { c: 101, n: "Switching Protocols", m: "The server agrees to switch protocols, as requested by the client's Upgrade header.",
+      u: "Used when upgrading a connection to WebSocket, or to HTTP/2, over an existing TCP connection.",
+      rfc: "RFC 9110 §15.2.2", ex: `HTTP/1.1 101 Switching Protocols\nUpgrade: websocket\nConnection: Upgrade` },
+    { c: 102, n: "Processing", m: "The server has accepted the request but hasn't completed it, and there is no response available yet.",
+      u: "A WebDAV server sends this to stop the client from timing out during a slow operation, like a large COPY or MOVE.",
+      rfc: "RFC 4918 §11.1 (WebDAV)", ex: `HTTP/1.1 102 Processing` },
+    { c: 103, n: "Early Hints", m: "Lets the client start preloading resources while the server is still preparing the final response.",
+      u: "Send it before the real response when you already know which stylesheets or fonts the page will need, so the browser can start fetching them early.",
+      rfc: "RFC 8297", ex: `HTTP/1.1 103 Early Hints\nLink: </style.css>; rel=preload; as=style` },
+
+    { c: 200, n: "OK", m: "The request succeeded, and the response body contains the requested resource or the result of the action.",
+      u: "The default success response for GET, and for PUT/POST/PATCH when you're returning a representation of the result.",
+      rfc: "RFC 9110 §15.3.1", ca: "Cacheable by default", ex: `HTTP/1.1 200 OK\nContent-Type: application/json\n\n{"ok":true}` },
+    { c: 201, n: "Created", m: "The request succeeded and a new resource was created as a result.",
+      u: "Return this from a POST that creates a resource, with a Location header pointing at the new resource.",
+      rfc: "RFC 9110 §15.3.2", ex: `HTTP/1.1 201 Created\nLocation: /orders/128\n\n{"id":128,"status":"pending"}` },
+    { c: 202, n: "Accepted", m: "The request has been accepted for processing, but the processing hasn't finished.",
+      u: "Use for asynchronous or queued work — hand back a job id or status URL the client can poll.",
+      rfc: "RFC 9110 §15.3.3", ex: `HTTP/1.1 202 Accepted\nContent-Type: application/json\n\n{"jobId":"a1b2","status":"queued"}` },
+    { c: 203, n: "Non-Authoritative Information", m: "The request succeeded, but the returned metadata is from a local or third-party copy, not the origin server.",
+      u: "Used by proxies or transforming gateways that modify the origin's response before passing it on.",
+      rfc: "RFC 9110 §15.3.4", ca: "Cacheable by default", ex: `HTTP/1.1 203 Non-Authoritative Information\nContent-Type: application/json\n\n{"title":"Cached copy via proxy"}` },
+    { c: 204, n: "No Content", m: "The request succeeded and there is nothing to return in the body.",
+      u: "Use for DELETE, or for a PUT/POST where the client doesn't need the updated resource sent back.",
+      rfc: "RFC 9110 §15.3.5", ca: "Cacheable by default", ex: `HTTP/1.1 204 No Content` },
+    { c: 205, n: "Reset Content", m: "The request succeeded and the client should reset the document view that submitted it.",
+      u: "Use after a form submission when the client should clear the form instead of navigating away.",
+      rfc: "RFC 9110 §15.3.6", ex: `HTTP/1.1 205 Reset Content` },
+    { c: 206, n: "Partial Content", m: "The server is delivering only part of the resource, as requested by a Range header.",
+      u: "Returned by servers that support resumable downloads or video seeking.",
+      rfc: "RFC 9110 §15.3.7", ca: "Cacheable by default (with Content-Range)", ex: `HTTP/1.1 206 Partial Content\nContent-Range: bytes 200-999/1000\nContent-Length: 800` },
+    { c: 207, n: "Multi-Status", m: "Conveys results for multiple independent operations in a single response, each with its own status.",
+      u: "Used by WebDAV for batch operations, like a PROPFIND across many resources at once.",
+      rfc: "RFC 4918 §11.1 (WebDAV)", ex: `HTTP/1.1 207 Multi-Status\nContent-Type: application/xml\n\n<?xml version="1.0"?>\n<multistatus xmlns="DAV:">…</multistatus>` },
+    { c: 208, n: "Already Reported", m: "The members of a WebDAV binding have already been listed earlier in the same multi-status response.",
+      u: "Avoids repeating the same resource multiple times when it appears in more than one collection.",
+      rfc: "RFC 5842 §7.1", ex: `HTTP/1.1 208 Already Reported` },
+    { c: 226, n: "IM Used", m: "The server fulfilled the request and the response is an instance-manipulation of the current instance.",
+      u: "Used with delta encoding, where the response is a diff against a version the client already has, not the full resource.",
+      rfc: "RFC 3229 §10.4.1", ex: `HTTP/1.1 226 IM Used\nIM: gzip\nContent-Type: application/json` },
+
+    { c: 300, n: "Multiple Choices", m: "There are multiple possible representations of the resource and the client, or user, must choose one.",
+      u: "Rarely used in practice — content negotiation usually just picks the best match and returns 200 instead.",
+      rfc: "RFC 9110 §15.4.1", ca: "Cacheable by default", ex: `HTTP/1.1 300 Multiple Choices\nContent-Type: application/json\n\n{"options":["/doc.pdf","/doc.txt","/doc.html"]}` },
+    { c: 301, n: "Moved Permanently", m: "The resource now has a new permanent URI; future requests should use it.",
+      u: "Use for permanent URL changes you want search engines and clients to update to, such as a page you renamed for good.",
+      rfc: "RFC 9110 §15.4.2", ca: "Cacheable by default", ex: `HTTP/1.1 301 Moved Permanently\nLocation: https://example.com/new-path` },
+    { c: 302, n: "Found", m: "The resource is temporarily at a different URI, but the client should keep using the original URI for future requests.",
+      u: "Use for short-lived redirects, such as sending a signed-out user to a login page before returning them to what they asked for.",
+      rfc: "RFC 9110 §15.4.3", ca: "Not cacheable by default unless the response sets explicit freshness headers", ex: `HTTP/1.1 302 Found\nLocation: https://example.com/temporary-path` },
+    { c: 303, n: "See Other", m: "The response to the request can be found at another URI, and it should always be retrieved with GET.",
+      u: "Use after a POST that changes state, to redirect the browser to a GET view of the result and avoid a duplicate submit on refresh — the post/redirect/get pattern.",
+      rfc: "RFC 9110 §15.4.4", ca: "Not cacheable by default", ex: `HTTP/1.1 303 See Other\nLocation: /orders/128` },
+    { c: 304, n: "Not Modified", m: "The client's cached copy is still valid, so there's no need to send the resource again.",
+      u: "Returned when a conditional GET (If-None-Match / If-Modified-Since) shows the resource hasn't changed since it was cached.",
+      rfc: "RFC 9110 §15.4.5", ca: "Not itself cached — it revalidates and refreshes an existing cache entry", ex: `HTTP/1.1 304 Not Modified\nETag: "33a64df5"` },
+    { c: 305, n: "Use Proxy", m: "The requested resource must be accessed through the proxy given in the Location header.",
+      u: "Deprecated for security reasons — modern clients ignore it. Don't use it.",
+      rfc: "RFC 9110 §15.4.6 (deprecated)", ex: `HTTP/1.1 305 Use Proxy\nLocation: http://proxy.example.com:8080/` },
+    { c: 306, n: "(Unused)", m: "Reserved. Used in an early HTTP/1.1 draft to mean 'Switch Proxy' and was never finalised.",
+      u: "Not used by anything — the number stays reserved so it can't be reassigned.",
+      rfc: "RFC 9110 §15.4.7", ex: `— no response ever uses this code —` },
+    { c: 307, n: "Temporary Redirect", m: "Like 302, but explicitly guarantees the method and body will not change on the redirected request.",
+      u: "Use instead of 302 when redirecting a POST or PUT and you need the client to repeat it exactly, body included.",
+      rfc: "RFC 9110 §15.4.8", ca: "Not cacheable by default unless the response sets explicit freshness headers", ex: `HTTP/1.1 307 Temporary Redirect\nLocation: https://example.com/temporary-path` },
+    { c: 308, n: "Permanent Redirect", m: "Like 301, but explicitly guarantees the method and body will not change on the redirected request.",
+      u: "Use instead of 301 when a permanent redirect must preserve a non-GET method and its body, such as an API endpoint that moved.",
+      rfc: "RFC 9110 §15.4.9", ca: "Cacheable by default, same as 301", ex: `HTTP/1.1 308 Permanent Redirect\nLocation: https://example.com/new-path` },
+
+    { c: 400, n: "Bad Request", m: "The server can't process the request because of something the client did wrong — malformed syntax or invalid data.",
+      u: "Return this for validation errors, unparsable JSON, or missing required fields, with details in the body.",
+      rfc: "RFC 9110 §15.5.1", ex: `HTTP/1.1 400 Bad Request\nContent-Type: application/json\n\n{"error":"email is required"}` },
+    { c: 401, n: "Unauthorized", m: "The request lacks valid authentication credentials for the resource. Despite the name, this is about identity, not permission.",
+      u: "Return this (with a WWW-Authenticate header) when the client isn't signed in, or its token is missing or expired — the fix is to authenticate.",
+      rfc: "RFC 9110 §15.5.2", ex: `HTTP/1.1 401 Unauthorized\nWWW-Authenticate: Bearer realm="api"` },
+    { c: 402, n: "Payment Required", m: "Reserved for future use. Originally intended for digital payment schemes.",
+      u: "Some APIs informally repurpose it for “you've hit a paywall or your plan doesn't cover this” — not standardised, but seen in the wild.",
+      rfc: "RFC 9110 §15.5.3", ex: `HTTP/1.1 402 Payment Required\nContent-Type: application/json\n\n{"error":"trial expired, add a payment method"}` },
+    { c: 403, n: "Forbidden", m: "The server understood the request and identified the client, but refuses to authorize it.",
+      u: "Return this when the user is authenticated but doesn't have permission — re-authenticating won't change the outcome.",
+      rfc: "RFC 9110 §15.5.4", ex: `HTTP/1.1 403 Forbidden\nContent-Type: application/json\n\n{"error":"you do not have access to this project"}` },
+    { c: 404, n: "Not Found", m: "The server can't find the requested resource, and isn't saying whether it ever existed.",
+      u: "The default response for an unknown URL; also a reasonable way to hide a resource's existence from unauthorized users.",
+      rfc: "RFC 9110 §15.5.5", ca: "Cacheable by default", ex: `HTTP/1.1 404 Not Found\nContent-Type: application/json\n\n{"error":"no order with id 128"}` },
+    { c: 405, n: "Method Not Allowed", m: "The method used isn't supported for this resource.",
+      u: "Return this with an Allow header listing the supported methods, e.g. when a client sends DELETE to a read-only endpoint.",
+      rfc: "RFC 9110 §15.5.6", ca: "Cacheable by default", ex: `HTTP/1.1 405 Method Not Allowed\nAllow: GET, HEAD` },
+    { c: 406, n: "Not Acceptable", m: "The server can't produce a response matching the Accept headers the client sent.",
+      u: "Return this when content negotiation fails — the client only accepts a format your endpoint doesn't offer.",
+      rfc: "RFC 9110 §15.5.7", ex: `HTTP/1.1 406 Not Acceptable\nContent-Type: application/json\n\n{"error":"cannot produce a response matching Accept: application/xml"}` },
+    { c: 407, n: "Proxy Authentication Required", m: "Like 401, but the client must authenticate with a proxy first.",
+      u: "Returned by the proxy itself, with a Proxy-Authenticate header, before the request ever reaches the origin server.",
+      rfc: "RFC 9110 §15.5.8", ex: `HTTP/1.1 407 Proxy Authentication Required\nProxy-Authenticate: Basic realm="proxy"` },
+    { c: 408, n: "Request Timeout", m: "The server timed out waiting for the request from the client.",
+      u: "Servers send this to close a connection that opened but never sent a complete request.",
+      rfc: "RFC 9110 §15.5.9", ex: `HTTP/1.1 408 Request Timeout\nConnection: close` },
+    { c: 409, n: "Conflict", m: "The request conflicts with the current state of the resource on the server.",
+      u: "Return this for edit conflicts — updating a record that changed since the client last read it, or creating a resource that already exists.",
+      rfc: "RFC 9110 §15.5.10", ex: `HTTP/1.1 409 Conflict\nContent-Type: application/json\n\n{"error":"resource was modified since you fetched it"}` },
+    { c: 410, n: "Gone", m: "The resource used to exist but has been permanently removed, and there's no forwarding address.",
+      u: "Use instead of 404 when you know a resource was deliberately deleted for good, so clients and crawlers stop asking for it.",
+      rfc: "RFC 9110 §15.5.11", ca: "Cacheable by default", ex: `HTTP/1.1 410 Gone\nContent-Type: application/json\n\n{"error":"this endpoint was retired on 2025-01-01"}` },
+    { c: 411, n: "Length Required", m: "The server refuses to accept the request without a defined Content-Length.",
+      u: "Return this if your server needs to know the body size upfront and the client sent a request without one.",
+      rfc: "RFC 9110 §15.5.12", ex: `HTTP/1.1 411 Length Required` },
+    { c: 412, n: "Precondition Failed", m: "A conditional header the client sent (If-Match, If-Unmodified-Since) doesn't match the current state of the resource.",
+      u: "Use for optimistic concurrency — reject an update if the resource changed since the client last fetched it.",
+      rfc: "RFC 9110 §15.5.13", ex: `HTTP/1.1 412 Precondition Failed` },
+    { c: 413, n: "Content Too Large", m: "The request body is larger than the server is willing or able to process.",
+      u: "Return this when an upload exceeds your size limit, ideally with a Retry-After if the limit is temporary.",
+      rfc: "RFC 9110 §15.5.14", ex: `HTTP/1.1 413 Content Too Large\nContent-Type: application/json\n\n{"error":"file exceeds 10 MB limit"}` },
+    { c: 414, n: "URI Too Long", m: "The request target is longer than the server is willing to interpret.",
+      u: "Usually hit when a client puts too much data in a query string that should have been a POST body.",
+      rfc: "RFC 9110 §15.5.15", ca: "Cacheable by default", ex: `HTTP/1.1 414 URI Too Long` },
+    { c: 415, n: "Unsupported Media Type", m: "The server refuses the request because the payload format isn't one it supports.",
+      u: "Return this when Content-Type doesn't match what the endpoint accepts, e.g. XML sent to a JSON-only API.",
+      rfc: "RFC 9110 §15.5.16", ex: `HTTP/1.1 415 Unsupported Media Type\nContent-Type: application/json\n\n{"error":"expected application/json"}` },
+    { c: 416, n: "Range Not Satisfiable", m: "The Range header's values don't fit the size of the resource.",
+      u: "Return this when a client asks for bytes beyond the end of a file, with a Content-Range showing the actual size.",
+      rfc: "RFC 9110 §15.5.17", ex: `HTTP/1.1 416 Range Not Satisfiable\nContent-Range: bytes */1000` },
+    { c: 417, n: "Expectation Failed", m: "The server can't meet the requirements of the Expect header the client sent.",
+      u: "Rare in practice — mostly relevant to old clients still sending Expect: 100-continue to servers that don't support it.",
+      rfc: "RFC 9110 §15.5.18", ex: `HTTP/1.1 417 Expectation Failed` },
+    { c: 418, n: "I'm a teapot", m: "A joke status code from an April Fools' RFC, kept reserved rather than defined for production behaviour.",
+      u: "Not for real use — some frameworks use it in tests or easter eggs, but don't build production logic around it.",
+      rfc: "RFC 9110 §15.5.19 (reserved)", ex: `HTTP/1.1 418 I'm a teapot` },
+    { c: 421, n: "Misdirected Request", m: "The request was sent to a server that can't produce a response for this combination of scheme and authority.",
+      u: "Happens with HTTP/2 connection reuse, when a connection meant for one origin gets a request meant for another it can't serve.",
+      rfc: "RFC 9110 §15.5.20", ex: `HTTP/1.1 421 Misdirected Request` },
+    { c: 422, n: "Unprocessable Content", m: "The server understands the content type and syntax, but the request's data itself is invalid.",
+      u: "Use for semantic validation failures — the JSON parses fine, but a field fails a business rule, like an invalid email format.",
+      rfc: "RFC 9110 §15.5.21", ex: `HTTP/1.1 422 Unprocessable Content\nContent-Type: application/json\n\n{"errors":{"email":"is not valid"}}` },
+    { c: 423, n: "Locked", m: "The resource being accessed is locked.",
+      u: "A WebDAV response for when another client already holds an exclusive lock on the file being edited.",
+      rfc: "RFC 4918 §11.3 (WebDAV)", ex: `HTTP/1.1 423 Locked` },
+    { c: 424, n: "Failed Dependency", m: "The request failed because it depended on another request that failed.",
+      u: "Used in WebDAV batch operations, where one step's failure prevents a later step from proceeding.",
+      rfc: "RFC 4918 §11.4 (WebDAV)", ex: `HTTP/1.1 424 Failed Dependency` },
+    { c: 425, n: "Too Early", m: "The server is unwilling to risk processing a request that might be a replay, sent as TLS 1.3 early data.",
+      u: "Servers send this to reject early-data requests where a replay would be unsafe, e.g. anything non-idempotent like a POST.",
+      rfc: "RFC 8470 §5.2", ex: `HTTP/1.1 425 Too Early` },
+    { c: 426, n: "Upgrade Required", m: "The server refuses to continue on the current protocol and wants the client to switch, typically to a newer TLS version.",
+      u: "Return this with an Upgrade header to force a client onto a required protocol before continuing.",
+      rfc: "RFC 9110 §15.5.22", ex: `HTTP/1.1 426 Upgrade Required\nUpgrade: TLS/1.3\nConnection: Upgrade` },
+    { c: 428, n: "Precondition Required", m: "The server requires the request to be conditional, to avoid two clients silently overwriting each other's changes.",
+      u: "Reject an update that doesn't include an If-Match header, forcing clients to prove they have the current version first.",
+      rfc: "RFC 6585 §3", ex: `HTTP/1.1 428 Precondition Required` },
+    { c: 429, n: "Too Many Requests", m: "The client has sent too many requests in a given time and is being rate-limited.",
+      u: "Return this with a Retry-After header telling the client how long to wait before trying again.",
+      rfc: "RFC 6585 §4", ca: "Not cacheable", ex: `HTTP/1.1 429 Too Many Requests\nRetry-After: 30` },
+    { c: 431, n: "Request Header Fields Too Large", m: "The request's header fields, individually or combined, are too large for the server to process.",
+      u: "Usually caused by an oversized cookie, or a client stuffing too much into a custom header.",
+      rfc: "RFC 6585 §5", ex: `HTTP/1.1 431 Request Header Fields Too Large` },
+    { c: 451, n: "Unavailable For Legal Reasons", m: "The resource is unavailable because of a legal demand, such as a government-mandated content block.",
+      u: "Use to be transparent that content was removed for legal reasons rather than a technical one, ideally with a Link header to an explanation.",
+      rfc: "RFC 7725 §3", ex: `HTTP/1.1 451 Unavailable For Legal Reasons\nLink: <https://example.com/legal>; rel="blocked-by"` },
+
+    { c: 500, n: "Internal Server Error", m: "A generic catch-all for an unexpected condition on the server that prevented it from fulfilling the request.",
+      u: "Return this for unhandled exceptions and bugs — anything you didn't specifically plan for. Log it; don't show the stack trace to users.",
+      rfc: "RFC 9110 §15.6.1", ex: `HTTP/1.1 500 Internal Server Error\nContent-Type: application/json\n\n{"error":"unexpected error, we've been notified"}` },
+    { c: 501, n: "Not Implemented", m: "The server doesn't support the functionality required to fulfil the request.",
+      u: "Return this for a method or feature the server hasn't built yet, as distinct from 405, which means the method exists but not here.",
+      rfc: "RFC 9110 §15.6.2", ca: "Cacheable by default", ex: `HTTP/1.1 501 Not Implemented` },
+    { c: 502, n: "Bad Gateway", m: "A server acting as a gateway or proxy got an invalid response from the upstream server.",
+      u: "Seen when a reverse proxy (nginx, a load balancer) can reach the upstream, but the upstream's response is broken or the app has crashed.",
+      rfc: "RFC 9110 §15.6.3", ex: `HTTP/1.1 502 Bad Gateway` },
+    { c: 503, n: "Service Unavailable", m: "The server is temporarily unable to handle the request, usually due to overload or maintenance.",
+      u: "Return this with a Retry-After header during planned maintenance or when shedding load, so clients know it's temporary.",
+      rfc: "RFC 9110 §15.6.4", ex: `HTTP/1.1 503 Service Unavailable\nRetry-After: 120` },
+    { c: 504, n: "Gateway Timeout", m: "A server acting as a gateway or proxy didn't get a response from the upstream server in time.",
+      u: "Seen when a reverse proxy can reach the upstream but the upstream takes too long to respond, e.g. a slow database query.",
+      rfc: "RFC 9110 §15.6.5", ex: `HTTP/1.1 504 Gateway Timeout` },
+    { c: 505, n: "HTTP Version Not Supported", m: "The server doesn't support the HTTP protocol version used in the request.",
+      u: "Very rare in practice — mostly a defensive response for ancient or malformed clients.",
+      rfc: "RFC 9110 §15.6.6", ex: `HTTP/1.1 505 HTTP Version Not Supported` },
+    { c: 506, n: "Variant Also Negotiates", m: "The server has an internal configuration error: the chosen variant resource is itself set up to do content negotiation.",
+      u: "Signals a server misconfiguration in transparent content negotiation setups — not something a client can fix.",
+      rfc: "RFC 2295 §8.1", ex: `HTTP/1.1 506 Variant Also Negotiates` },
+    { c: 507, n: "Insufficient Storage", m: "The server can't store the representation needed to complete the request.",
+      u: "A WebDAV response for when the server has run out of space to complete a PUT or COPY.",
+      rfc: "RFC 4918 §11.5 (WebDAV)", ex: `HTTP/1.1 507 Insufficient Storage` },
+    { c: 508, n: "Loop Detected", m: "The server detected an infinite loop while processing a request, such as a WebDAV binding referencing itself.",
+      u: "Prevents a WebDAV server from recursing forever over a circular collection structure.",
+      rfc: "RFC 5842 §7.2", ex: `HTTP/1.1 508 Loop Detected` },
+    { c: 510, n: "Not Extended", m: "Further extensions to the request are required for the server to fulfil it.",
+      u: "Rare — tied to the largely obsolete HTTP Extension Framework. You're unlikely to need this in a modern API.",
+      rfc: "RFC 2774 §7", ex: `HTTP/1.1 510 Not Extended` },
+    { c: 511, n: "Network Authentication Required", m: "The client needs to authenticate to gain network access before the request can go through.",
+      u: "Sent by captive portals — the Wi-Fi login page you get redirected to at a hotel or airport before you can reach the internet.",
+      rfc: "RFC 6585 §6", ex: `HTTP/1.1 511 Network Authentication Required\nContent-Type: text/html\n\n<!-- captive portal login page -->` }
+  ];
+
+  DATA.forEach(function (d) { d.cat = Math.floor(d.c / 100); });
+
+  var CAT_NAMES = { 1: "1xx · Informational", 2: "2xx · Success", 3: "3xx · Redirection", 4: "4xx · Client error", 5: "5xx · Server error" };
+
+  var q = $("#q"), catsEl = $("#cats"), summary = $("#summary"), list = $("#list");
+  var state = { cat: "all" };
+
+  /* chip counts, computed once from the real data so they can never drift */
+  var counts = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+  DATA.forEach(function (d) { counts[d.cat]++; });
+  $("#n-all").textContent = DATA.length;
+  [1, 2, 3, 4, 5].forEach(function (n) { $("#n-" + n).textContent = counts[n]; });
+
+  /* --- rendering ------------------------------------------------------------ */
+
+  function highlight(text, needle) {
+    if (!needle) return esc(text);
+    var i = text.toLowerCase().indexOf(needle);
+    if (i === -1) return esc(text);
+    return esc(text.slice(0, i)) + '<mark class="hl-hit">' + esc(text.slice(i, i + needle.length)) + "</mark>" + esc(text.slice(i + needle.length));
+  }
+
+  function rowHTML(d, needle) {
+    return '<div class="status__row" data-code="' + d.c + '">'
+      + '<button class="status__rowbtn" type="button" aria-expanded="false">'
+      + '<span class="status__head">'
+      + '<span class="status__code status__code--' + d.cat + '">' + d.c + "</span>"
+      + '<span class="status__name">' + highlight(d.n, needle) + "</span>"
+      + '<span class="status__tw">▾ details</span>'
+      + "</span>"
+      + '<span class="status__meaning">' + highlight(d.m, needle) + "</span>"
+      + '<span class="status__use"><b>When to use it —</b> ' + highlight(d.u, needle) + "</span>"
+      + "</button>"
+      + '<div class="status__detail" hidden>'
+      + '<div class="status__meta">'
+      + "<span><b>RFC</b> " + esc(d.rfc) + "</span>"
+      + (d.ca ? "<span><b>Cacheable</b> " + esc(d.ca) + "</span>" : "")
+      + "</div>"
+      + '<pre class="status__example mono">' + esc(d.ex) + "</pre>"
+      + "</div>"
+      + "</div>";
+  }
+
+  function matches(d, needle) {
+    if (!needle) return true;
+    var hay = (d.c + " " + d.n + " " + d.m + " " + d.u).toLowerCase();
+    return hay.indexOf(needle) !== -1;
+  }
+
+  function render() {
+    var needle = q.value.trim().toLowerCase();
+    var groups = { 1: [], 2: [], 3: [], 4: [], 5: [] };
+    var total = 0;
+
+    DATA.forEach(function (d) {
+      if (state.cat !== "all" && d.cat !== state.cat) return;
+      if (!matches(d, needle)) return;
+      groups[d.cat].push(d);
+      total++;
+    });
+
+    summary.textContent = total + " of " + DATA.length + " codes shown";
+
+    if (!total) {
+      list.innerHTML = '<p class="empty">No status code matches “' + esc(q.value.trim()) + '”. Try a code number like 404, or a word like redirect.</p>';
+      return;
+    }
+
+    var html = "";
+    [1, 2, 3, 4, 5].forEach(function (catNum) {
+      var rows = groups[catNum];
+      if (!rows.length) return;
+      html += '<div class="status__group">'
+        + '<div class="status__cathead"><span>' + esc(CAT_NAMES[catNum]) + "</span><span class=\"status__catrule\"></span><span class=\"status__count\">" + rows.length + " code" + (rows.length === 1 ? "" : "s") + "</span></div>"
+        + '<div class="status__rows">'
+        + rows.map(function (d) { return rowHTML(d, needle); }).join("")
+        + "</div></div>";
+    });
+
+    list.innerHTML = html;
+  }
+
+  /* --- interaction ------------------------------------------------------------ */
+
+  list.addEventListener("click", function (e) {
+    var btn = e.target.closest(".status__rowbtn");
+    if (!btn) return;
+    var row = btn.closest(".status__row");
+    var detail = row.querySelector(".status__detail");
+    var open = row.classList.toggle("is-open");
+    detail.hidden = !open;
+    btn.setAttribute("aria-expanded", open ? "true" : "false");
+    btn.querySelector(".status__tw").textContent = open ? "▴ hide" : "▾ details";
+    if (open) history.replaceState(null, "", "#" + row.dataset.code);
+  });
+
+  $$(".chip", catsEl).forEach(function (chip) {
+    chip.addEventListener("click", function () {
+      state.cat = chip.dataset.cat === "all" ? "all" : Number(chip.dataset.cat);
+      $$(".chip", catsEl).forEach(function (c) { c.classList.toggle("chip--on", c === chip); });
+      render();
+    });
+  });
+
+  Bench.live(q, Bench.debounce(render, 100));
+
+  /* --- deep link: #404 filters to that code and opens it on load ------------ */
+
+  (function () {
+    var h = decodeURIComponent(location.hash.slice(1));
+    if (/^\d{3}$/.test(h)) q.value = h;
+    render();
+    if (/^\d{3}$/.test(h)) {
+      var row = list.querySelector('.status__row[data-code="' + h + '"]');
+      if (row) {
+        row.querySelector(".status__rowbtn").click();
+        row.scrollIntoView({ block: "center" });
+      }
+    }
+  })();
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JWT Decoder — Bench</title>
+<meta name="description" content="Break a JWT into its header, payload and signature and read the claims.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/css/bench.css">
+<style>
+  /* Page-specific CSS only, prefixed jwt- for jwt-decoder. */
+  .jwt-h { color: var(--signal); }
+  .jwt-p { color: var(--verify); }
+  .jwt-s { color: var(--steel); }
+  .jwt-dot { color: var(--edge-2); font-weight: 700; }
+  .jwt-key { color: var(--signal); }
+  .jwt-str { color: var(--verify); }
+  .jwt-num { color: var(--ink); font-weight: 500; }
+  .jwt-bool, .jwt-null { color: var(--steel); font-style: italic; }
+  .jwt-rel { font-family: var(--mono); font-size: 12px; display: inline-block; margin-top: 3px; }
+  .jwt-rel--ok { color: var(--verify); }
+  .jwt-rel--bad { color: var(--fault); }
+  .jwt-rel--warn { color: var(--signal); }
+  .jwt-rel--info { color: var(--steel); }
+  .jwt-abs { font-family: var(--mono); font-size: 13px; }
+  .jwt-secret { font-size: 12px; color: var(--steel); margin-top: 8px; }
+  .jwt-secret b { color: var(--ink); font-family: var(--mono); font-weight: 500; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__home" href="../../index.html"><span class="topbar__mark">▚</span> bench</a>
+  <span class="topbar__sep">/</span>
+  <span class="topbar__here">JWT Decoder</span>
+  <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
+</header>
+
+<main class="wrap">
+
+  <div class="toolhead">
+    <p class="toolhead__spec mono">eyJhbGciOiJIUzI1</p>
+    <h1 class="toolhead__title">JWT Decoder</h1>
+    <p class="toolhead__desc">Break a JWT into its header, payload and signature and read the claims. Decoding only — this never checks the signature.</p>
+  </div>
+
+  <div class="stack">
+
+    <section class="panel">
+      <h2 class="panel__title">Token</h2>
+      <div class="row" style="margin-bottom:12px">
+        <button class="btn btn--sm" id="sample">Load sample</button>
+        <button class="btn btn--sm btn--danger" id="clear">Clear</button>
+      </div>
+      <label class="sr-only" for="token">JWT to decode</label>
+      <textarea class="textarea" id="token" spellcheck="false" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U"></textarea>
+      <p class="jwt-secret" id="secretnote" hidden>Signed for this demo with the clearly fake secret <b id="secretval"></b> — do not use it for anything real.</p>
+      <div id="status" style="margin-top:12px"></div>
+      <label class="label" style="margin-top:16px">Raw token, coloured by part</label>
+      <div class="out out--wrap mono" id="rawsplit"><span class="empty">Paste a token above to see it split into parts.</span></div>
+    </section>
+
+    <div class="split">
+      <section class="panel">
+        <h2 class="panel__title">Header</h2>
+        <div class="out" id="headerout"><span class="empty">Decoded header appears here.</span></div>
+      </section>
+      <section class="panel">
+        <h2 class="panel__title">Payload</h2>
+        <div class="out" id="payloadout"><span class="empty">Decoded payload appears here.</span></div>
+      </section>
+    </div>
+
+    <section class="panel">
+      <h2 class="panel__title">Claims</h2>
+      <div class="stats" id="stats" style="margin-bottom:16px" hidden>
+        <div class="stat"><span class="stat__n" id="s-alg">—</span><span class="stat__k">Algorithm</span></div>
+        <div class="stat"><span class="stat__n" id="s-typ">—</span><span class="stat__k">Type</span></div>
+        <div class="stat"><span class="stat__n" id="s-claims">0</span><span class="stat__k">Payload claims</span></div>
+        <div class="stat"><span class="stat__n" id="s-size">0</span><span class="stat__k">Token size</span></div>
+      </div>
+      <div class="tablewrap">
+        <table class="table" id="claimstable">
+          <thead><tr><th>Claim</th><th>Value</th></tr></thead>
+          <tbody id="claimsbody"><tr><td colspan="2"><span class="empty">Paste a token to interpret its registered claims.</span></td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <div class="note note--warn">
+      <span class="note__mark">!</span>
+      <span>This tool only decodes — it does not verify the signature, so it cannot tell you whether a token is authentic. A JWT is not encrypted: anyone who has the token can read the header and payload, including this page, without needing the secret or private key. Never put secrets you don't want exposed inside a JWT payload.</span>
+    </div>
+
+  </div>
+
+  <footer class="foot">
+    <a href="../../index.html">← All tools</a>
+    <span>·</span>
+    <span>Runs entirely in your browser</span>
+  </footer>
+
+</main>
+
+<script src="../../assets/js/bench.js" defer></script>
+<script defer>
+document.addEventListener("DOMContentLoaded", function () {
+  "use strict";
+  var $ = Bench.$, esc = Bench.esc;
+
+  var tokenEl = $("#token"), statusEl = $("#status"), rawsplitEl = $("#rawsplit");
+  var headerOut = $("#headerout"), payloadOut = $("#payloadout");
+  var statsEl = $("#stats"), claimsBody = $("#claimsbody");
+  var secretNote = $("#secretnote"), secretVal = $("#secretval");
+
+  var rtf = (typeof Intl !== "undefined" && Intl.RelativeTimeFormat)
+    ? new Intl.RelativeTimeFormat(undefined, { numeric: "auto" })
+    : null;
+
+  /* --- base64url, handled by hand: fix padding, then decode UTF-8 via TextDecoder --- */
+
+  function base64urlDecodeToString(seg) {
+    if (seg === "") return "";
+    if (!/^[A-Za-z0-9_-]*$/.test(seg)) throw new Error("contains characters outside the base64url alphabet");
+    var b64 = seg.replace(/-/g, "+").replace(/_/g, "/");
+    var padLen = (4 - (b64.length % 4)) % 4;
+    b64 += "=".repeat(padLen);
+    var binary;
+    try { binary = atob(b64); } catch (e) { throw new Error("not valid base64"); }
+    var bytes = new Uint8Array(binary.length);
+    for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    try {
+      return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    } catch (e) {
+      throw new Error("decoded bytes are not valid UTF-8");
+    }
+  }
+
+  function base64urlEncodeBytes(bytes) {
+    var binary = "";
+    for (var i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+    return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+
+  function base64urlEncodeStr(str) {
+    return base64urlEncodeBytes(new TextEncoder().encode(str));
+  }
+
+  /* --- relative time -------------------------------------------------- */
+
+  function relativeFromNow(unixSeconds) {
+    var diff = unixSeconds - (Date.now() / 1000); // positive = future
+    var future = diff >= 0;
+    var abs = Math.abs(diff);
+    var unit, val;
+    if (abs < 60) { unit = "second"; val = diff; }
+    else if (abs < 3600) { unit = "minute"; val = diff / 60; }
+    else if (abs < 86400) { unit = "hour"; val = diff / 3600; }
+    else if (abs < 2592000) { unit = "day"; val = diff / 86400; }
+    else if (abs < 31536000) { unit = "month"; val = diff / 2592000; }
+    else { unit = "year"; val = diff / 31536000; }
+    var rounded = Math.round(val);
+    var text = rtf ? rtf.format(rounded, unit) : (future ? "in " + Math.abs(rounded) + " " + unit + (Math.abs(rounded) === 1 ? "" : "s") : Math.abs(rounded) + " " + unit + (Math.abs(rounded) === 1 ? "" : "s") + " ago");
+    return { text: text, future: future };
+  }
+
+  /* --- JSON syntax highlight (same proven pattern as the JSON Formatter) --- */
+
+  function highlightJSON(obj) {
+    var json = JSON.stringify(obj, null, 2);
+    return esc(json).replace(
+      /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false)\b|\bnull\b|-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)/g,
+      function (match) {
+        var cls = "jwt-num";
+        if (/^"/.test(match)) cls = /:$/.test(match) ? "jwt-key" : "jwt-str";
+        else if (/true|false/.test(match)) cls = "jwt-bool";
+        else if (/null/.test(match)) cls = "jwt-null";
+        return '<span class="' + cls + '">' + match + "</span>";
+      }
+    );
+  }
+
+  /* --- claims table ----------------------------------------------------- */
+
+  function chipsHTML(values) {
+    return '<div class="chips">' + values.map(function (v) { return '<span class="chip">' + esc(v) + "</span>"; }).join("") + "</div>";
+  }
+
+  function timeRow(payload, key, label) {
+    if (!(key in payload)) return null;
+    var v = payload[key];
+    if (typeof v !== "number" || !isFinite(v)) {
+      return "<tr><td class='mono'>" + key + "</td><td>" + esc(String(v)) + ' <span class="jwt-rel jwt-rel--warn">not a numeric timestamp</span></td></tr>';
+    }
+    var date = new Date(v * 1000);
+    var rel = relativeFromNow(v);
+    var cls = "jwt-rel--info", prefix = label;
+    if (key === "exp") { cls = rel.future ? "jwt-rel--ok" : "jwt-rel--bad"; prefix = rel.future ? "Expires" : "Expired"; }
+    else if (key === "nbf") { cls = rel.future ? "jwt-rel--warn" : "jwt-rel--ok"; prefix = rel.future ? "Not valid until" : "Valid since"; }
+    else if (key === "iat") { cls = "jwt-rel--info"; prefix = "Issued"; }
+    var relText = key === "exp" || key === "nbf" ? (prefix + " " + rel.text) : (prefix + " " + rel.text);
+    return "<tr><td class='mono'>" + key + "</td><td>"
+      + "<span class='jwt-abs'>" + esc(date.toLocaleString()) + "</span>"
+      + "<span class='jwt-rel " + cls + "'>" + esc(relText) + "</span>"
+      + "</td></tr>";
+  }
+
+  function stringRow(payload, key) {
+    if (!(key in payload)) return null;
+    var v = payload[key];
+    if (Array.isArray(v)) return "<tr><td class='mono'>" + key + "</td><td>" + chipsHTML(v.map(String)) + "</td></tr>";
+    return "<tr><td class='mono'>" + key + "</td><td class='mono'>" + esc(String(v)) + "</td></tr>";
+  }
+
+  function claimsRows(payload) {
+    var rows = [];
+    [timeRow(payload, "iat", "Issued"), timeRow(payload, "nbf", "Not valid before"), timeRow(payload, "exp", "Expires")]
+      .forEach(function (r) { if (r) rows.push(r); });
+    ["iss", "sub", "azp", "jti"].forEach(function (k) {
+      var r = stringRow(payload, k);
+      if (r) rows.push(r);
+    });
+    if ("aud" in payload) {
+      var aud = payload.aud;
+      rows.push("<tr><td class='mono'>aud</td><td>" + (Array.isArray(aud) ? chipsHTML(aud.map(String)) : "<span class='mono'>" + esc(String(aud)) + "</span>") + "</td></tr>");
+    }
+    if ("scope" in payload) {
+      var scope = payload.scope;
+      var parts = Array.isArray(scope) ? scope.map(String) : String(scope).split(/\s+/).filter(Boolean);
+      rows.push("<tr><td class='mono'>scope</td><td>" + (parts.length ? chipsHTML(parts) : "<span class='empty'>empty</span>") + "</td></tr>");
+    }
+    return rows;
+  }
+
+  /* --- rendering ---------------------------------------------------------- */
+
+  function renderRawSplit(parts) {
+    var cls = ["jwt-h", "jwt-p", "jwt-s"];
+    var html = parts.map(function (p, i) {
+      return '<span class="' + cls[i] + '">' + esc(p) + "</span>";
+    }).join('<span class="jwt-dot">.</span>');
+    rawsplitEl.innerHTML = html;
+  }
+
+  function reset(message) {
+    statusEl.innerHTML = "";
+    rawsplitEl.innerHTML = '<span class="empty">' + esc(message || "Paste a token above to see it split into parts.") + "</span>";
+    headerOut.innerHTML = '<span class="empty">Decoded header appears here.</span>';
+    payloadOut.innerHTML = '<span class="empty">Decoded payload appears here.</span>';
+    statsEl.hidden = true;
+    claimsBody.innerHTML = "<tr><td colspan='2'><span class='empty'>Paste a token to interpret its registered claims.</span></td></tr>";
+  }
+
+  function render() {
+    var raw = tokenEl.value.trim();
+    if (!raw) { reset(); return; }
+
+    var parts = raw.split(".");
+    if (parts.length !== 3) {
+      statusEl.innerHTML = '<div class="note note--bad"><span class="note__mark">✕</span><span>'
+        + "<b>Malformed token</b> — a JWT has three dot-separated parts (header.payload.signature). This has " + parts.length + ".</span></div>";
+      renderRawSplit(parts.length <= 3 ? parts.concat(Array(3 - parts.length).fill("")) : parts.slice(0, 3));
+      headerOut.innerHTML = '<span class="empty">Fix the token to see its header.</span>';
+      payloadOut.innerHTML = '<span class="empty">Fix the token to see its payload.</span>';
+      statsEl.hidden = true;
+      claimsBody.innerHTML = "<tr><td colspan='2'><span class='empty'>Fix the token to interpret its claims.</span></td></tr>";
+      return;
+    }
+
+    renderRawSplit(parts);
+
+    var headerErr = null, payloadErr = null, headerObj = null, payloadObj = null;
+    try { headerObj = JSON.parse(base64urlDecodeToString(parts[0])); }
+    catch (e) { headerErr = e.message; }
+    try { payloadObj = JSON.parse(base64urlDecodeToString(parts[1])); }
+    catch (e) { payloadErr = e.message; }
+
+    headerOut.innerHTML = headerErr
+      ? '<span class="empty">Could not decode header — ' + esc(headerErr) + "</span>"
+      : highlightJSON(headerObj);
+    payloadOut.innerHTML = payloadErr
+      ? '<span class="empty">Could not decode payload — ' + esc(payloadErr) + "</span>"
+      : highlightJSON(payloadObj);
+
+    if (headerErr || payloadErr) {
+      var msgs = [];
+      if (headerErr) msgs.push("header: " + headerErr);
+      if (payloadErr) msgs.push("payload: " + payloadErr);
+      statusEl.innerHTML = '<div class="note note--bad"><span class="note__mark">✕</span><span>'
+        + "<b>Malformed token</b> — " + esc(msgs.join("; ")) + ".</span></div>";
+      statsEl.hidden = true;
+      claimsBody.innerHTML = "<tr><td colspan='2'><span class='empty'>Fix the token to interpret its claims.</span></td></tr>";
+      return;
+    }
+
+    var notes = ['<div class="note note--ok"><span class="note__mark">✓</span><span>Valid JWT structure — header and payload both decoded as JSON.</span></div>'];
+
+    var payloadIsObj = payloadObj && typeof payloadObj === "object" && !Array.isArray(payloadObj);
+    if (payloadIsObj) {
+      if (typeof payloadObj.exp === "number") {
+        var rel = relativeFromNow(payloadObj.exp);
+        notes.push(rel.future
+          ? '<div class="note note--ok"><span class="note__mark">✓</span><span>Not expired — expires ' + esc(rel.text) + ".</span></div>"
+          : '<div class="note note--bad"><span class="note__mark">✕</span><span>Expired — expired ' + esc(rel.text) + ".</span></div>");
+      }
+      if (typeof payloadObj.nbf === "number") {
+        var relN = relativeFromNow(payloadObj.nbf);
+        if (relN.future) notes.push('<div class="note note--warn"><span class="note__mark">!</span><span>Not valid yet — becomes valid ' + esc(relN.text) + ".</span></div>");
+      }
+    }
+    statusEl.innerHTML = notes.join("");
+
+    var headerIsObj = headerObj && typeof headerObj === "object" && !Array.isArray(headerObj);
+    $("#s-alg").textContent = (headerIsObj && headerObj.alg) ? String(headerObj.alg) : "—";
+    $("#s-typ").textContent = (headerIsObj && headerObj.typ) ? String(headerObj.typ) : "—";
+    $("#s-claims").textContent = payloadIsObj ? Bench.num(Object.keys(payloadObj).length) : "0";
+    $("#s-size").textContent = Bench.bytes(new Blob([raw]).size);
+    statsEl.hidden = false;
+
+    var rows = payloadIsObj ? claimsRows(payloadObj) : [];
+    claimsBody.innerHTML = rows.length
+      ? rows.join("")
+      : "<tr><td colspan='2'><span class='empty'>No registered claims (iss, sub, aud, exp, nbf, iat, jti, azp, scope) found — see the payload panel for its custom claims.</span></td></tr>";
+  }
+
+  /* --- sample: a genuine HS256 token signed with an obviously fake secret --- */
+
+  var SECRET = "clearly-fake-demo-secret-do-not-use";
+
+  function loadSample() {
+    var now = Math.floor(Date.now() / 1000);
+    var header = { alg: "HS256", typ: "JWT" };
+    var payload = {
+      iss: "https://auth.bench.example",
+      sub: "user_8214",
+      aud: "bench-tools",
+      iat: now,
+      nbf: now,
+      exp: now + 3600,
+      jti: Bench.uuid(),
+      azp: "bench-web-client",
+      scope: "read:profile write:profile openid",
+      name: "Ada Lovelace"
+    };
+    var signingInput = base64urlEncodeStr(JSON.stringify(header)) + "." + base64urlEncodeStr(JSON.stringify(payload));
+
+    function fallback() {
+      tokenEl.value = signingInput + "." + base64urlEncodeStr("demo-signature-not-cryptographically-real");
+      secretVal.textContent = SECRET + " (signing was unavailable in this browser, so the signature is a placeholder)";
+      secretNote.hidden = false;
+      render();
+    }
+
+    if (!(window.crypto && crypto.subtle && crypto.subtle.importKey)) { fallback(); return; }
+
+    crypto.subtle.importKey("raw", new TextEncoder().encode(SECRET), { name: "HMAC", hash: "SHA-256" }, false, ["sign"])
+      .then(function (key) { return crypto.subtle.sign("HMAC", key, new TextEncoder().encode(signingInput)); })
+      .then(function (sigBuf) {
+        tokenEl.value = signingInput + "." + base64urlEncodeBytes(new Uint8Array(sigBuf));
+        secretVal.textContent = SECRET;
+        secretNote.hidden = false;
+        render();
+      })
+      .catch(fallback);
+  }
+
+  /* --- wiring --------------------------------------------------------------- */
+
+  Bench.live(tokenEl, Bench.debounce(render, 120));
+  $("#sample").addEventListener("click", function () { loadSample(); });
+  $("#clear").addEventListener("click", function () {
+    tokenEl.value = "";
+    secretNote.hidden = true;
+    render();
+    tokenEl.focus();
+  });
+
+  render();
+});
+</script>
+
+</body>
+</html>

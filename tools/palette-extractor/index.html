@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Palette Extractor — Bench</title>
+<meta name="description" content="Pull the dominant colours out of an image into a usable palette.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/css/bench.css">
+<style>
+  /* Drop / preview stage. Holds either the empty instructions or the canvas. */
+  .pal__stage {
+    position: relative;
+    min-height: 260px;
+    display: grid;
+    place-items: center;
+    border: 1px dashed var(--edge-2);
+    border-radius: var(--r);
+    background: var(--sunk);
+    padding: 16px;
+    text-align: center;
+    transition: border-color 0.12s ease, background 0.12s ease;
+  }
+  .pal__stage.is-drop { border-color: var(--signal); background: var(--signal-soft); }
+  .pal__empty { color: var(--steel); font-size: 13.5px; max-width: 40ch; }
+  .pal__empty p + p { margin-top: 6px; font-size: 12.5px; }
+  .pal__canvas { max-width: 100%; max-height: 420px; border-radius: 2px; cursor: crosshair; }
+
+  .pal__picked { margin-top: 12px; display: flex; gap: 12px; align-items: center; }
+  .pal__picked[hidden] { display: none; }
+  .pal__pickedswatch {
+    flex: none; width: 46px; height: 46px; border-radius: var(--r);
+    border: 1px solid var(--edge-2);
+  }
+  .pal__pickedmeta { font-family: var(--mono); font-size: 12.5px; color: var(--steel); line-height: 1.6; }
+  .pal__pickedmeta b { color: var(--ink); font-weight: 500; }
+  .pal__pickedvals { display: flex; gap: 10px; flex-wrap: wrap; }
+  .pal__pickedvals button { background: none; border: 0; padding: 0; color: inherit; font: inherit; cursor: pointer; }
+  .pal__pickedvals button:hover { color: var(--signal); }
+
+  .pal__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+  .pal__swatch {
+    border: 1px solid var(--edge); border-radius: var(--r); overflow: hidden;
+    background: var(--card); display: flex; flex-direction: column;
+  }
+  .pal__block {
+    display: block; width: 100%; height: 84px; border: 0; padding: 0; cursor: pointer;
+    position: relative;
+  }
+  .pal__rank {
+    position: absolute; top: 6px; left: 8px; font-family: var(--mono); font-size: 11px;
+    padding: 1px 6px; border-radius: var(--r); background: rgba(0,0,0,0.35); color: #fff;
+  }
+  .pal__meta { padding: 10px 11px 11px; }
+  .pal__row1 { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .pal__hex {
+    font-family: var(--mono); font-size: 13.5px; font-weight: 500; background: none; border: 0;
+    padding: 0; color: var(--ink); cursor: pointer;
+  }
+  .pal__hex:hover { color: var(--signal); }
+  .pal__pct { font-family: var(--mono); font-size: 12px; color: var(--steel); }
+  .pal__vals { margin-top: 5px; display: flex; flex-direction: column; gap: 2px; }
+  .pal__vals button {
+    text-align: left; background: none; border: 0; padding: 0; color: var(--steel);
+    font-family: var(--mono); font-size: 11.5px; cursor: pointer;
+  }
+  .pal__vals button:hover { color: var(--signal); }
+  .pal__a11y { margin-top: 6px; font-size: 11px; color: var(--steel); line-height: 1.5; }
+
+  @media (max-width: 600px) {
+    .pal__stage { min-height: 200px; }
+    .pal__canvas { max-height: 280px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__home" href="../../index.html"><span class="topbar__mark">▚</span> bench</a>
+  <span class="topbar__sep">/</span>
+  <span class="topbar__here">Palette Extractor</span>
+  <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
+</header>
+
+<main class="wrap">
+
+  <div class="toolhead">
+    <p class="toolhead__spec mono">#E0521A</p>
+    <h1 class="toolhead__title">Palette Extractor</h1>
+    <p class="toolhead__desc">Pull the dominant colours out of an image into a usable palette. The image never leaves this tab — everything is sampled and clustered on your machine.</p>
+  </div>
+
+  <div class="split split--wide">
+
+    <section class="panel">
+      <h2 class="panel__title">Image</h2>
+      <div class="row" style="margin-bottom:12px">
+        <button class="btn btn--sm" id="pick">Choose image</button>
+        <button class="btn btn--sm" id="sample">Load sample</button>
+        <button class="btn btn--sm btn--danger" id="clear">Clear</button>
+        <input type="file" id="file" accept="image/*" hidden>
+      </div>
+
+      <div class="pal__stage" id="stage">
+        <canvas class="pal__canvas" id="canvas" hidden></canvas>
+        <div class="pal__empty" id="emptyState">
+          <p>Drop an image here, or choose one.</p>
+          <p>Once it loads, click anywhere on it to sample that exact pixel with the eyedropper.</p>
+        </div>
+      </div>
+
+      <div class="pal__picked" id="picked" hidden>
+        <div class="pal__pickedswatch" id="pickedSwatch"></div>
+        <div class="pal__pickedmeta">
+          <div><b>Picked pixel</b></div>
+          <div class="pal__pickedvals">
+            <button type="button" id="pkHex">#000000</button>
+            <button type="button" id="pkRgb">rgb(0, 0, 0)</button>
+            <button type="button" id="pkHsl">hsl(0, 0%, 0%)</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel__title">Palette</h2>
+      <div class="row row--between" style="margin-bottom:14px">
+        <div class="field" style="margin-bottom:0">
+          <label class="label" for="k">Colours (k)</label>
+          <select class="select" id="k" style="width:auto"></select>
+        </div>
+        <div class="row">
+          <button class="btn btn--sm" id="copyCss">Copy as CSS variables</button>
+          <button class="btn btn--sm" id="copyJson">Copy as JSON</button>
+        </div>
+      </div>
+      <div class="pal__grid" id="swatches">
+        <span class="empty">Swatches appear here once an image is loaded — sorted by how much of the image each colour covers.</span>
+      </div>
+    </section>
+
+  </div>
+
+  <footer class="foot">
+    <a href="../../index.html">← All tools</a>
+    <span>·</span>
+    <span>Runs entirely in your browser</span>
+  </footer>
+
+</main>
+
+<script src="../../assets/js/bench.js" defer></script>
+<script defer>
+document.addEventListener("DOMContentLoaded", function () {
+  "use strict";
+  var $ = Bench.$, $$ = Bench.$$, esc = Bench.esc;
+
+  var stage = $("#stage"), canvas = $("#canvas"), emptyState = $("#emptyState");
+  var fileInput = $("#file"), kSel = $("#k"), swatchesEl = $("#swatches");
+  var pickedBox = $("#picked"), pickedSwatch = $("#pickedSwatch");
+  var pkHex = $("#pkHex"), pkRgb = $("#pkRgb"), pkHsl = $("#pkHsl");
+  var ctx = canvas.getContext("2d", { willReadFrequently: true });
+
+  var hasImage = false;
+  var palette = [];    // current computed palette, sorted by prominence
+  var totalPx = 0;
+
+  /* --- colour maths --------------------------------------------------------- */
+
+  function hex(r, g, b) {
+    return "#" + [r, g, b].map(function (v) {
+      return Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0");
+    }).join("");
+  }
+
+  function rgbStr(r, g, b) { return "rgb(" + r + ", " + g + ", " + b + ")"; }
+
+  function rgbToHsl(r, g, b) {
+    r /= 255; g /= 255; b /= 255;
+    var max = Math.max(r, g, b), min = Math.min(r, g, b);
+    var h = 0, s = 0, l = (max + min) / 2;
+    var d = max - min;
+    if (d !== 0) {
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      switch (max) {
+        case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+        case g: h = (b - r) / d + 2; break;
+        default: h = (r - g) / d + 4;
+      }
+      h /= 6;
+    }
+    return { h: Math.round(h * 360), s: Math.round(s * 100), l: Math.round(l * 100) };
+  }
+
+  function hslStr(hsl) { return "hsl(" + hsl.h + ", " + hsl.s + "%, " + hsl.l + "%)"; }
+
+  function luminance(r, g, b) {
+    var a = [r, g, b].map(function (v) {
+      v /= 255;
+      return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    });
+    return 0.2126 * a[0] + 0.7152 * a[1] + 0.0722 * a[2];
+  }
+
+  function contrastRatio(r, g, b, r2, g2, b2) {
+    var l1 = luminance(r, g, b) + 0.05, l2 = luminance(r2, g2, b2) + 0.05;
+    return l1 > l2 ? l1 / l2 : l2 / l1;
+  }
+
+  /* --- median-cut colour quantisation ---------------------------------------
+     Boxes start as one bucket holding every sampled pixel. Each round we pick
+     the box whose (channel range * population) is largest, split it in half
+     along its widest channel at the median, and repeat until we have k boxes.
+     This is the classic median-cut algorithm used by real palette tools. */
+
+  function quantize(pixels, k) {
+    var boxes = [pixels];
+
+    function range(box, ch) {
+      var min = 255, max = 0;
+      for (var i = 0; i < box.length; i++) {
+        var v = box[i][ch];
+        if (v < min) min = v;
+        if (v > max) max = v;
+      }
+      return max - min;
+    }
+
+    function widestChannel(box) {
+      var rr = range(box, 0), rg = range(box, 1), rb = range(box, 2);
+      if (rr >= rg && rr >= rb) return 0;
+      if (rg >= rr && rg >= rb) return 1;
+      return 2;
+    }
+
+    while (boxes.length < k) {
+      var bi = -1, bestScore = -1, bestCh = 0;
+      for (var i = 0; i < boxes.length; i++) {
+        if (boxes[i].length < 2) continue;
+        var ch = widestChannel(boxes[i]);
+        var score = range(boxes[i], ch) * boxes[i].length;
+        if (score > bestScore) { bestScore = score; bi = i; bestCh = ch; }
+      }
+      if (bi === -1) break; // nothing left worth splitting
+      var box = boxes[bi];
+      box.sort(function (a, b) { return a[bestCh] - b[bestCh]; });
+      var mid = box.length >> 1;
+      boxes.splice(bi, 1, box.slice(0, mid), box.slice(mid));
+    }
+
+    return boxes.map(function (box) {
+      var sum = [0, 0, 0];
+      for (var i = 0; i < box.length; i++) {
+        sum[0] += box[i][0]; sum[1] += box[i][1]; sum[2] += box[i][2];
+      }
+      return {
+        r: Math.round(sum[0] / box.length),
+        g: Math.round(sum[1] / box.length),
+        b: Math.round(sum[2] / box.length),
+        count: box.length
+      };
+    });
+  }
+
+  /* --- image loading --------------------------------------------------------- */
+
+  function loadImage(dataUrl) {
+    return new Promise(function (resolve, reject) {
+      var img = new Image();
+      img.onload = function () { resolve(img); };
+      img.onerror = function () { reject(new Error("Could not decode that as an image")); };
+      img.src = dataUrl;
+    });
+  }
+
+  function drawToCanvas(img) {
+    // Cap the visible canvas so a huge photo doesn't become a huge DOM element —
+    // the eyedropper reads from these exact pixels, so this is also what "click
+    // to sample" sees.
+    var maxDim = 900;
+    var scale = Math.min(1, maxDim / Math.max(img.naturalWidth, img.naturalHeight));
+    var w = Math.max(1, Math.round(img.naturalWidth * scale));
+    var h = Math.max(1, Math.round(img.naturalHeight * scale));
+    canvas.width = w;
+    canvas.height = h;
+    ctx.drawImage(img, 0, 0, w, h);
+    canvas.hidden = false;
+    emptyState.hidden = true;
+    hasImage = true;
+  }
+
+  function samplePixels(img) {
+    // Downscale hard for the clustering pass — a few tens of thousands of
+    // pixels is plenty to find dominant colours and stays fast even on large
+    // photos. Never read the full-resolution image for this.
+    var target = 22500; // ~150x150
+    var scale = Math.sqrt(target / (img.naturalWidth * img.naturalHeight));
+    scale = Math.min(1, scale);
+    var w = Math.max(1, Math.round(img.naturalWidth * scale));
+    var h = Math.max(1, Math.round(img.naturalHeight * scale));
+
+    var sc = document.createElement("canvas");
+    sc.width = w; sc.height = h;
+    var sctx = sc.getContext("2d", { willReadFrequently: true });
+    sctx.drawImage(img, 0, 0, w, h);
+    var data = sctx.getImageData(0, 0, w, h).data;
+
+    var pixels = [];
+    for (var i = 0; i < data.length; i += 4) {
+      if (data[i + 3] < 128) continue; // skip mostly-transparent pixels
+      pixels.push([data[i], data[i + 1], data[i + 2]]);
+    }
+    return pixels;
+  }
+
+  var lastPixels = null;
+
+  function process(img) {
+    drawToCanvas(img);
+    lastPixels = samplePixels(img);
+    recluster();
+  }
+
+  function recluster() {
+    if (!lastPixels || !lastPixels.length) {
+      renderSwatches([]);
+      return;
+    }
+    var k = Number(kSel.value);
+    totalPx = lastPixels.length;
+    var raw = quantize(lastPixels.slice(), k);
+    raw.sort(function (a, b) { return b.count - a.count; });
+    palette = raw.map(function (c) {
+      var h = hex(c.r, c.g, c.b);
+      var hsl = rgbToHsl(c.r, c.g, c.b);
+      return {
+        r: c.r, g: c.g, b: c.b, hex: h,
+        rgb: rgbStr(c.r, c.g, c.b), hsl: hslStr(hsl),
+        pct: (c.count / totalPx) * 100,
+        onWhite: contrastRatio(c.r, c.g, c.b, 255, 255, 255),
+        onBlack: contrastRatio(c.r, c.g, c.b, 0, 0, 0)
+      };
+    });
+    renderSwatches(palette);
+  }
+
+  /* --- rendering --------------------------------------------------------------*/
+
+  function renderSwatches(list) {
+    if (!list.length) {
+      swatchesEl.innerHTML = '<span class="empty">Swatches appear here once an image is loaded — sorted by how much of the image each colour covers.</span>';
+      return;
+    }
+    swatchesEl.innerHTML = list.map(function (c, i) {
+      return '<div class="pal__swatch">'
+        + '<button type="button" class="pal__block" style="background:' + c.hex + '" data-copy-val="' + c.hex + '" aria-label="Copy ' + c.hex + '">'
+        + '<span class="pal__rank">' + (i + 1) + '</span></button>'
+        + '<div class="pal__meta">'
+        + '<div class="pal__row1"><button type="button" class="pal__hex" data-copy-val="' + c.hex + '">' + esc(c.hex) + '</button>'
+        + '<span class="pal__pct">' + c.pct.toFixed(1) + '%</span></div>'
+        + '<div class="pal__vals">'
+        + '<button type="button" data-copy-val="' + esc(c.rgb) + '">' + esc(c.rgb) + '</button>'
+        + '<button type="button" data-copy-val="' + esc(c.hsl) + '">' + esc(c.hsl) + '</button>'
+        + '</div>'
+        + '<div class="pal__a11y">Contrast ' + c.onWhite.toFixed(2) + ':1 on white · ' + c.onBlack.toFixed(2) + ':1 on black</div>'
+        + '</div></div>';
+    }).join("");
+  }
+
+  swatchesEl.addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-copy-val]");
+    if (!btn) return;
+    Bench.copy(btn.dataset.copyVal, btn);
+  });
+
+  /* --- eyedropper -------------------------------------------------------------*/
+
+  canvas.addEventListener("click", function (e) {
+    if (!hasImage) return;
+    var rect = canvas.getBoundingClientRect();
+    var scaleX = canvas.width / rect.width, scaleY = canvas.height / rect.height;
+    var x = Math.max(0, Math.min(canvas.width - 1, Math.floor((e.clientX - rect.left) * scaleX)));
+    var y = Math.max(0, Math.min(canvas.height - 1, Math.floor((e.clientY - rect.top) * scaleY)));
+    var d = ctx.getImageData(x, y, 1, 1).data;
+    var h = hex(d[0], d[1], d[2]);
+    var hsl = rgbToHsl(d[0], d[1], d[2]);
+    pickedSwatch.style.background = h;
+    pkHex.textContent = h;
+    pkRgb.textContent = rgbStr(d[0], d[1], d[2]);
+    pkHsl.textContent = hslStr(hsl);
+    pickedBox.hidden = false;
+  });
+
+  [pkHex, pkRgb, pkHsl].forEach(function (btn) {
+    btn.addEventListener("click", function () { Bench.copy(btn.textContent, btn); });
+  });
+
+  /* --- k select ----------------------------------------------------------------*/
+
+  for (var i = 3; i <= 12; i++) {
+    var opt = document.createElement("option");
+    opt.value = i; opt.textContent = i + (i === 6 ? " (default)" : "");
+    if (i === 6) opt.selected = true;
+    kSel.appendChild(opt);
+  }
+  kSel.addEventListener("change", recluster);
+
+  /* --- sample image generator (no network — drawn locally) --------------------*/
+
+  function sampleDataUrl() {
+    var c = document.createElement("canvas");
+    c.width = 480; c.height = 320;
+    var g = c.getContext("2d");
+    var grad = g.createLinearGradient(0, 0, 480, 320);
+    grad.addColorStop(0, "#e0521a");
+    grad.addColorStop(0.55, "#0f7a5a");
+    grad.addColorStop(1, "#14211f");
+    g.fillStyle = grad;
+    g.fillRect(0, 0, 480, 320);
+    g.fillStyle = "#fbfcfa";
+    g.beginPath(); g.arc(120, 110, 72, 0, Math.PI * 2); g.fill();
+    g.fillStyle = "#ffce45";
+    g.fillRect(270, 190, 160, 100);
+    g.fillStyle = "#2b6cb0";
+    g.beginPath(); g.moveTo(360, 40); g.lineTo(460, 40); g.lineTo(405, 150); g.closePath(); g.fill();
+    return c.toDataURL("image/png");
+  }
+
+  /* --- wiring -------------------------------------------------------------------*/
+
+  function handleFile(file) {
+    if (!file || file.type.indexOf("image/") !== 0) {
+      Bench.toast("Choose an image file", "bad");
+      return;
+    }
+    Bench.readFile(file, "dataURL").then(loadImage).then(process).catch(function (e) {
+      Bench.toast(e.message, "bad");
+    });
+  }
+
+  $("#pick").addEventListener("click", function () { fileInput.click(); });
+  fileInput.addEventListener("change", function () {
+    if (fileInput.files[0]) handleFile(fileInput.files[0]);
+    fileInput.value = "";
+  });
+
+  $("#sample").addEventListener("click", function () {
+    loadImage(sampleDataUrl()).then(process);
+  });
+
+  $("#clear").addEventListener("click", function () {
+    hasImage = false; lastPixels = null; palette = [];
+    canvas.hidden = true; emptyState.hidden = false;
+    pickedBox.hidden = true;
+    renderSwatches([]);
+  });
+
+  Bench.dropzone(stage, function (files) { handleFile(files[0]); });
+
+  $("#copyCss").addEventListener("click", function (e) {
+    if (!palette.length) { Bench.toast("Load an image first", "bad"); return; }
+    var lines = palette.map(function (c, i) { return "  --palette-" + (i + 1) + ": " + c.hex + "; /* " + c.pct.toFixed(1) + "% */"; });
+    Bench.copy(":root {\n" + lines.join("\n") + "\n}", e.currentTarget);
+  });
+
+  $("#copyJson").addEventListener("click", function (e) {
+    if (!palette.length) { Bench.toast("Load an image first", "bad"); return; }
+    var out = palette.map(function (c) {
+      return { hex: c.hex, rgb: c.rgb, hsl: c.hsl, percent: Number(c.pct.toFixed(2)) };
+    });
+    Bench.copy(JSON.stringify(out, null, 2), e.currentTarget);
+  });
+
+});
+</script>
+
+</body>
+</html>

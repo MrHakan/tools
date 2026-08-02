@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Favicon Generator — Bench</title>
+<meta name="description" content="Turn one image into a full icon set with the markup to go with it.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/css/bench.css">
+<style>
+  /* The `hidden` attribute must always win over any display rule below. */
+  [hidden] { display: none !important; }
+
+  .fav__stage {
+    position: relative;
+    min-height: 180px;
+    display: grid;
+    place-items: center;
+    border: 1px dashed var(--edge-2);
+    border-radius: var(--r);
+    background: var(--sunk);
+    padding: 14px;
+    text-align: center;
+    transition: border-color 0.12s ease, background 0.12s ease;
+  }
+  .fav__stage.is-drop { border-color: var(--signal); background: var(--signal-soft); }
+  .fav__empty { color: var(--steel); font-size: 13.5px; max-width: 36ch; }
+  .fav__srcimg { max-width: 100%; max-height: 200px; border-radius: 2px; }
+
+  .fav__note { font-size: 12.5px; color: var(--steel); margin-bottom: 14px; max-width: 62ch; }
+
+  .fav__row {
+    display: flex;
+    gap: 18px;
+    align-items: flex-end;
+    overflow-x: auto;
+    padding: 4px 2px 14px;
+  }
+  .fav__cell { flex: none; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .fav__swatch {
+    flex: none;
+    border: 1px solid var(--edge-2);
+    border-radius: 2px;
+    overflow: hidden;
+    background-image:
+      linear-gradient(45deg, var(--edge) 25%, transparent 25%),
+      linear-gradient(-45deg, var(--edge) 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, var(--edge) 75%),
+      linear-gradient(-45deg, transparent 75%, var(--edge) 75%);
+    background-size: 10px 10px;
+    background-position: 0 0, 0 5px, 5px -5px, -5px 0px;
+  }
+  .fav__swatch canvas { display: block; }
+  .fav__size { font-family: var(--mono); font-size: 11.5px; color: var(--steel); white-space: nowrap; }
+  .fav__size b { color: var(--ink); font-weight: 500; }
+
+  .fav__markup + .fav__markup { margin-top: var(--gap); }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__home" href="../../index.html"><span class="topbar__mark">▚</span> bench</a>
+  <span class="topbar__sep">/</span>
+  <span class="topbar__here">Favicon Generator</span>
+  <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
+</header>
+
+<main class="wrap">
+
+  <div class="toolhead">
+    <p class="toolhead__spec mono">favicon.ico</p>
+    <h1 class="toolhead__title">Favicon Generator</h1>
+    <p class="toolhead__desc">Turn one image into a full icon set with the markup to go with it. Rendering, packing and the .ico byte layout all happen in this tab.</p>
+  </div>
+
+  <div class="split">
+
+    <section class="panel">
+      <h2 class="panel__title">Source</h2>
+      <div class="row" style="margin-bottom:14px">
+        <button class="btn btn--sm btn--on" data-mode="image" type="button">Image</button>
+        <button class="btn btn--sm" data-mode="text" type="button">Initials</button>
+      </div>
+
+      <div id="modeImage">
+        <div class="row" style="margin-bottom:12px">
+          <button class="btn btn--sm" id="pick" type="button">Choose image</button>
+          <button class="btn btn--sm" id="sample" type="button">Load sample</button>
+          <button class="btn btn--sm btn--danger" id="clear" type="button">Clear</button>
+          <input type="file" id="file" accept="image/*" hidden>
+        </div>
+        <div class="fav__stage" id="stage">
+          <img class="fav__srcimg" id="srcImg" alt="Loaded source image" hidden>
+          <div class="fav__empty" id="emptyImg">
+            <p>Drop an image here, or choose one — square images work best.</p>
+          </div>
+        </div>
+      </div>
+
+      <div id="modeText" hidden>
+        <div class="field">
+          <label class="label" for="initials">Initials (1–2 characters)</label>
+          <input class="input input--mono" id="initials" maxlength="2" placeholder="e.g. B">
+        </div>
+        <div class="row">
+          <div class="field" style="margin-bottom:0">
+            <label class="label" for="textColor">Text colour</label>
+            <input type="color" id="textColor" value="#fbfcfa">
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel__title">Options</h2>
+      <div class="field">
+        <label class="check"><input type="checkbox" id="transparent"> Transparent background</label>
+      </div>
+      <div class="field">
+        <label class="label" for="bg">Background colour</label>
+        <input type="color" id="bg" value="#e0521a">
+      </div>
+      <div class="field">
+        <label class="label" for="padding">Padding — <span id="paddingVal">12</span>%</label>
+        <input type="range" id="padding" min="0" max="40" value="12">
+      </div>
+      <div class="field">
+        <label class="label" for="radius">Corner radius — <span id="radiusVal">18</span>%</label>
+        <input type="range" id="radius" min="0" max="50" value="18">
+      </div>
+      <div class="field" style="margin-bottom:0">
+        <span class="label">Fit</span>
+        <div class="chips">
+          <button type="button" class="chip" data-fit="contain">Scale to fit</button>
+          <button type="button" class="chip chip--on" data-fit="cover">Crop to fill</button>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <section class="panel" style="margin-top:var(--gap)">
+    <h2 class="panel__title">Icon set</h2>
+    <p class="fav__note">Each size below renders at its real pixel dimensions, unscaled — this is exactly how it degrades at 16px, not a scaled-down mockup.</p>
+    <div class="fav__row" id="previewRow">
+      <span class="empty">Add an image or type initials above to generate the icon set.</span>
+    </div>
+    <div class="row" style="margin-top:6px">
+      <button class="btn btn--primary" id="downloadIco" type="button">Download favicon.ico</button>
+    </div>
+  </section>
+
+  <section class="panel" style="margin-top:var(--gap)">
+    <h2 class="panel__title">Markup</h2>
+    <div class="fav__markup">
+      <div class="row row--between" style="margin-bottom:8px">
+        <span class="label" style="margin-bottom:0">HTML &lt;link&gt; tags</span>
+        <button class="btn btn--sm" data-copy="#linkOut" type="button">Copy</button>
+      </div>
+      <div class="out out--wrap" id="linkOut"><span class="empty">Markup appears here once the icon set is generated.</span></div>
+    </div>
+    <div class="fav__markup">
+      <div class="row row--between" style="margin-bottom:8px">
+        <span class="label" style="margin-bottom:0">site.webmanifest</span>
+        <button class="btn btn--sm" data-copy="#manifestOut" type="button">Copy</button>
+      </div>
+      <div class="out out--wrap" id="manifestOut"><span class="empty">Manifest JSON appears here once the icon set is generated.</span></div>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <a href="../../index.html">← All tools</a>
+    <span>·</span>
+    <span>Runs entirely in your browser</span>
+  </footer>
+
+</main>
+
+<script src="../../assets/js/bench.js" defer></script>
+<script defer>
+document.addEventListener("DOMContentLoaded", function () {
+  "use strict";
+  var $ = Bench.$, $$ = Bench.$$, esc = Bench.esc;
+
+  var SIZES = [16, 32, 48, 64, 128, 180, 192, 256, 512];
+  var ICO_SIZES = [16, 32, 48, 64, 128, 256]; // ICONDIRENTRY w/h are one byte (0 = 256), so 512 can't live in the .ico
+  var LABELS = { 180: "Apple touch", 192: "Android", 512: "Android" };
+  var FILENAMES = {
+    16: "favicon-16x16.png", 32: "favicon-32x32.png", 48: "favicon-48x48.png",
+    64: "favicon-64x64.png", 128: "favicon-128x128.png", 180: "apple-touch-icon.png",
+    192: "android-chrome-192x192.png", 256: "favicon-256x256.png", 512: "android-chrome-512x512.png"
+  };
+
+  var stage = $("#stage"), srcImg = $("#srcImg"), emptyImg = $("#emptyImg");
+  var fileInput = $("#file"), previewRow = $("#previewRow");
+  var linkOut = $("#linkOut"), manifestOut = $("#manifestOut");
+  var initialsInput = $("#initials"), textColorInput = $("#textColor");
+  var transparentChk = $("#transparent"), bgInput = $("#bg");
+  var paddingRange = $("#padding"), radiusRange = $("#radius");
+  var paddingVal = $("#paddingVal"), radiusVal = $("#radiusVal");
+
+  var mode = "image";
+  var fit = "cover";
+  var hasLoadedImage = false;
+
+  /* --- geometry --------------------------------------------------------------*/
+
+  function roundRectPath(ctx, x, y, w, h, r) {
+    r = Math.max(0, Math.min(r, w / 2, h / 2));
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  function drawFitted(ctx, img, x, y, w, h, mode) {
+    var iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
+    if (!iw || !ih) return;
+    var scale = mode === "cover" ? Math.max(w / iw, h / ih) : Math.min(w / iw, h / ih);
+    var dw = iw * scale, dh = ih * scale;
+    var dx = x + (w - dw) / 2, dy = y + (h - dh) / 2;
+    if (mode === "cover") {
+      ctx.save();
+      ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+      ctx.drawImage(img, dx, dy, dw, dh);
+      ctx.restore();
+    } else {
+      ctx.drawImage(img, dx, dy, dw, dh);
+    }
+  }
+
+  function buildTextSource(text, color) {
+    var c = document.createElement("canvas");
+    c.width = 512; c.height = 512;
+    var ctx = c.getContext("2d");
+    ctx.fillStyle = color;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = "700 300px 'Segoe UI', system-ui, -apple-system, sans-serif";
+    ctx.fillText(text.toUpperCase(), 256, 268);
+    return c;
+  }
+
+  function currentOpts() {
+    return {
+      transparent: transparentChk.checked,
+      bg: bgInput.value,
+      padding: Number(paddingRange.value),
+      radius: Number(radiusRange.value),
+      fit: fit
+    };
+  }
+
+  function currentSource() {
+    if (mode === "image") return hasLoadedImage ? srcImg : null;
+    var t = initialsInput.value.trim();
+    return t ? buildTextSource(t, textColorInput.value) : null;
+  }
+
+  function renderIcon(size, opts, src) {
+    var c = document.createElement("canvas");
+    c.width = size; c.height = size;
+    var ctx = c.getContext("2d");
+    var r = (opts.radius / 100) * (size / 2);
+    ctx.save();
+    roundRectPath(ctx, 0, 0, size, size, r);
+    ctx.clip();
+    if (!opts.transparent) {
+      ctx.fillStyle = opts.bg;
+      ctx.fillRect(0, 0, size, size);
+    }
+    var pad = (opts.padding / 100) * size;
+    var bx = pad, by = pad, bw = size - pad * 2, bh = size - pad * 2;
+    if (bw > 0 && bh > 0 && src) drawFitted(ctx, src, bx, by, bw, bh, opts.fit);
+    ctx.restore();
+    return c;
+  }
+
+  /* --- ICO binary --------------------------------------------------------------
+     ICO files can embed full PNG streams per entry (the "PNG-compressed" form
+     every modern icon generator writes) instead of raw BMP bitmaps. Layout:
+       ICONDIR (6 bytes)        — reserved(2) + type=1(2) + count(2)
+       ICONDIRENTRY x N (16 each) — w(1) h(1) palette(1) reserved(1) planes(2)
+                                     bpp(2) size(4) offset(4)
+       then each entry's PNG bytes back-to-back, at the offsets given above.  */
+
+  function canvasToArrayBuffer(canvas) {
+    return new Promise(function (resolve, reject) {
+      canvas.toBlob(function (blob) {
+        if (!blob) { reject(new Error("Could not encode a PNG frame")); return; }
+        blob.arrayBuffer().then(resolve, reject);
+      }, "image/png");
+    });
+  }
+
+  function buildIco(frames) {
+    var headerSize = 6 + 16 * frames.length;
+    var total = headerSize + frames.reduce(function (s, f) { return s + f.data.byteLength; }, 0);
+    var buf = new ArrayBuffer(total);
+    var dv = new DataView(buf);
+    var u8 = new Uint8Array(buf);
+
+    dv.setUint16(0, 0, true);              // reserved
+    dv.setUint16(2, 1, true);              // type: 1 = icon
+    dv.setUint16(4, frames.length, true);
+
+    var offset = headerSize;
+    frames.forEach(function (f, i) {
+      var e = 6 + i * 16;
+      var wh = f.size >= 256 ? 0 : f.size;
+      dv.setUint8(e + 0, wh);
+      dv.setUint8(e + 1, wh);
+      dv.setUint8(e + 2, 0);               // no palette
+      dv.setUint8(e + 3, 0);               // reserved
+      dv.setUint16(e + 4, 1, true);        // colour planes
+      dv.setUint16(e + 6, 32, true);       // bits per pixel
+      dv.setUint32(e + 8, f.data.byteLength, true);
+      dv.setUint32(e + 12, offset, true);
+      u8.set(new Uint8Array(f.data), offset);
+      offset += f.data.byteLength;
+    });
+
+    return buf;
+  }
+
+  function buildIcoBlob(sizes, opts, src) {
+    var frames = [];
+    function next(i) {
+      if (i >= sizes.length) return Promise.resolve(frames);
+      var c = renderIcon(sizes[i], opts, src);
+      return canvasToArrayBuffer(c).then(function (buf) {
+        frames.push({ size: sizes[i], data: buf });
+        return next(i + 1);
+      });
+    }
+    return next(0).then(buildIco);
+  }
+
+  /* --- markup ------------------------------------------------------------------*/
+
+  function buildLinkMarkup() {
+    return [
+      '<link rel="icon" href="favicon.ico" sizes="any">',
+      '<link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">',
+      '<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">',
+      '<link rel="icon" type="image/png" sizes="48x48" href="favicon-48x48.png">',
+      '<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">',
+      '<link rel="icon" type="image/png" sizes="192x192" href="android-chrome-192x192.png">',
+      '<link rel="manifest" href="site.webmanifest">'
+    ].join("\n");
+  }
+
+  function buildManifest(opts) {
+    var manifest = {
+      name: "",
+      short_name: "",
+      icons: [
+        { src: "android-chrome-192x192.png", sizes: "192x192", type: "image/png" },
+        { src: "android-chrome-512x512.png", sizes: "512x512", type: "image/png" }
+      ],
+      theme_color: opts.bg,
+      background_color: opts.transparent ? "#ffffff" : opts.bg,
+      display: "standalone"
+    };
+    return JSON.stringify(manifest, null, 2);
+  }
+
+  /* --- rendering -----------------------------------------------------------------*/
+
+  function savePng(size, canvas) {
+    canvas.toBlob(function (blob) {
+      if (!blob) { Bench.toast("Could not encode that size", "bad"); return; }
+      Bench.download(FILENAMES[size], blob, "image/png");
+    }, "image/png");
+  }
+
+  function buildCell(size, canvas) {
+    var cell = Bench.el("div", { class: "fav__cell" });
+    var label = Bench.el("div", { class: "fav__size" });
+    label.innerHTML = "<b>" + size + "</b>×" + size + (LABELS[size] ? " · " + esc(LABELS[size]) : "");
+    var swatch = Bench.el("div", { class: "fav__swatch", style: "width:" + size + "px;height:" + size + "px" });
+    canvas.width = size; canvas.height = size;
+    swatch.appendChild(canvas);
+    var btn = Bench.el("button", { class: "btn btn--sm", type: "button", text: "Save PNG" });
+    btn.addEventListener("click", function () { savePng(size, canvas); });
+    cell.appendChild(label);
+    cell.appendChild(swatch);
+    cell.appendChild(btn);
+    return cell;
+  }
+
+  function renderAll() {
+    var src = currentSource();
+    if (!src) {
+      previewRow.innerHTML = '<span class="empty">Add an image or type initials above to generate the icon set.</span>';
+      linkOut.innerHTML = '<span class="empty">Markup appears here once the icon set is generated.</span>';
+      manifestOut.innerHTML = '<span class="empty">Manifest JSON appears here once the icon set is generated.</span>';
+      return;
+    }
+    var opts = currentOpts();
+    previewRow.innerHTML = "";
+    SIZES.forEach(function (size) {
+      previewRow.appendChild(buildCell(size, renderIcon(size, opts, src)));
+    });
+    linkOut.textContent = buildLinkMarkup();
+    manifestOut.textContent = buildManifest(opts);
+  }
+
+  /* --- sample image (drawn locally — no network) --------------------------------*/
+
+  function sampleDataUrl() {
+    var c = document.createElement("canvas");
+    c.width = 256; c.height = 256;
+    var g = c.getContext("2d");
+    var grad = g.createLinearGradient(0, 0, 256, 256);
+    grad.addColorStop(0, "#e0521a");
+    grad.addColorStop(1, "#14211f");
+    g.fillStyle = grad;
+    g.fillRect(0, 0, 256, 256);
+    g.fillStyle = "#fbfcfa";
+    g.beginPath(); g.arc(128, 128, 78, 0, Math.PI * 2); g.fill();
+    g.fillStyle = "#e0521a";
+    g.fillRect(96, 96, 26, 64);
+    g.fillRect(134, 96, 26, 64);
+    return c.toDataURL("image/png");
+  }
+
+  /* --- wiring ----------------------------------------------------------------------*/
+
+  function loadImageFile(file) {
+    if (!file || file.type.indexOf("image/") !== 0) {
+      Bench.toast("Choose an image file", "bad");
+      return;
+    }
+    Bench.readFile(file, "dataURL").then(function (url) {
+      srcImg.onload = function () {
+        hasLoadedImage = true;
+        srcImg.hidden = false;
+        emptyImg.hidden = true;
+        renderAll();
+      };
+      srcImg.onerror = function () { Bench.toast("Could not decode that as an image", "bad"); };
+      srcImg.src = url;
+    }).catch(function (e) { Bench.toast(e.message, "bad"); });
+  }
+
+  $$("[data-mode]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      mode = btn.dataset.mode;
+      $$("[data-mode]").forEach(function (b) { b.classList.toggle("btn--on", b === btn); });
+      $("#modeImage").hidden = mode !== "image";
+      $("#modeText").hidden = mode !== "text";
+      renderAll();
+    });
+  });
+
+  $$("[data-fit]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      fit = btn.dataset.fit;
+      $$("[data-fit]").forEach(function (b) { b.classList.toggle("chip--on", b === btn); });
+      renderAll();
+    });
+  });
+
+  $("#pick").addEventListener("click", function () { fileInput.click(); });
+  fileInput.addEventListener("change", function () {
+    if (fileInput.files[0]) loadImageFile(fileInput.files[0]);
+    fileInput.value = "";
+  });
+  $("#sample").addEventListener("click", function () { loadImageFile2(sampleDataUrl()); });
+  function loadImageFile2(dataUrl) {
+    srcImg.onload = function () {
+      hasLoadedImage = true;
+      srcImg.hidden = false;
+      emptyImg.hidden = true;
+      renderAll();
+    };
+    srcImg.src = dataUrl;
+  }
+  $("#clear").addEventListener("click", function () {
+    hasLoadedImage = false;
+    srcImg.hidden = true; srcImg.removeAttribute("src");
+    emptyImg.hidden = false;
+    renderAll();
+  });
+  Bench.dropzone(stage, function (files) { loadImageFile(files[0]); });
+
+  Bench.live(initialsInput, renderAll);
+  Bench.live(textColorInput, renderAll);
+  Bench.live(transparentChk, function () { bgInput.disabled = transparentChk.checked; renderAll(); });
+  Bench.live(bgInput, renderAll);
+  Bench.live(paddingRange, function () { paddingVal.textContent = paddingRange.value; renderAll(); });
+  Bench.live(radiusRange, function () { radiusVal.textContent = radiusRange.value; renderAll(); });
+
+  $("#downloadIco").addEventListener("click", function (e) {
+    var src = currentSource();
+    if (!src) { Bench.toast("Add an image or type initials first", "bad"); return; }
+    var btn = e.currentTarget;
+    var was = btn.textContent;
+    btn.disabled = true; btn.textContent = "Building…";
+    buildIcoBlob(ICO_SIZES, currentOpts(), src).then(function (buf) {
+      Bench.download("favicon.ico", new Blob([buf], { type: "image/x-icon" }));
+    }).catch(function () {
+      Bench.toast("Could not build the ICO file", "bad");
+    }).then(function () {
+      btn.disabled = false; btn.textContent = was;
+    });
+  });
+
+  renderAll();
+});
+</script>
+
+</body>
+</html>

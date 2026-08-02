@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Text Case Converter — Bench</title>
+<meta name="description" content="Convert text between camelCase, snake_case, kebab-case and eleven other conventions, all at once.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/css/bench.css">
+<style>
+  /* Page-specific CSS only, prefixed .cc */
+  .cc__list { display: grid; gap: 8px; }
+
+  .cc__row {
+    display: grid;
+    grid-template-columns: 168px 1fr auto;
+    gap: 10px;
+    align-items: start;
+  }
+
+  .cc__label {
+    font-family: var(--mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--steel);
+    padding-top: 10px;
+  }
+
+  .cc__out {
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.5;
+    background: var(--sunk);
+    border: 1px solid var(--edge);
+    border-radius: var(--r);
+    padding: 8px 10px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    min-height: 20px;
+  }
+
+  @media (max-width: 640px) {
+    .cc__row { grid-template-columns: 1fr; }
+    .cc__label { padding-top: 0; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__home" href="../../index.html"><span class="topbar__mark">▚</span> bench</a>
+  <span class="topbar__sep">/</span>
+  <span class="topbar__here">Text Case Converter</span>
+  <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
+</header>
+
+<main class="wrap">
+
+  <div class="toolhead">
+    <p class="toolhead__spec mono">camelCase</p>
+    <h1 class="toolhead__title">Text Case Converter</h1>
+    <p class="toolhead__desc">Convert text between camelCase, snake_case, kebab-case and eleven other conventions, all at once.</p>
+  </div>
+
+  <div class="stack">
+
+    <section class="panel">
+      <h2 class="panel__title">Input</h2>
+      <div class="row" style="margin-bottom:12px">
+        <button class="btn btn--sm" id="sample">Load sample</button>
+        <button class="btn btn--sm btn--danger" id="clear">Clear</button>
+      </div>
+      <label class="sr-only" for="src">Text to convert</label>
+      <textarea class="textarea textarea--prose" id="src" spellcheck="false" placeholder="Type or paste text — one word, a phrase, or several lines"></textarea>
+      <div class="stats" id="stats" style="margin-top:12px">
+        <div class="stat"><span class="stat__n" id="s-words">0</span><span class="stat__k">Words</span></div>
+        <div class="stat"><span class="stat__n" id="s-chars">0</span><span class="stat__k">Characters</span></div>
+        <div class="stat"><span class="stat__n" id="s-lines">0</span><span class="stat__k">Lines</span></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel__title">Every conversion</h2>
+      <div class="cc__list" id="list"></div>
+    </section>
+
+  </div>
+
+  <footer class="foot">
+    <a href="../../index.html">← All tools</a>
+    <span>·</span>
+    <span>Runs entirely in your browser</span>
+  </footer>
+
+</main>
+
+<script src="../../assets/js/bench.js" defer></script>
+<script defer>
+document.addEventListener("DOMContentLoaded", function () {
+  "use strict";
+  var $ = Bench.$, esc = Bench.esc;
+
+  var src = $("#src"), list = $("#list");
+  var sWords = $("#s-words"), sChars = $("#s-chars"), sLines = $("#s-lines");
+
+  var SAMPLE = "Hello World\nparseHTTPResponse and XMLHttpRequest need_converting-too.please-Help";
+
+  /* --- tokenising ------------------------------------------------------------
+     Split a single line into lowercase words. Handles three separator styles:
+       1. explicit punctuation (space, underscore, hyphen, dot, anything else)
+       2. a lower/digit-to-upper boundary        "parseHTTP" -> "parse HTTP"
+       3. an acronym-to-word boundary            "HTTPResponse" -> "HTTP Response"
+     Rule 3 must run after rule 1 has already separated "parse" from "HTTP", or
+     the greedy acronym match would swallow both.
+     --------------------------------------------------------------------- */
+
+  function tokenize(line) {
+    var s = line
+      .replace(/[^A-Za-z0-9]+/g, " ")          // any punctuation/space run -> single space
+      .replace(/([a-z0-9])([A-Z])/g, "$1 $2")  // parseHTTP -> parse HTTP
+      .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2") // HTTPResponse -> HTTP Response
+      .replace(/([A-Za-z])(\d)/g, "$1 $2")     // value2 -> value 2
+      .replace(/(\d)([A-Za-z])/g, "$1 $2");    // 2nd -> 2 nd
+    return s.split(/\s+/).filter(Boolean).map(function (w) { return w.toLowerCase(); });
+  }
+
+  function cap(w) { return w ? w.charAt(0).toUpperCase() + w.slice(1) : w; }
+
+  function alternate(s) {
+    var out = "", up = false;
+    for (var i = 0; i < s.length; i++) {
+      var c = s[i];
+      if (/[a-z]/i.test(c)) { out += up ? c.toUpperCase() : c.toLowerCase(); up = !up; }
+      else out += c;
+    }
+    return out;
+  }
+
+  /* --- the fourteen conventions ----------------------------------------------
+     Each entry converts one already-tokenized line (`words`, all lowercase)
+     plus has access to the untouched `raw` line for the two conventions that
+     operate on the literal text rather than a word list. --------------------- */
+
+  var CONVENTIONS = [
+    { key: "camel",  label: "camelCase",         fn: function (w) { return w.map(function (x, i) { return i === 0 ? x : cap(x); }).join(""); } },
+    { key: "pascal", label: "PascalCase",         fn: function (w) { return w.map(cap).join(""); } },
+    { key: "snake",  label: "snake_case",         fn: function (w) { return w.join("_"); } },
+    { key: "screaming", label: "SCREAMING_SNAKE_CASE", fn: function (w) { return w.map(function (x) { return x.toUpperCase(); }).join("_"); } },
+    { key: "kebab",  label: "kebab-case",         fn: function (w) { return w.join("-"); } },
+    { key: "cobol",  label: "COBOL-CASE",         fn: function (w) { return w.map(function (x) { return x.toUpperCase(); }).join("-"); } },
+    { key: "title",  label: "Title Case",         fn: function (w) { return w.map(cap).join(" "); } },
+    { key: "sentence", label: "Sentence case",    fn: function (w) { return w.length ? cap(w[0]) + (w.length > 1 ? " " + w.slice(1).join(" ") : "") : ""; } },
+    { key: "lower",  label: "lowercase",          fn: function (w) { return w.join(" "); } },
+    { key: "upper",  label: "UPPERCASE",          fn: function (w) { return w.map(function (x) { return x.toUpperCase(); }).join(" "); } },
+    { key: "dot",    label: "dot.case",           fn: function (w) { return w.join("."); } },
+    { key: "path",   label: "path/case",          fn: function (w) { return w.join("/"); } },
+    { key: "alt",    label: "aLtErNaTiNg case",   fn: function (w) { return alternate(w.join(" ")); } },
+    { key: "rev",    label: "reversed",           fn: null, raw: function (line) { return line.split("").reverse().join(""); } }
+  ];
+
+  /* --- rendering --------------------------------------------------------- */
+
+  var lastResults = {}; // key -> full multi-line text, for copy buttons
+
+  function render() {
+    var text = src.value;
+    var lines = text.length ? text.split("\n") : [];
+
+    var wordCount = (text.trim() === "" ? [] : text.trim().split(/\s+/)).length;
+    sWords.textContent = Bench.num(wordCount);
+    sChars.textContent = Bench.num(text.length);
+    sLines.textContent = Bench.num(lines.length);
+
+    if (!text.trim()) {
+      list.innerHTML = '<p class="empty">Type or paste text above to see every case conversion.</p>';
+      lastResults = {};
+      return;
+    }
+
+    var tokenLines = lines.map(tokenize);
+
+    var html = "";
+    CONVENTIONS.forEach(function (c) {
+      var out = lines.map(function (line, i) {
+        return c.fn ? c.fn(tokenLines[i]) : c.raw(line);
+      }).join("\n");
+      lastResults[c.key] = out;
+      html += '<div class="cc__row">'
+        + '<span class="cc__label">' + esc(c.label) + '</span>'
+        + '<div class="cc__out">' + (out ? esc(out) : '<span class="empty">—</span>') + '</div>'
+        + '<button class="btn btn--sm" data-copy-key="' + c.key + '" aria-label="Copy ' + esc(c.label) + '">Copy</button>'
+        + '</div>';
+    });
+    list.innerHTML = html;
+  }
+
+  /* --- wiring -------------------------------------------------------------- */
+
+  Bench.live(src, Bench.debounce(render, 80));
+
+  list.addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-copy-key]");
+    if (!btn) return;
+    var text = lastResults[btn.dataset.copyKey] || "";
+    if (!text) { Bench.toast("Nothing to copy", "bad"); return; }
+    Bench.copy(text, btn);
+  });
+
+  $("#sample").addEventListener("click", function () { src.value = SAMPLE; render(); });
+  $("#clear").addEventListener("click", function () { src.value = ""; render(); src.focus(); });
+
+  src.value = SAMPLE;
+  render();
+});
+</script>
+
+</body>
+</html>

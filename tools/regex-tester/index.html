@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Regex Tester — Bench</title>
+<meta name="description" content="Test a regular expression live, with highlighted matches, groups and replacements.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/css/bench.css">
+<style>
+  /* Page-specific CSS only, prefixed rx- for regex-tester. */
+  .rx-lit {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--steel);
+    margin-top: 8px;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  .rx-lit b { color: var(--signal); font-weight: 500; }
+  .rx-flags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .rx-flags button.chip { min-width: 30px; justify-content: center; font-weight: 600; }
+  .rx-flags button.chip[data-flag="g"] { min-width: 30px; }
+  .rx-muted { color: var(--steel); }
+  .rx-groups div { padding: 1px 0; white-space: nowrap; }
+  .rx-groups .rx-gname { color: var(--steel); }
+  .rx-groups .rx-gval { color: var(--ink); }
+  .rx-cap {
+    font-size: 12px;
+    color: var(--steel);
+    margin-top: 6px;
+    font-family: var(--mono);
+  }
+  .rx-lib { display: flex; flex-wrap: wrap; gap: 7px; }
+  .rx-lib button.chip { font-family: var(--mono); }
+  .rx-cheat-table td, .rx-cheat-table th { font-size: 12.5px; }
+  .rx-cheat-table td:first-child { white-space: nowrap; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__home" href="../../index.html"><span class="topbar__mark">▚</span> bench</a>
+  <span class="topbar__sep">/</span>
+  <span class="topbar__here">Regex Tester</span>
+  <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
+</header>
+
+<main class="wrap">
+
+  <div class="toolhead">
+    <p class="toolhead__spec mono">/\d{3}-\d{4}/g</p>
+    <h1 class="toolhead__title">Regex Tester</h1>
+    <p class="toolhead__desc">Test a regular expression live, with highlighted matches, groups and replacements. Everything runs against your browser's own regex engine — nothing leaves this tab.</p>
+  </div>
+
+  <div class="stack">
+
+    <section class="panel">
+      <h2 class="panel__title">Pattern</h2>
+      <div class="split split--wide" style="align-items:start">
+        <div>
+          <label class="label" for="pattern">Pattern</label>
+          <input class="input input--mono" id="pattern" spellcheck="false" placeholder="\d{3}-\d{4}">
+          <div class="rx-flags" role="group" aria-label="Regex flags">
+            <button class="chip" type="button" data-flag="g" title="Global — find all matches">g</button>
+            <button class="chip" type="button" data-flag="i" title="Case-insensitive">i</button>
+            <button class="chip" type="button" data-flag="m" title="Multiline — ^ and $ match line breaks">m</button>
+            <button class="chip" type="button" data-flag="s" title="Dot-all — . matches newlines too">s</button>
+            <button class="chip" type="button" data-flag="u" title="Unicode mode">u</button>
+            <button class="chip" type="button" data-flag="y" title="Sticky — match only at lastIndex">y</button>
+          </div>
+          <p class="rx-lit mono" id="literal">/\d{3}-\d{4}/g</p>
+        </div>
+        <div id="pattern-status"></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel__title">Test text</h2>
+      <label class="sr-only" for="text">Text to test the pattern against</label>
+      <textarea class="textarea" id="text" spellcheck="false" maxlength="20000" placeholder="Paste or type text to test the pattern against."></textarea>
+      <p class="rx-cap" id="charcount">0 / 20,000 characters</p>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel__title">Highlighted matches</h2>
+      <div class="out out--wrap" id="highlight"><span class="empty">Matches will be highlighted here.</span></div>
+      <div class="stats" id="stats" style="margin-top:12px" hidden>
+        <div class="stat"><span class="stat__n" id="s-matches">0</span><span class="stat__k">Matches</span></div>
+        <div class="stat"><span class="stat__n" id="s-groups">0</span><span class="stat__k">Groups per match</span></div>
+        <div class="stat"><span class="stat__n" id="s-chars">0</span><span class="stat__k">Text length</span></div>
+        <div class="stat"><span class="stat__n" id="s-ms">0</span><span class="stat__k">Engine time</span></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel__title">Matches</h2>
+      <div class="tablewrap">
+        <table class="table" id="matchtable">
+          <thead>
+            <tr><th>#</th><th>Index</th><th>Match</th><th>Groups</th></tr>
+          </thead>
+          <tbody id="matchbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel__title">Replace</h2>
+      <div class="split split--wide" style="align-items:start">
+        <div>
+          <label class="label" for="replacement">Replacement — use $1, $2, $&amp;, $&lt;name&gt;</label>
+          <input class="input input--mono" id="replacement" spellcheck="false" placeholder="($&lt;area&gt;) $&lt;local&gt;">
+          <div class="row" style="margin-top:12px">
+            <button class="btn btn--sm" id="copy-replace">Copy result</button>
+          </div>
+        </div>
+        <div>
+          <label class="label">Result</label>
+          <div class="out out--wrap" id="replaced"><span class="empty">Type a replacement to preview it.</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel__title">Common patterns</h2>
+      <p class="rx-muted" style="margin-bottom:12px;font-size:13.5px">Click one to load its pattern, flags and matching sample text.</p>
+      <div class="rx-lib" id="library"></div>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel__title">Cheat sheet</h2>
+      <div class="tablewrap">
+        <table class="table rx-cheat-table">
+          <thead><tr><th>Syntax</th><th>Meaning</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">.</td><td>Any character except line break (with <b>s</b>, includes it)</td></tr>
+            <tr><td class="mono">\d  \D</td><td>Digit / not a digit</td></tr>
+            <tr><td class="mono">\w  \W</td><td>Word character / not a word character</td></tr>
+            <tr><td class="mono">\s  \S</td><td>Whitespace / not whitespace</td></tr>
+            <tr><td class="mono">^  $</td><td>Start / end of string (or line, with <b>m</b>)</td></tr>
+            <tr><td class="mono">\b  \B</td><td>Word boundary / not a word boundary</td></tr>
+            <tr><td class="mono">*  +  ?</td><td>0 or more, 1 or more, 0 or 1</td></tr>
+            <tr><td class="mono">{n}  {n,}  {n,m}</td><td>Exactly n, n or more, between n and m</td></tr>
+            <tr><td class="mono">*?  +?  ??</td><td>Lazy versions — match as little as possible</td></tr>
+            <tr><td class="mono">[abc]  [^abc]</td><td>Character class / negated class</td></tr>
+            <tr><td class="mono">(...)</td><td>Capture group</td></tr>
+            <tr><td class="mono">(?:...)</td><td>Non-capturing group</td></tr>
+            <tr><td class="mono">(?&lt;name&gt;...)</td><td>Named capture group</td></tr>
+            <tr><td class="mono">\1  \k&lt;name&gt;</td><td>Backreference by number / by name</td></tr>
+            <tr><td class="mono">a|b</td><td>Alternation — a or b</td></tr>
+            <tr><td class="mono">(?=...)  (?!...)</td><td>Lookahead / negative lookahead</td></tr>
+            <tr><td class="mono">(?&lt;=...)  (?&lt;!...)</td><td>Lookbehind / negative lookbehind</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </div>
+
+  <footer class="foot">
+    <a href="../../index.html">← All tools</a>
+    <span>·</span>
+    <span>Runs entirely in your browser</span>
+  </footer>
+
+</main>
+
+<script src="../../assets/js/bench.js" defer></script>
+<script defer>
+document.addEventListener("DOMContentLoaded", function () {
+  "use strict";
+  var $ = Bench.$, $$ = Bench.$$, esc = Bench.esc;
+
+  var patternEl = $("#pattern"), textEl = $("#text"), replacementEl = $("#replacement");
+  var literalEl = $("#literal"), statusEl = $("#pattern-status");
+  var highlightEl = $("#highlight"), matchbody = $("#matchbody"), statsEl = $("#stats");
+  var replacedEl = $("#replaced"), charcountEl = $("#charcount");
+
+  var MAX_TEXT_LEN = 20000;
+  var EXEC_TIMEOUT_MS = 800;
+
+  var flags = { g: true, i: false, m: false, s: false, u: false, y: false };
+
+  /* --- worker: runs matching off the main thread so a catastrophically ---
+     backtracking pattern can be killed with worker.terminate() instead of
+     freezing the tab. The function body is stringified into a blob URL —
+     no external file, still zero network. --- */
+
+  function workerBody() {
+    self.onmessage = function (e) {
+      var d = e.data;
+      var t0 = performance.now();
+      var re;
+      try {
+        re = new RegExp(d.pattern, d.flags);
+      } catch (err) {
+        self.postMessage({ reqId: d.reqId, error: err.message });
+        return;
+      }
+      var matches = [];
+      var text = d.text;
+      var MAX_MATCHES = 5000;
+      var guardCount = 0;
+
+      function toMatch(m) {
+        return {
+          index: m.index,
+          match: m[0],
+          groups: Array.prototype.slice.call(m, 1),
+          named: m.groups ? Object.assign({}, m.groups) : null
+        };
+      }
+
+      if (d.flags.indexOf("g") === -1) {
+        var single = re.exec(text);
+        if (single) matches.push(toMatch(single));
+      } else {
+        var m;
+        while ((m = re.exec(text)) !== null && guardCount < MAX_MATCHES) {
+          matches.push(toMatch(m));
+          if (m[0].length === 0) re.lastIndex++;
+          guardCount++;
+        }
+      }
+
+      var replaced = null;
+      if (d.doReplace) {
+        try {
+          replaced = text.replace(new RegExp(d.pattern, d.flags), d.replacement);
+        } catch (err) { replaced = null; }
+      }
+
+      self.postMessage({
+        reqId: d.reqId,
+        matches: matches,
+        truncated: guardCount >= MAX_MATCHES,
+        replaced: replaced,
+        ms: performance.now() - t0
+      });
+    };
+  }
+
+  var WORKER_SRC = "(" + workerBody.toString() + ")();";
+  var workerAvailable = typeof Worker === "function";
+
+  function runInWorker(payload) {
+    return new Promise(function (resolve) {
+      if (!workerAvailable) { resolve(runSyncFallback(payload)); return; }
+      var blobUrl, w;
+      try {
+        blobUrl = URL.createObjectURL(new Blob([WORKER_SRC], { type: "application/javascript" }));
+        w = new Worker(blobUrl);
+      } catch (e) {
+        resolve(runSyncFallback(payload));
+        return;
+      }
+      var done = false;
+      var timer = setTimeout(function () {
+        if (done) return;
+        done = true;
+        w.terminate();
+        URL.revokeObjectURL(blobUrl);
+        resolve({ reqId: payload.reqId, timeout: true });
+      }, EXEC_TIMEOUT_MS);
+      w.onmessage = function (e) {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        w.terminate();
+        URL.revokeObjectURL(blobUrl);
+        resolve(e.data);
+      };
+      w.onerror = function () {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        w.terminate();
+        URL.revokeObjectURL(blobUrl);
+        resolve({ reqId: payload.reqId, error: "The pattern could not be evaluated." });
+      };
+      w.postMessage(payload);
+    });
+  }
+
+  // Fallback for the rare environment where Workers are unavailable — same
+  // logic, but a hang here really would freeze the tab, so iterations are
+  // capped hard and the loop guard is the only protection.
+  function runSyncFallback(payload) {
+    var re;
+    try { re = new RegExp(payload.pattern, payload.flags); }
+    catch (err) { return { reqId: payload.reqId, error: err.message }; }
+    var text = payload.text, matches = [], guardCount = 0, MAX_MATCHES = 2000;
+    function toMatch(m) {
+      return { index: m.index, match: m[0], groups: Array.prototype.slice.call(m, 1), named: m.groups ? Object.assign({}, m.groups) : null };
+    }
+    if (payload.flags.indexOf("g") === -1) {
+      var single = re.exec(text);
+      if (single) matches.push(toMatch(single));
+    } else {
+      var m;
+      while ((m = re.exec(text)) !== null && guardCount < MAX_MATCHES) {
+        matches.push(toMatch(m));
+        if (m[0].length === 0) re.lastIndex++;
+        guardCount++;
+      }
+    }
+    var replaced = null;
+    if (payload.doReplace) {
+      try { replaced = text.replace(new RegExp(payload.pattern, payload.flags), payload.replacement); }
+      catch (err) { replaced = null; }
+    }
+    return { reqId: payload.reqId, matches: matches, truncated: guardCount >= MAX_MATCHES, replaced: replaced, ms: 0 };
+  }
+
+  /* --- rendering ------------------------------------------------------- */
+
+  function flagString() {
+    return ["g", "i", "m", "s", "u", "y"].filter(function (f) { return flags[f]; }).join("");
+  }
+
+  function syncChips() {
+    $$(".rx-flags [data-flag]").forEach(function (btn) {
+      btn.classList.toggle("chip--on", !!flags[btn.dataset.flag]);
+    });
+  }
+
+  function renderHighlight(text, matches) {
+    if (!text) return "";
+    if (!matches.length) return esc(text);
+    var out = "", last = 0;
+    matches.forEach(function (m) {
+      out += esc(text.slice(last, m.index));
+      out += '<mark class="hl-hit">' + esc(m.match || " ") + "</mark>";
+      last = m.index + m.match.length;
+    });
+    out += esc(text.slice(last));
+    return out;
+  }
+
+  function groupCell(m) {
+    var parts = [];
+    m.groups.forEach(function (g, i) {
+      parts.push('<div><span class="rx-gname mono">$' + (i + 1) + "</span> "
+        + (g == null
+          ? '<span class="rx-muted mono">unmatched</span>'
+          : '<span class="rx-gval mono">' + esc(g) + "</span>")
+        + "</div>");
+    });
+    if (m.named) {
+      Object.keys(m.named).forEach(function (name) {
+        var v = m.named[name];
+        parts.push('<div><span class="rx-gname mono">&lt;' + esc(name) + "&gt;</span> "
+          + (v == null
+            ? '<span class="rx-muted mono">unmatched</span>'
+            : '<span class="rx-gval mono">' + esc(v) + "</span>")
+          + "</div>");
+      });
+    }
+    return parts.length ? '<div class="rx-groups">' + parts.join("") + "</div>" : '<span class="rx-muted">—</span>';
+  }
+
+  function renderMatches(matches) {
+    if (!matches.length) {
+      matchbody.innerHTML = '<tr><td colspan="4"><span class="empty">No matches in the test text.</span></td></tr>';
+      return;
+    }
+    matchbody.innerHTML = matches.map(function (m, i) {
+      return "<tr><td class='num'>" + (i + 1) + "</td><td class='num mono'>" + m.index
+        + "</td><td class='mono'>" + (m.match ? esc(m.match) : '<span class="rx-muted">(empty match)</span>')
+        + "</td><td>" + groupCell(m) + "</td></tr>";
+    }).join("");
+  }
+
+  var reqId = 0, generation = 0;
+
+  function render() {
+    var myGen = ++generation;
+    var patternSrc = patternEl.value;
+    var text = textEl.value;
+    var truncatedInput = false;
+
+    if (text.length > MAX_TEXT_LEN) {
+      text = text.slice(0, MAX_TEXT_LEN);
+      truncatedInput = true;
+    }
+    charcountEl.textContent = Bench.num(textEl.value.length) + " / " + Bench.num(MAX_TEXT_LEN) + " characters"
+      + (truncatedInput ? " — only the first " + Bench.num(MAX_TEXT_LEN) + " are tested" : "");
+
+    literalEl.innerHTML = "<b>/</b>" + esc(patternSrc || "…") + "<b>/" + esc(flagString()) + "</b>";
+
+    if (!patternSrc) {
+      statusEl.innerHTML = "";
+      highlightEl.innerHTML = '<span class="empty">Type a pattern above to see matches.</span>';
+      matchbody.innerHTML = "";
+      statsEl.hidden = true;
+      replacedEl.innerHTML = '<span class="empty">Type a replacement to preview it.</span>';
+      return;
+    }
+
+    var doReplace = !!replacementEl.value;
+    var payload = { reqId: ++reqId, pattern: patternSrc, flags: flagString(), text: text, doReplace: doReplace, replacement: replacementEl.value };
+
+    runInWorker(payload).then(function (result) {
+      if (myGen !== generation) return; // superseded by a newer keystroke
+
+      if (result.error) {
+        statusEl.innerHTML = '<div class="note note--bad"><span class="note__mark">✕</span><span><b>Invalid pattern</b> — ' + esc(result.error) + "</span></div>";
+        highlightEl.innerHTML = '<span class="empty">Fix the pattern to see matches.</span>';
+        matchbody.innerHTML = "";
+        statsEl.hidden = true;
+        replacedEl.innerHTML = '<span class="empty">Fix the pattern to see a replacement preview.</span>';
+        return;
+      }
+
+      if (result.timeout) {
+        statusEl.innerHTML = '<div class="note note--bad"><span class="note__mark">✕</span><span>'
+          + "<b>Took too long to run</b> — this pattern looks like it could be catastrophically backtracking. "
+          + "Try a shorter sample or a more specific pattern (avoid nested repeating groups like <span class='mono'>(a+)+</span>).</span></div>";
+        return;
+      }
+
+      var matches = result.matches;
+      var notes = [];
+      if (truncatedInput) notes.push('<div class="note note--warn"><span class="note__mark">!</span><span>Test text was capped at ' + Bench.num(MAX_TEXT_LEN) + " characters to keep matching fast.</span></div>");
+      if (!flags.g) notes.push('<div class="note note--info"><span class="note__mark">i</span><span>Only the first match is shown — turn on the <b class="mono">g</b> flag to find every match.</span></div>');
+      if (result.truncated) notes.push('<div class="note note--warn"><span class="note__mark">!</span><span>Stopped after 5,000 matches.</span></div>');
+      if (!notes.length) notes.push('<div class="note note--ok"><span class="note__mark">✓</span><span>Valid pattern — ' + Bench.plural(matches.length, "match", "matches") + " found.</span></div>");
+      statusEl.innerHTML = notes.join("");
+
+      highlightEl.className = "out out--wrap";
+      highlightEl.innerHTML = renderHighlight(text, matches) || '<span class="empty">Test text is empty.</span>';
+
+      renderMatches(matches);
+
+      var maxGroups = matches.reduce(function (n, m) { return Math.max(n, m.groups.length + (m.named ? Object.keys(m.named).length : 0)); }, 0);
+      $("#s-matches").textContent = Bench.num(matches.length);
+      $("#s-groups").textContent = maxGroups;
+      $("#s-chars").textContent = Bench.num(text.length);
+      $("#s-ms").textContent = (result.ms < 1 ? "<1" : Bench.num(result.ms, 1)) + " ms";
+      statsEl.hidden = false;
+
+      if (!replacementEl.value) {
+        replacedEl.innerHTML = '<span class="empty">Type a replacement to preview it.</span>';
+      } else if (result.replaced == null) {
+        replacedEl.innerHTML = '<span class="empty">Fix the pattern to see a replacement preview.</span>';
+      } else {
+        replacedEl.className = "out out--wrap";
+        replacedEl.textContent = result.replaced;
+      }
+    });
+  }
+
+  var debouncedRender = Bench.debounce(render, 150);
+
+  /* --- pattern library ---------------------------------------------------- */
+
+  var LIBRARY = [
+    { name: "Email", pattern: "[\\w.+-]+@[\\w-]+\\.[a-zA-Z]{2,}", flags: "g",
+      sample: "Contact hello@example.com or sales@my-shop.co.uk for help." },
+    { name: "URL", pattern: "\\bhttps?:\\/\\/[^\\s<>\"']+", flags: "g",
+      sample: "Visit https://example.com/path?a=1 or http://sub.domain.io/docs." },
+    { name: "IPv4", pattern: "\\b(?:(?:25[0-5]|2[0-4]\\d|1?\\d?\\d)\\.){3}(?:25[0-5]|2[0-4]\\d|1?\\d?\\d)\\b", flags: "g",
+      sample: "Server at 192.168.1.1 and backup at 10.0.0.255. Not valid: 999.1.1.1" },
+    { name: "IPv6", pattern: "\\b(?:[A-Fa-f0-9]{1,4}:){7}[A-Fa-f0-9]{1,4}\\b", flags: "g",
+      sample: "Address fe80:0000:0000:0000:0202:b3ff:fe1e:8329 (full form only)." },
+    { name: "ISO date", pattern: "(?<year>\\d{4})-(?<month>\\d{2})-(?<day>\\d{2})", flags: "g",
+      sample: "Ship on 2026-08-02, review by 2026-09-15." },
+    { name: "Time (24h)", pattern: "\\b([01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d)?\\b", flags: "g",
+      sample: "Doors open 09:30, show starts 20:00:00, ends 22:45." },
+    { name: "UK postcode", pattern: "\\b[A-Z]{1,2}\\d[A-Z\\d]?\\s?\\d[A-Z]{2}\\b", flags: "gi",
+      sample: "Deliver to SW1A 1AA or the depot at M1 1AE." },
+    { name: "US ZIP", pattern: "\\b\\d{5}(?:-\\d{4})?\\b", flags: "g",
+      sample: "Office ZIP is 94103, warehouse is 94103-1234." },
+    { name: "Hex colour", pattern: "#(?:[0-9a-fA-F]{3}){1,2}\\b", flags: "g",
+      sample: "Brand colours: #e0521a, #14211f and shorthand #fff." },
+    { name: "Semver", pattern: "\\bv?(\\d+)\\.(\\d+)\\.(\\d+)(?:-([0-9A-Za-z.-]+))?(?:\\+([0-9A-Za-z.-]+))?\\b", flags: "g",
+      sample: "Upgrading from v1.2.3 to 2.0.0-beta.1+build.5." },
+    { name: "UUID", pattern: "\\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\b", flags: "gi",
+      sample: "Request id: 550e8400-e29b-41d4-a716-446655440000" },
+    { name: "Slug", pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$", flags: "gm",
+      sample: "my-first-post\nNot_A_Slug\nvalid-slug-2" },
+    { name: "Phone (US)", pattern: "\\(?\\d{3}\\)?[-.\\s]?\\d{3}[-.\\s]?\\d{4}", flags: "g",
+      sample: "Call (555) 123-4567 or 555.987.6543." },
+    { name: "HTML tag", pattern: "<\\/?[a-zA-Z][^>]*>", flags: "g",
+      sample: "<div class=\"a\"><p>Hi</p></div>" },
+    { name: "Whitespace runs", pattern: "[ \\t]{2,}", flags: "g",
+      sample: "a    b\tc   d" },
+    { name: "Duplicate words", pattern: "\\b(\\w+)\\s+\\1\\b", flags: "gi",
+      sample: "This is is a test test of the the pattern." }
+  ];
+
+  var libraryEl = $("#library");
+  libraryEl.innerHTML = LIBRARY.map(function (p, i) {
+    return '<button class="chip" type="button" data-lib="' + i + '">' + esc(p.name) + "</button>";
+  }).join("");
+
+  libraryEl.addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-lib]");
+    if (!btn) return;
+    var p = LIBRARY[Number(btn.dataset.lib)];
+    patternEl.value = p.pattern;
+    ["g", "i", "m", "s", "u", "y"].forEach(function (f) { flags[f] = p.flags.indexOf(f) !== -1; });
+    syncChips();
+    textEl.value = p.sample;
+    render();
+  });
+
+  /* --- wiring ------------------------------------------------------------- */
+
+  $$(".rx-flags [data-flag]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var f = btn.dataset.flag;
+      flags[f] = !flags[f];
+      syncChips();
+      render();
+    });
+  });
+
+  patternEl.addEventListener("input", debouncedRender);
+  textEl.addEventListener("input", debouncedRender);
+  replacementEl.addEventListener("input", debouncedRender);
+
+  $("#copy-replace").addEventListener("click", function (e) {
+    var text = replacedEl.classList.contains("out") ? replacedEl.textContent : "";
+    if (!text) { Bench.toast("Nothing to copy yet", "bad"); return; }
+    Bench.copy(text, e.currentTarget);
+  });
+
+  /* --- initial demo: named groups + replace, matching the toolhead specimen --- */
+
+  patternEl.value = "(?<area>\\d{3})-(?<local>\\d{4})";
+  textEl.value = "Reach reception on 415-0142, the annex on 415-0399, and lost & found at 415-0007.";
+  replacementEl.value = "($<area>) $<local>";
+  syncChips();
+  render();
+});
+</script>
+
+</body>
+</html>

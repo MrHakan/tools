@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nothing here — Bench</title>
+<meta name="description" content="That page isn't part of Bench. Search the 59 tools instead.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/tools/assets/css/bench.css">
+<style>
+  .lost { padding: clamp(56px, 12vw, 120px) 0 40px; max-width: 640px; }
+  .lost__code {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--signal);
+    margin-bottom: 16px;
+  }
+  .lost__title {
+    font-size: clamp(1.9rem, 1.3rem + 2.6vw, 3rem);
+    font-weight: 700;
+    letter-spacing: -0.035em;
+    line-height: 1.05;
+  }
+  .lost__desc { margin-top: 14px; color: var(--steel); font-size: 1.0625rem; }
+  .lost__list { margin-top: 30px; display: grid; gap: 8px; }
+  .lost__link {
+    display: flex;
+    gap: 12px;
+    align-items: baseline;
+    padding: 10px 13px;
+    border: 1px solid var(--edge);
+    border-radius: var(--r);
+    background: var(--card);
+    text-decoration: none;
+    color: var(--ink);
+  }
+  .lost__link:hover { border-color: var(--signal); }
+  .lost__link span:first-child { font-family: var(--mono); font-size: 12.5px; color: var(--steel); flex: none; width: 130px; }
+  .lost__link:hover span:first-child { color: var(--signal); }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__home" href="/tools/"><span class="topbar__mark">▚</span> bench</a>
+  <span class="topbar__sep">/</span>
+  <span class="topbar__here">404</span>
+  <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
+</header>
+
+<main class="wrap">
+  <div class="lost">
+    <p class="lost__code">HTTP 404 · no such page</p>
+    <h1 class="lost__title">There's no tool at that address.</h1>
+    <p class="lost__desc">It may have been renamed, or the link may be wrong. The full set of 59 tools is one click away — the hub has a search box that finds any of them as you type.</p>
+
+    <div class="lost__list">
+      <a class="lost__link" href="/tools/"><span>⌕ all tools</span><span>Search all 59</span></a>
+      <a class="lost__link" href="/tools/tools/json-formatter/index.html"><span>{ "ok": true }</span><span>JSON Formatter</span></a>
+      <a class="lost__link" href="/tools/tools/regex-tester/index.html"><span>/\d{3}-\d{4}/g</span><span>Regex Tester</span></a>
+      <a class="lost__link" href="/tools/tools/cron-explainer/index.html"><span>*/5 * * * *</span><span>Cron Explainer</span></a>
+    </div>
+  </div>
+
+  <footer class="foot">
+    <a href="/tools/">← All tools</a>
+    <span>·</span>
+    <span>Runs entirely in your browser</span>
+  </footer>
+</main>
+
+<script src="/tools/assets/js/bench.js" defer></script>
+
+</body>
+</html>

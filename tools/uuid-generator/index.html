@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ID Generator — Bench</title>
+<meta name="description" content="Generate UUIDs, ULIDs, NanoIDs and random tokens, one or a thousand at a time.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/css/bench.css">
+<style>
+  /* Page-specific CSS only, prefixed idgen__ */
+  .idgen__hint { margin-top: 12px; font-size: 12.5px; color: var(--steel); line-height: 1.5; }
+  .idgen__hint code { font-family: var(--mono); color: var(--ink); }
+  .idgen__constants { margin-top: 4px; }
+  .idgen__outhead { font-size: 12px; color: var(--steel); font-family: var(--mono); }
+  .idgen__inspect-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  .idgen__fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 12px; }
+  .idgen__decode { margin-top: 10px; }
+  .idgen__decode div + div { margin-top: 6px; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__home" href="../../index.html"><span class="topbar__mark">▚</span> bench</a>
+  <span class="topbar__sep">/</span>
+  <span class="topbar__here">ID Generator</span>
+  <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
+</header>
+
+<main class="wrap">
+
+  <div class="toolhead">
+    <p class="toolhead__spec mono">f47ac10b-58cc</p>
+    <h1 class="toolhead__title">ID Generator</h1>
+    <p class="toolhead__desc">Generate UUIDs, ULIDs, NanoIDs and random tokens, one or a thousand at a time. Every id below is drawn from <code class="mono">crypto.getRandomValues</code> — never <code class="mono">Math.random</code>.</p>
+  </div>
+
+  <div class="split split--wide">
+
+    <section class="panel">
+      <h2 class="panel__title">Generate</h2>
+
+      <div class="field">
+        <label class="label" for="idtype">Type</label>
+        <select class="select" id="idtype">
+          <option value="uuidv4">UUID v4 — random</option>
+          <option value="uuidv7">UUID v7 — time-ordered</option>
+          <option value="ulid">ULID</option>
+          <option value="nanoid">NanoID</option>
+          <option value="token">Random token</option>
+        </select>
+      </div>
+
+      <div class="note note--info" id="note-type" style="margin-bottom:14px"></div>
+
+      <div class="field">
+        <label class="label" for="count">Count (1–1000)</label>
+        <input class="input input--mono" id="count" type="number" min="1" max="1000" value="10">
+      </div>
+
+      <div id="opts-uuid">
+        <div class="field">
+          <span class="label">Format</span>
+          <div class="row">
+            <label class="check"><input type="checkbox" id="fmt-upper"> Uppercase</label>
+            <label class="check"><input type="checkbox" id="fmt-nohy"> Remove hyphens</label>
+            <label class="check"><input type="checkbox" id="fmt-brace"> Wrap in braces</label>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label" for="fmt-lit">As literal</label>
+          <select class="select" id="fmt-lit">
+            <option value="none">Plain</option>
+            <option value="cs">C# — Guid.Parse("…")</option>
+            <option value="sql">SQL string — '…'</option>
+            <option value="quoted">Quoted string — "…"</option>
+          </select>
+        </div>
+        <div class="field idgen__constants">
+          <span class="label">Constants</span>
+          <div class="row">
+            <button class="btn btn--sm" id="const-nil" type="button">Nil UUID</button>
+            <button class="btn btn--sm" id="const-max" type="button">Max UUID</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="opts-nanoid" hidden>
+        <div class="idgen__fields">
+          <div class="field">
+            <label class="label" for="nano-len">Length</label>
+            <input class="input input--mono" id="nano-len" type="number" min="1" max="128" value="21">
+          </div>
+          <div class="field">
+            <label class="label" for="nano-alpha">Alphabet</label>
+            <select class="select" id="nano-alpha">
+              <option value="default">A-Za-z0-9_- (default)</option>
+              <option value="nolookalike">No look-alikes</option>
+              <option value="alnum">A-Za-z0-9</option>
+              <option value="lower">a-z0-9</option>
+              <option value="hex">0-9a-f</option>
+              <option value="custom">Custom…</option>
+            </select>
+          </div>
+        </div>
+        <div class="field" id="nano-custom-wrap" hidden>
+          <label class="label" for="nano-custom">Custom alphabet (2+ characters, duplicates ignored)</label>
+          <input class="input input--mono" id="nano-custom" placeholder="ABCDEFGHJKLMNPQRSTUVWXYZ23456789">
+        </div>
+      </div>
+
+      <div id="opts-token" hidden>
+        <div class="idgen__fields">
+          <div class="field">
+            <label class="label" for="tok-enc">Encoding</label>
+            <select class="select" id="tok-enc">
+              <option value="hex">Hex</option>
+              <option value="base64url">Base64url</option>
+              <option value="alnum">Alphanumeric</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="label" for="tok-bytes">Byte length</label>
+            <input class="input input--mono" id="tok-bytes" type="number" min="1" max="512" value="32">
+          </div>
+        </div>
+      </div>
+
+      <button class="btn btn--primary btn--block" id="generate" type="button">Generate</button>
+      <p class="idgen__hint">Random bits come from the browser's CSPRNG — <code>crypto.getRandomValues</code> — throughout this tool, including <code>Bench.uuid()</code> and <code>Bench.randInt()</code>. Nothing here uses <code>Math.random</code>, which is not safe for ids anyone relies on.</p>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel__title">Output</h2>
+      <div class="out" id="out"><span class="empty">Generated ids appear here, one per line. Click Generate to make more.</span></div>
+      <div class="row row--between" style="margin-top:12px">
+        <span class="idgen__outhead" id="outcount"></span>
+        <div class="row">
+          <button class="btn btn--sm" id="copyall" type="button">Copy all</button>
+          <button class="btn btn--sm" id="downloadall" type="button">Download .txt</button>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <section class="panel">
+    <h2 class="panel__title">Inspect / validate</h2>
+    <div class="idgen__inspect-grid">
+      <div class="field">
+        <label class="label" for="val-input">Paste a UUID</label>
+        <input class="input input--mono" id="val-input" placeholder="f47ac10b-58cc-4372-a567-0e02b2c3d479">
+      </div>
+      <div id="val-out"></div>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <a href="../../index.html">← All tools</a>
+    <span>·</span>
+    <span>Runs entirely in your browser</span>
+  </footer>
+
+</main>
+
+<script src="../../assets/js/bench.js" defer></script>
+<script defer>
+document.addEventListener("DOMContentLoaded", function () {
+  "use strict";
+  var $ = Bench.$, esc = Bench.esc;
+
+  /* --- generic helpers ------------------------------------------------- */
+
+  function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
+
+  function randomBytes(n) { return crypto.getRandomValues(new Uint8Array(n)); }
+
+  function toHex(bytes) {
+    return Array.prototype.map.call(bytes, function (b) { return b.toString(16).padStart(2, "0"); }).join("");
+  }
+
+  function hexToBytes(hex) {
+    var out = [];
+    for (var i = 0; i < hex.length; i += 2) out.push(parseInt(hex.substr(i, 2), 16));
+    return out;
+  }
+
+  function toBase64Url(bytes) {
+    var bin = "";
+    for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+
+  /* --- UUID v4 (delegated to Bench.uuid, itself crypto-backed) --------- */
+
+  function uuidV4() { return Bench.uuid(); }
+
+  /* --- UUID v7 — RFC 9562 -----------------------------------------------
+     48-bit big-endian Unix ms timestamp, then a 4-bit version (0111), then
+     12 bits of randomness, then a 2-bit variant (10), then 62 more random
+     bits. Because the high bits are a real clock, v7 ids sort chronologically
+     as plain strings or bytes — that ordering is the whole point of using v7
+     over v4 for things like database primary keys or event ids. */
+
+  function uuidV7() {
+    var ts = Date.now();
+    var b = new Uint8Array(16);
+    b[0] = Math.floor(ts / 0x10000000000) & 0xff;
+    b[1] = Math.floor(ts / 0x100000000) & 0xff;
+    b[2] = (ts >>> 24) & 0xff;
+    b[3] = (ts >>> 16) & 0xff;
+    b[4] = (ts >>> 8) & 0xff;
+    b[5] = ts & 0xff;
+    var r = randomBytes(10);
+    b[6] = 0x70 | (r[0] & 0x0f);   // version 7
+    b[7] = r[1];
+    b[8] = 0x80 | (r[2] & 0x3f);   // variant 10
+    for (var i = 9; i <= 15; i++) b[i] = r[i - 6];
+    return bytesToUuidStr(b);
+  }
+
+  function bytesToUuidStr(b) {
+    var h = toHex(b);
+    return [h.slice(0, 8), h.slice(8, 12), h.slice(12, 16), h.slice(16, 20), h.slice(20)].join("-");
+  }
+
+  /* --- ULID — 48-bit timestamp + 80 bits randomness, Crockford base32 -- */
+
+  var CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"; // no I, L, O, U
+
+  function ulidTime(ts) {
+    var s = "";
+    for (var i = 0; i < 10; i++) {
+      var mod = ts % 32;
+      s = CROCKFORD[mod] + s;
+      ts = (ts - mod) / 32;
+    }
+    return s;
+  }
+
+  function ulidRandom() {
+    var bytes = randomBytes(10); // 80 bits, encodes exactly to 16 base32 chars
+    var out = "", buffer = 0, bits = 0, bi = 0;
+    for (var c = 0; c < 16; c++) {
+      while (bits < 5) { buffer = (buffer << 8) | bytes[bi++]; bits += 8; }
+      var shift = bits - 5;
+      out += CROCKFORD[(buffer >>> shift) & 0x1f];
+      buffer &= (1 << shift) - 1;
+      bits = shift;
+    }
+    return out;
+  }
+
+  function ulid() { return ulidTime(Date.now()) + ulidRandom(); }
+
+  /* --- NanoID ------------------------------------------------------------
+     Bench.randInt() rejection-samples over crypto.getRandomValues, so
+     picking one alphabet index per character is unbiased and secure. */
+
+  var NANO_ALPHABETS = {
+    default: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-",
+    nolookalike: "346789ABCDEFGHJKLMNPQRTUVWXYabcdefghijkmnpqrtwxyz",
+    alnum: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789",
+    lower: "abcdefghijklmnopqrstuvwxyz0123456789",
+    hex: "0123456789abcdef"
+  };
+
+  function nanoAlphabet() {
+    var sel = $("#nano-alpha").value;
+    if (sel === "custom") {
+      var uniq = Array.from(new Set(($("#nano-custom").value || "").split(""))).join("");
+      return uniq.length >= 2 ? uniq : NANO_ALPHABETS.default;
+    }
+    return NANO_ALPHABETS[sel] || NANO_ALPHABETS.default;
+  }
+
+  function nanoid(len, alphabet) {
+    var id = "";
+    for (var i = 0; i < len; i++) id += alphabet[Bench.randInt(alphabet.length)];
+    return id;
+  }
+
+  /* --- random token -------------------------------------------------- */
+
+  var TOKEN_ALNUM = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+
+  function genToken(enc, n) {
+    if (enc === "hex") return toHex(randomBytes(n));
+    if (enc === "base64url") return toBase64Url(randomBytes(n));
+    var s = "";
+    for (var i = 0; i < n; i++) s += TOKEN_ALNUM[Bench.randInt(TOKEN_ALNUM.length)];
+    return s;
+  }
+
+  /* --- uuid formatting options ---------------------------------------- */
+
+  function formatUuid(u) {
+    var s = u;
+    if ($("#fmt-upper").checked) s = s.toUpperCase();
+    if ($("#fmt-nohy").checked) s = s.replace(/-/g, "");
+    if ($("#fmt-brace").checked) s = "{" + s + "}";
+    var lit = $("#fmt-lit").value;
+    if (lit === "cs") s = 'Guid.Parse("' + s + '")';
+    else if (lit === "sql") s = "'" + s + "'";
+    else if (lit === "quoted") s = '"' + s + '"';
+    return s;
+  }
+
+  /* --- type-dependent UI ------------------------------------------------ */
+
+  var NOTES = {
+    uuidv4: "128 random bits with the version and variant fixed. No ordering, no embedded data — the safe default when you don't need anything cleverer.",
+    uuidv7: "Embeds a 48-bit millisecond Unix timestamp in the high bits, so v7 ids sort chronologically as plain text or bytes. That's the reason to reach for v7 instead of v4 — friendlier database index locality for primary keys and event ids.",
+    ulid: "48-bit timestamp + 80 bits of randomness, encoded in Crockford base32 (26 characters, no I, L, O or U to avoid transcription mistakes). Also sorts chronologically, and is case-insensitive and URL-safe.",
+    nanoid: "Configurable length and alphabet. At the default 21 characters from a 64-symbol alphabet it has comparable collision resistance to a v4 UUID in a shorter, URL-friendly string.",
+    token: "Raw random bytes rendered as hex, base64url or alphanumeric — for API keys, session secrets and CSRF tokens, not identifiers you'd store as a primary key."
+  };
+
+  function syncOptsVisibility() {
+    var type = $("#idtype").value;
+    $("#opts-uuid").hidden = !(type === "uuidv4" || type === "uuidv7");
+    $("#opts-nanoid").hidden = type !== "nanoid";
+    $("#opts-token").hidden = type !== "token";
+    $("#note-type").innerHTML = "<span>" + esc(NOTES[type]) + "</span>";
+  }
+
+  $("#nano-alpha").addEventListener("change", function () {
+    $("#nano-custom-wrap").hidden = $("#nano-alpha").value !== "custom";
+  });
+
+  /* --- generate + render ------------------------------------------------ */
+
+  var out = $("#out"), outcount = $("#outcount");
+  var lastOutput = [];
+
+  function showOutput(lines) {
+    lastOutput = lines;
+    if (!lines.length) {
+      out.innerHTML = '<span class="empty">Generated ids appear here, one per line. Click Generate to make more.</span>';
+      outcount.textContent = "";
+      return;
+    }
+    out.className = "out out--wrap";
+    out.textContent = lines.join("\n");
+    outcount.textContent = Bench.plural(lines.length, "id");
+  }
+
+  function generate() {
+    var type = $("#idtype").value;
+    var n = clamp(Math.round(Number($("#count").value)) || 1, 1, 1000);
+    $("#count").value = n;
+
+    var lines = [];
+    if (type === "uuidv4") {
+      for (var i = 0; i < n; i++) lines.push(formatUuid(uuidV4()));
+    } else if (type === "uuidv7") {
+      for (var j = 0; j < n; j++) lines.push(formatUuid(uuidV7()));
+    } else if (type === "ulid") {
+      for (var k = 0; k < n; k++) lines.push(ulid());
+    } else if (type === "nanoid") {
+      var len = clamp(Math.round(Number($("#nano-len").value)) || 21, 1, 128);
+      var alphabet = nanoAlphabet();
+      for (var m = 0; m < n; m++) lines.push(nanoid(len, alphabet));
+    } else {
+      var bytesLen = clamp(Math.round(Number($("#tok-bytes").value)) || 32, 1, 512);
+      var enc = $("#tok-enc").value;
+      for (var p = 0; p < n; p++) lines.push(genToken(enc, bytesLen));
+    }
+    showOutput(lines);
+  }
+
+  $("#idtype").addEventListener("change", function () { syncOptsVisibility(); generate(); });
+  $("#generate").addEventListener("click", generate);
+  ["fmt-upper", "fmt-nohy", "fmt-brace", "fmt-lit"].forEach(function (id) {
+    $("#" + id).addEventListener("change", generate);
+  });
+
+  $("#const-nil").addEventListener("click", function () {
+    showOutput([formatUuid("00000000-0000-0000-0000-000000000000")]);
+  });
+  $("#const-max").addEventListener("click", function () {
+    showOutput([formatUuid("ffffffff-ffff-ffff-ffff-ffffffffffff")]);
+  });
+
+  $("#copyall").addEventListener("click", function (e) {
+    if (!lastOutput.length) { Bench.toast("Nothing to copy yet", "bad"); return; }
+    Bench.copy(lastOutput.join("\n"), e.currentTarget);
+  });
+  $("#downloadall").addEventListener("click", function () {
+    if (!lastOutput.length) { Bench.toast("Nothing to download yet", "bad"); return; }
+    Bench.download($("#idtype").value + ".txt", lastOutput.join("\n") + "\n");
+  });
+
+  /* --- inspector ---------------------------------------------------------
+     Accepts a UUID with or without hyphens/braces and reports whether it is
+     well-formed, its version and variant, and for v1/v7 the embedded time. */
+
+  function inspect(raw) {
+    var out = $("#val-out");
+    var text = raw.trim();
+    if (!text) { out.innerHTML = ""; return; }
+
+    var stripped = text.replace(/^urn:uuid:/i, "").replace(/^\{/, "").replace(/\}$/, "");
+    var noHyphen = /^[0-9a-fA-F]{32}$/.test(stripped);
+    var canonical = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(stripped);
+
+    if (!noHyphen && !canonical) {
+      out.innerHTML = '<div class="note note--bad"><span class="note__mark">✕</span><span><b>Not a well-formed UUID</b> — expected 32 hex digits, either bare or grouped 8-4-4-4-12 with hyphens. Braces and a leading <code>urn:uuid:</code> are tolerated.</span></div>';
+      return;
+    }
+
+    var hex = stripped.replace(/-/g, "").toLowerCase();
+    var b = hexToBytes(hex);
+    var versionNibble = parseInt(hex[12], 16);
+    var variantByte = parseInt(hex.substr(16, 2), 16);
+    var variantLabel;
+    if ((variantByte & 0x80) === 0) variantLabel = "0xxx — reserved (NCS backward compatibility)";
+    else if ((variantByte & 0xC0) === 0x80) variantLabel = "10xx — RFC 9562 (standard)";
+    else if ((variantByte & 0xE0) === 0xC0) variantLabel = "110x — reserved (Microsoft GUID)";
+    else variantLabel = "111x — reserved (future)";
+
+    var isNil = /^0{32}$/.test(hex);
+    var isMax = /^f{32}$/.test(hex);
+
+    var html = '<div class="note note--ok"><span class="note__mark">✓</span><span><b>Well-formed UUID.</b>';
+    html += canonical ? " Canonical 8-4-4-4-12 form." : " Valid hex, but not grouped with hyphens.";
+    html += "</span></div>";
+
+    html += '<div class="idgen__decode">';
+    if (isNil) {
+      html += '<div class="note note--info">This is the <b>Nil UUID</b> — all 128 bits zero.</div>';
+    } else if (isMax) {
+      html += '<div class="note note--info">This is the <b>Max UUID</b> — all 128 bits one.</div>';
+    } else {
+      html += '<div class="note note--info">Version <b>' + versionNibble + '</b> · Variant <b>' + esc(variantLabel) + '</b></div>';
+      if (versionNibble === 7) {
+        var ts7 = b[0] * Math.pow(2, 40) + b[1] * Math.pow(2, 32)
+          + (b[2] * 0x1000000 + b[3] * 0x10000 + b[4] * 0x100 + b[5]);
+        html += '<div class="note note--info">Embedded timestamp: <b>' + esc(new Date(ts7).toISOString())
+          + '</b> (' + Bench.num(ts7) + ' ms since epoch)</div>';
+      } else if (versionNibble === 1) {
+        var timeLow = b[0] * 0x1000000 + b[1] * 0x10000 + b[2] * 0x100 + b[3];
+        var timeMid = b[4] * 0x100 + b[5];
+        var timeHi = ((b[6] & 0x0f) * 0x100) + b[7];
+        var ts100ns = timeHi * Math.pow(2, 48) + timeMid * Math.pow(2, 32) + timeLow;
+        var unixMs = Math.round((ts100ns - 122192928000000000) / 10000);
+        var d = new Date(unixMs);
+        html += '<div class="note note--info">Embedded timestamp: <b>'
+          + esc(isFinite(unixMs) && d.getFullYear() > 1600 && d.getFullYear() < 9999 ? d.toISOString() : "out of range")
+          + '</b> (v1 Gregorian 100ns clock, decoded to the nearest ms)</div>';
+      }
+    }
+    html += "</div>";
+    out.innerHTML = html;
+  }
+
+  Bench.live($("#val-input"), function () { inspect($("#val-input").value); }, 80);
+
+  /* --- boot -------------------------------------------------------------- */
+
+  syncOptsVisibility();
+  generate();
+  $("#val-input").value = "01890a5d-ac96-774b-bcce-b302099a8057";
+  inspect($("#val-input").value);
+});
+</script>
+
+</body>
+</html>

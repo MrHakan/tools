@@ -1,0 +1,1419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Whiteboard — Bench</title>
+<meta name="description" content="Sketch boxes, arrows and notes, then export the drawing as a PNG.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/css/bench.css">
+<style>
+  /* Page-specific CSS only. Every class is prefixed with the slug. */
+
+  .wb__layout { display: grid; grid-template-columns: 1fr 268px; gap: var(--gap); align-items: start; }
+  @media (max-width: 980px) { .wb__layout { grid-template-columns: 1fr; } }
+
+  .wb__stage {
+    position: relative;
+    height: clamp(360px, 60vh, 640px);
+    background: var(--sunk);
+    border: 1px solid var(--edge);
+    border-radius: var(--r);
+    overflow: hidden;
+    touch-action: none;
+    user-select: none;
+  }
+  .wb__canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+  /* Empty state sits over the canvas and never eats a pointer event. */
+  .wb__hint {
+    position: absolute; inset: 0;
+    display: grid; place-items: center;
+    padding: 20px; text-align: center;
+    pointer-events: none;
+  }
+  .wb__hint-in { max-width: 40ch; }
+  .wb__hint-in b { display: block; font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+  .wb__hint-in span { display: block; color: var(--steel); font-size: 13px; line-height: 1.5; }
+  .wb__hint-in kbd {
+    font-family: var(--mono); font-size: 11px; border: 1px solid var(--edge-2);
+    border-radius: var(--r); padding: 1px 5px; color: var(--steel);
+  }
+
+  /* Inline text editor, positioned over the canvas in screen coordinates. */
+  .wb__editor {
+    position: absolute; display: none; z-index: 3;
+    margin: 0; padding: 0 2px; border: 1px dashed var(--signal);
+    background: var(--card); color: var(--ink);
+    line-height: 1.25; resize: none; overflow: hidden;
+    min-width: 40px; white-space: pre; outline: none;
+  }
+
+  .wb__bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 12px; }
+  .wb__bar-sep { width: 1px; align-self: stretch; background: var(--edge); margin: 2px 4px; }
+  .wb__tool { min-width: 34px; }
+  .wb__tool .wb__glyph { font-family: var(--mono); font-size: 13px; }
+
+  .wb__prop { margin-bottom: 14px; }
+  .wb__prop:last-child { margin-bottom: 0; }
+  .wb__swatch { display: flex; gap: 8px; align-items: center; }
+  .wb__val { font-family: var(--mono); font-size: 12px; color: var(--steel); min-width: 38px; text-align: right; }
+  .wb__zoom { font-family: var(--mono); font-size: 12px; color: var(--steel); }
+  .wb__keys { font-family: var(--mono); font-size: 11.5px; color: var(--steel); line-height: 1.8; }
+  .wb__keys b { color: var(--ink); font-weight: 500; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__home" href="../../index.html"><span class="topbar__mark">▚</span> bench</a>
+  <span class="topbar__sep">/</span>
+  <span class="topbar__here">Whiteboard</span>
+  <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
+</header>
+
+<main class="wrap">
+
+  <div class="toolhead">
+    <p class="toolhead__spec mono">▭ ○ ⟋ ✎</p>
+    <h1 class="toolhead__title">Whiteboard</h1>
+    <p class="toolhead__desc">Sketch boxes, arrows and notes, then export the drawing as a PNG. The board is saved in this browser only — nothing leaves the tab.</p>
+  </div>
+
+  <div class="wb__layout">
+
+    <section class="panel">
+      <h2 class="panel__title">Board</h2>
+
+      <div class="wb__bar" role="toolbar" aria-label="Drawing tools">
+        <button class="btn btn--sm wb__tool btn--on" data-tool="select" title="Select and move (V)"><span class="wb__glyph">↖</span></button>
+        <button class="btn btn--sm wb__tool" data-tool="pen" title="Freehand pen (P)"><span class="wb__glyph">✎</span></button>
+        <button class="btn btn--sm wb__tool" data-tool="line" title="Line (L)"><span class="wb__glyph">⟋</span></button>
+        <button class="btn btn--sm wb__tool" data-tool="arrow" title="Arrow (A)"><span class="wb__glyph">→</span></button>
+        <button class="btn btn--sm wb__tool" data-tool="rect" title="Rectangle (R)"><span class="wb__glyph">▭</span></button>
+        <button class="btn btn--sm wb__tool" data-tool="ellipse" title="Ellipse (E)"><span class="wb__glyph">○</span></button>
+        <button class="btn btn--sm wb__tool" data-tool="text" title="Text (T)"><span class="wb__glyph">T</span></button>
+
+        <span class="wb__bar-sep" aria-hidden="true"></span>
+
+        <button class="btn btn--sm" id="undo" title="Undo (Ctrl+Z)">Undo</button>
+        <button class="btn btn--sm" id="redo" title="Redo (Ctrl+Shift+Z)">Redo</button>
+
+        <span class="wb__bar-sep" aria-hidden="true"></span>
+
+        <button class="btn btn--sm" id="forward" title="Bring forward (])">Forward</button>
+        <button class="btn btn--sm" id="back" title="Send back ([)">Back</button>
+        <button class="btn btn--sm" id="dupe" title="Duplicate (Ctrl+D)">Duplicate</button>
+        <button class="btn btn--sm btn--danger" id="del" title="Delete selection (Del)">Delete</button>
+      </div>
+
+      <div class="wb__stage" id="stage">
+        <canvas class="wb__canvas" id="canvas" aria-label="Drawing canvas"></canvas>
+        <div class="wb__hint" id="hint">
+          <div class="wb__hint-in">
+            <b>Pick a tool and drag on the board</b>
+            <span>Rectangles, ellipses, lines and arrows are drawn by dragging. The pen follows the pointer, and the text tool drops a caret where you click. Everything stays an object you can select, move, restyle and re-order.</span>
+            <span style="margin-top:8px"><kbd>Space</kbd>-drag or middle-drag to pan · <kbd>Ctrl</kbd>+wheel to zoom · <kbd>V</kbd> back to select</span>
+          </div>
+        </div>
+        <textarea class="wb__editor mono" id="editor" spellcheck="false" aria-label="Text object contents"></textarea>
+      </div>
+
+      <div class="row row--between" style="margin-top:12px">
+        <div class="row">
+          <button class="btn btn--sm" id="zoom-out" aria-label="Zoom out">−</button>
+          <span class="wb__zoom" id="zoom-label">100%</span>
+          <button class="btn btn--sm" id="zoom-in" aria-label="Zoom in">+</button>
+          <button class="btn btn--sm" id="zoom-reset">Reset view</button>
+          <button class="btn btn--sm" id="fit">Fit to content</button>
+        </div>
+        <div class="row">
+          <button class="btn btn--sm btn--on" id="grid-toggle">Grid</button>
+          <button class="btn btn--sm" id="snap-toggle">Snap</button>
+        </div>
+      </div>
+
+      <div class="stats" style="margin-top:12px">
+        <div class="stat"><span class="stat__n" id="s-objects">0</span><span class="stat__k">Objects</span></div>
+        <div class="stat"><span class="stat__n" id="s-selected">0</span><span class="stat__k">Selected</span></div>
+        <div class="stat"><span class="stat__n" id="s-tool">Select</span><span class="stat__k">Tool</span></div>
+        <div class="stat"><span class="stat__n" id="s-saved">—</span><span class="stat__k">Saved</span></div>
+      </div>
+    </section>
+
+    <div class="stack">
+
+      <section class="panel">
+        <h2 class="panel__title" id="prop-title">Style</h2>
+
+        <div class="wb__prop">
+          <label class="label" for="stroke">Stroke</label>
+          <div class="wb__swatch">
+            <input type="color" id="stroke" value="#14211f" aria-label="Stroke colour">
+            <button class="btn btn--sm grow" id="stroke-auto" title="Follow the page ink colour in both themes">Theme ink</button>
+          </div>
+        </div>
+
+        <div class="wb__prop">
+          <label class="label" for="fill">Fill</label>
+          <div class="wb__swatch">
+            <input type="color" id="fill" value="#e0521a" aria-label="Fill colour">
+            <button class="btn btn--sm grow btn--on" id="fill-none">No fill</button>
+          </div>
+        </div>
+
+        <div class="wb__prop">
+          <label class="label" for="sw">Stroke width <span class="wb__val" id="sw-val">2</span></label>
+          <input type="range" id="sw" min="1" max="18" step="1" value="2">
+        </div>
+
+        <div class="wb__prop">
+          <label class="label" for="opacity">Opacity <span class="wb__val" id="op-val">100%</span></label>
+          <input type="range" id="opacity" min="10" max="100" step="5" value="100">
+        </div>
+
+        <div class="wb__prop" id="size-prop" hidden>
+          <label class="label" for="fsize">Text size <span class="wb__val" id="fs-val">20</span></label>
+          <input type="range" id="fsize" min="10" max="96" step="1" value="20">
+        </div>
+
+        <p class="empty" id="prop-scope" style="margin-top:12px">Nothing selected — these set the style of the next thing you draw.</p>
+      </section>
+
+      <section class="panel">
+        <h2 class="panel__title">Board file</h2>
+        <div class="row">
+          <button class="btn btn--sm" id="example">Insert example</button>
+          <button class="btn btn--sm" id="png">Export PNG</button>
+          <button class="btn btn--sm" id="json">Export JSON</button>
+          <button class="btn btn--sm" id="import">Import JSON</button>
+          <button class="btn btn--sm btn--danger" id="clear">Clear board</button>
+          <input type="file" id="file" accept=".json,application/json" hidden>
+        </div>
+        <div id="status" style="margin-top:12px"></div>
+      </section>
+
+      <section class="panel">
+        <h2 class="panel__title">Keys</h2>
+        <div class="wb__keys">
+          <b>V P L A R E T</b> pick a tool<br>
+          <b>Ctrl+Z</b> / <b>Ctrl+Shift+Z</b> undo, redo<br>
+          <b>Ctrl+D</b> duplicate · <b>Ctrl+A</b> select all<br>
+          <b>Del</b> delete · <b>[</b> <b>]</b> z-order<br>
+          <b>Arrows</b> nudge · <b>Shift</b>+arrows nudge far<br>
+          <b>Esc</b> drop the selection
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <footer class="foot">
+    <a href="../../index.html">← All tools</a>
+    <span>·</span>
+    <span>Runs entirely in your browser</span>
+  </footer>
+
+</main>
+
+<script src="../../assets/js/bench.js" defer></script>
+<script defer>
+document.addEventListener("DOMContentLoaded", function () {
+  "use strict";
+  var $ = Bench.$, $$ = Bench.$$;
+
+  var store = Bench.store("whiteboard");
+  var stage = $("#stage"), canvas = $("#canvas"), ctx = canvas.getContext("2d");
+  var editor = $("#editor"), hint = $("#hint"), status = $("#status");
+
+  /* ======================================================================
+     Model
+
+     The board is a retained scene graph: an ordered array of plain objects,
+     redrawn from scratch every frame. Nothing is ever painted permanently
+     into the canvas, which is what makes select / move / resize / restyle /
+     z-order / undo possible at all.
+
+     Every object carries an axis-aligned bounding box with w,h >= 0.
+       rect, ellipse  — the box is the shape
+       line, arrow    — the box is the extent; flipX/flipY say which diagonal
+       pen            — pts are normalised into the box, so resizing is free
+       text           — box is measured from the string; resizing scales size
+     ====================================================================== */
+
+  var scene = sanitise(store.get("scene", []));
+  var view = store.get("view", { x: 0, y: 0, z: 1 });
+  var sel = [];                       // selected object ids
+  var tool = "select";
+  var style = store.get("style", { stroke: "ink", fill: "none", sw: 2, opacity: 1, size: 20 });
+  var showGrid = store.get("grid", true);
+  var doSnap = store.get("snap", false);
+  var GRID = 20;
+
+  var undoStack = [], redoStack = [], HISTORY = 60;
+
+  /* --- css colours --------------------------------------------------------
+     Read from the stylesheet so anything drawn stays legible when the theme
+     flips. `stroke: "ink"` is a sentinel that resolves at draw time. */
+
+  var CSS = {};
+  function refreshCss() {
+    var cs = getComputedStyle(document.documentElement);
+    ["--ink", "--signal", "--edge", "--edge-2", "--card", "--sunk", "--steel"].forEach(function (k) {
+      CSS[k] = cs.getPropertyValue(k).trim();
+    });
+    CSS.font = getComputedStyle(document.body).fontFamily || "sans-serif";
+  }
+  refreshCss();
+
+  function resolveColour(c) { return c === "ink" ? CSS["--ink"] : c; }
+
+  new MutationObserver(function () { refreshCss(); syncStyleInputs(); invalidate(); })
+    .observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  if (window.matchMedia) {
+    var mq = window.matchMedia("(prefers-color-scheme: dark)");
+    var onScheme = function () { refreshCss(); syncStyleInputs(); invalidate(); };
+    if (mq.addEventListener) mq.addEventListener("change", onScheme);
+    else if (mq.addListener) mq.addListener(onScheme);
+  }
+
+  /* --- helpers ------------------------------------------------------------ */
+
+  function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
+  function num(v, d) { return typeof v === "number" && isFinite(v) ? v : d; }
+
+  /** Defensive load: anything imported or restored is coerced to a valid shape. */
+  function sanitise(list) {
+    if (!Array.isArray(list)) return [];
+    var types = { rect: 1, ellipse: 1, line: 1, arrow: 1, pen: 1, text: 1 };
+    return list.filter(function (o) { return o && types[o.type]; }).map(function (o) {
+      var out = {
+        id: typeof o.id === "string" ? o.id : Bench.uuid(),
+        type: o.type,
+        x: num(o.x, 0), y: num(o.y, 0),
+        w: Math.max(0, num(o.w, 10)), h: Math.max(0, num(o.h, 10)),
+        flipX: !!o.flipX, flipY: !!o.flipY,
+        stroke: typeof o.stroke === "string" ? o.stroke : "ink",
+        fill: typeof o.fill === "string" ? o.fill : "none",
+        sw: clamp(num(o.sw, 2), 0.5, 40),
+        opacity: clamp(num(o.opacity, 1), 0.05, 1)
+      };
+      if (o.type === "pen") {
+        out.pts = (Array.isArray(o.pts) ? o.pts : []).filter(function (p) {
+          return Array.isArray(p) && p.length === 2 && isFinite(p[0]) && isFinite(p[1]);
+        });
+        if (out.pts.length < 2) return null;
+      }
+      if (o.type === "text") {
+        out.text = String(o.text == null ? "" : o.text);
+        out.size = clamp(num(o.size, 20), 6, 400);
+        measureText(out);
+      }
+      return out;
+    }).filter(Boolean);
+  }
+
+  function byId(id) {
+    for (var i = 0; i < scene.length; i++) if (scene[i].id === id) return scene[i];
+    return null;
+  }
+  function selected() { return sel.map(byId).filter(Boolean); }
+
+  function bboxOf(list) {
+    if (!list.length) return null;
+    var x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+    list.forEach(function (o) {
+      var pad = o.type === "text" ? 0 : o.sw / 2;
+      x1 = Math.min(x1, o.x - pad); y1 = Math.min(y1, o.y - pad);
+      x2 = Math.max(x2, o.x + o.w + pad); y2 = Math.max(y2, o.y + o.h + pad);
+    });
+    return { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
+  }
+
+  /* Screen (CSS px inside the stage) <-> world coordinates. */
+  function toWorld(px, py) { return { x: (px - view.x) / view.z, y: (py - view.y) / view.z }; }
+  function toScreen(wx, wy) { return { x: wx * view.z + view.x, y: wy * view.z + view.y }; }
+  function snapVal(v) { return doSnap ? Math.round(v / GRID) * GRID : v; }
+
+  /* --- text measurement ---------------------------------------------------- */
+
+  var measureCanvas = document.createElement("canvas");
+  var measureCtx = measureCanvas.getContext("2d");
+
+  function textLines(o) { return String(o.text || "").split("\n"); }
+
+  function measureText(o) {
+    measureCtx.font = o.size + "px " + (CSS.font || "sans-serif");
+    var lines = textLines(o), max = 0;
+    lines.forEach(function (ln) { max = Math.max(max, measureCtx.measureText(ln || " ").width); });
+    o.w = Math.max(8, max);
+    o.h = Math.max(o.size, lines.length * o.size * 1.25);
+  }
+
+  /* ======================================================================
+     Drawing
+     ====================================================================== */
+
+  function endpoints(o) {
+    return {
+      x1: o.flipX ? o.x + o.w : o.x, y1: o.flipY ? o.y + o.h : o.y,
+      x2: o.flipX ? o.x : o.x + o.w, y2: o.flipY ? o.y : o.y + o.h
+    };
+  }
+
+  function penPath(o) {
+    return o.pts.map(function (p) { return [o.x + p[0] * o.w, o.y + p[1] * o.h]; });
+  }
+
+  function drawObject(g, o) {
+    g.save();
+    g.globalAlpha = o.opacity;
+    g.lineWidth = o.sw;
+    g.lineCap = "round";
+    g.lineJoin = "round";
+    g.strokeStyle = resolveColour(o.stroke);
+    var filled = o.fill && o.fill !== "none";
+    if (filled) g.fillStyle = o.fill;
+
+    if (o.type === "rect") {
+      g.beginPath();
+      g.rect(o.x, o.y, o.w, o.h);
+      if (filled) g.fill();
+      g.stroke();
+    } else if (o.type === "ellipse") {
+      g.beginPath();
+      g.ellipse(o.x + o.w / 2, o.y + o.h / 2, Math.max(0.5, o.w / 2), Math.max(0.5, o.h / 2), 0, 0, Math.PI * 2);
+      if (filled) g.fill();
+      g.stroke();
+    } else if (o.type === "line" || o.type === "arrow") {
+      var e = endpoints(o);
+      g.beginPath();
+      g.moveTo(e.x1, e.y1);
+      g.lineTo(e.x2, e.y2);
+      g.stroke();
+      if (o.type === "arrow") {
+        var ang = Math.atan2(e.y2 - e.y1, e.x2 - e.x1);
+        var len = Math.max(9, o.sw * 3.6);
+        g.beginPath();
+        g.moveTo(e.x2, e.y2);
+        g.lineTo(e.x2 - len * Math.cos(ang - 0.42), e.y2 - len * Math.sin(ang - 0.42));
+        g.lineTo(e.x2 - len * Math.cos(ang + 0.42), e.y2 - len * Math.sin(ang + 0.42));
+        g.closePath();
+        g.fillStyle = resolveColour(o.stroke);
+        g.fill();
+      }
+    } else if (o.type === "pen") {
+      var pts = penPath(o);
+      if (pts.length) {
+        g.beginPath();
+        g.moveTo(pts[0][0], pts[0][1]);
+        for (var i = 1; i < pts.length; i++) g.lineTo(pts[i][0], pts[i][1]);
+        if (filled) { g.closePath(); g.fill(); }
+        g.stroke();
+      }
+    } else if (o.type === "text") {
+      g.fillStyle = resolveColour(o.stroke);
+      g.font = o.size + "px " + (CSS.font || "sans-serif");
+      g.textBaseline = "top";
+      textLines(o).forEach(function (ln, i) {
+        g.fillText(ln, o.x, o.y + i * o.size * 1.25);
+      });
+    }
+    g.restore();
+  }
+
+  function drawGrid(g, w, h) {
+    var step = GRID * view.z;
+    if (step < 7) return;                       // too dense to be useful
+    var x0 = view.x % step, y0 = view.y % step;
+    g.save();
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.fillStyle = CSS["--edge-2"];
+    g.globalAlpha = 0.7;
+    for (var x = x0; x < w; x += step) {
+      for (var y = y0; y < h; y += step) g.fillRect(x - 0.5, y - 0.5, 1, 1);
+    }
+    g.restore();
+  }
+
+  var HANDLE = 8;   // screen px
+
+  function handlePoints(b) {
+    return [
+      { k: "nw", x: b.x, y: b.y },
+      { k: "ne", x: b.x + b.w, y: b.y },
+      { k: "se", x: b.x + b.w, y: b.y + b.h },
+      { k: "sw", x: b.x, y: b.y + b.h }
+    ];
+  }
+
+  function drawSelection(g) {
+    var list = selected();
+    if (!list.length) return;
+    var pad = 4 / view.z;
+    g.save();
+    g.strokeStyle = CSS["--signal"];
+    g.lineWidth = 1 / view.z;
+    g.setLineDash([4 / view.z, 3 / view.z]);
+
+    if (list.length > 1) {
+      list.forEach(function (o) {
+        g.strokeRect(o.x - pad, o.y - pad, o.w + pad * 2, o.h + pad * 2);
+      });
+    }
+    var b = bboxOf(list);
+    g.strokeRect(b.x - pad, b.y - pad, b.w + pad * 2, b.h + pad * 2);
+
+    g.setLineDash([]);
+    g.fillStyle = CSS["--card"];
+    var s = HANDLE / view.z;
+    handlePoints({ x: b.x - pad, y: b.y - pad, w: b.w + pad * 2, h: b.h + pad * 2 }).forEach(function (p) {
+      g.beginPath();
+      g.rect(p.x - s / 2, p.y - s / 2, s, s);
+      g.fill();
+      g.stroke();
+    });
+    g.restore();
+  }
+
+  var dpr = 1;
+
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 3);
+    var r = stage.getBoundingClientRect();
+    var w = Math.max(1, Math.round(r.width)), h = Math.max(1, Math.round(r.height));
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    canvas.style.width = w + "px";
+    canvas.style.height = h + "px";
+    invalidate();
+  }
+
+  var pending = false;
+  function invalidate() {
+    if (pending) return;
+    pending = true;
+    requestAnimationFrame(function () { pending = false; render(); });
+  }
+
+  var draft = null;         // object being drawn right now
+  var marquee = null;       // {x,y,w,h} in world units
+
+  function render() {
+    var w = canvas.width / dpr, h = canvas.height / dpr;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (showGrid) drawGrid(ctx, w, h);
+
+    ctx.setTransform(dpr * view.z, 0, 0, dpr * view.z, dpr * view.x, dpr * view.y);
+    scene.forEach(function (o) { drawObject(ctx, o); });
+    if (draft) drawObject(ctx, draft);
+    drawSelection(ctx);
+
+    if (marquee) {
+      ctx.save();
+      ctx.strokeStyle = CSS["--signal"];
+      ctx.fillStyle = CSS["--signal"];
+      ctx.globalAlpha = 0.1;
+      ctx.fillRect(marquee.x, marquee.y, marquee.w, marquee.h);
+      ctx.globalAlpha = 1;
+      ctx.lineWidth = 1 / view.z;
+      ctx.setLineDash([4 / view.z, 3 / view.z]);
+      ctx.strokeRect(marquee.x, marquee.y, marquee.w, marquee.h);
+      ctx.restore();
+    }
+
+    hint.hidden = scene.length > 0 || !!draft;
+    $("#zoom-label").textContent = Math.round(view.z * 100) + "%";
+  }
+
+  /* ======================================================================
+     Hit testing — always in world units, so it holds at any zoom
+     ====================================================================== */
+
+  function distToSegment(px, py, x1, y1, x2, y2) {
+    var dx = x2 - x1, dy = y2 - y1;
+    var len2 = dx * dx + dy * dy;
+    var t = len2 ? ((px - x1) * dx + (py - y1) * dy) / len2 : 0;
+    t = clamp(t, 0, 1);
+    var qx = x1 + t * dx, qy = y1 + t * dy;
+    return Math.hypot(px - qx, py - qy);
+  }
+
+  function hits(o, p) {
+    var tol = Math.max(6 / view.z, o.sw);
+    if (o.type === "line" || o.type === "arrow") {
+      var e = endpoints(o);
+      return distToSegment(p.x, p.y, e.x1, e.y1, e.x2, e.y2) <= tol;
+    }
+    if (o.type === "pen") {
+      var pts = penPath(o);
+      for (var i = 1; i < pts.length; i++) {
+        if (distToSegment(p.x, p.y, pts[i - 1][0], pts[i - 1][1], pts[i][0], pts[i][1]) <= tol) return true;
+      }
+      return false;
+    }
+    if (o.type === "ellipse") {
+      var rx = Math.max(0.5, o.w / 2) + tol, ry = Math.max(0.5, o.h / 2) + tol;
+      var nx = (p.x - (o.x + o.w / 2)) / rx, ny = (p.y - (o.y + o.h / 2)) / ry;
+      var inside = nx * nx + ny * ny <= 1;
+      if (o.fill !== "none" || inside === false) return inside;
+      // hollow ellipse: only the rim counts
+      var irx = Math.max(0.5, o.w / 2) - tol, iry = Math.max(0.5, o.h / 2) - tol;
+      if (irx <= 0 || iry <= 0) return true;
+      var ix = (p.x - (o.x + o.w / 2)) / irx, iy = (p.y - (o.y + o.h / 2)) / iry;
+      return ix * ix + iy * iy >= 1;
+    }
+    // rect and text: the box (rects with no fill still grab on their edge)
+    var inBox = p.x >= o.x - tol && p.x <= o.x + o.w + tol && p.y >= o.y - tol && p.y <= o.y + o.h + tol;
+    if (!inBox) return false;
+    if (o.type === "rect" && o.fill === "none") {
+      var innerX = p.x > o.x + tol && p.x < o.x + o.w - tol;
+      var innerY = p.y > o.y + tol && p.y < o.y + o.h - tol;
+      return !(innerX && innerY);
+    }
+    return true;
+  }
+
+  function pick(p) {
+    for (var i = scene.length - 1; i >= 0; i--) if (hits(scene[i], p)) return scene[i];
+    return null;
+  }
+
+  function pickHandle(p) {
+    var list = selected();
+    if (!list.length) return null;
+    var pad = 4 / view.z;
+    var b = bboxOf(list);
+    var box = { x: b.x - pad, y: b.y - pad, w: b.w + pad * 2, h: b.h + pad * 2 };
+    var s = (HANDLE + 4) / view.z;
+    var found = null;
+    handlePoints(box).forEach(function (h) {
+      if (Math.abs(p.x - h.x) <= s / 2 && Math.abs(p.y - h.y) <= s / 2) found = { k: h.k, box: box };
+    });
+    return found;
+  }
+
+  /* ======================================================================
+     History — bounded snapshot stack
+     ====================================================================== */
+
+  function snapshot() { return JSON.stringify(scene); }
+
+  function commit() {
+    undoStack.push(snapshot());
+    if (undoStack.length > HISTORY) undoStack.shift();
+    redoStack.length = 0;
+    afterChange();
+  }
+
+  function restore(json) {
+    scene = sanitise(JSON.parse(json));
+    sel = sel.filter(byId);
+    afterChange();
+  }
+
+  function undo() {
+    if (!undoStack.length) { Bench.toast("Nothing to undo", "bad"); return; }
+    redoStack.push(snapshot());
+    restore(undoStack.pop());
+  }
+
+  function redo() {
+    if (!redoStack.length) { Bench.toast("Nothing to redo", "bad"); return; }
+    undoStack.push(snapshot());
+    restore(redoStack.pop());
+  }
+
+  var save = Bench.debounce(function () {
+    store.set("scene", scene);
+    store.set("view", view);
+    store.set("style", style);
+    store.set("grid", showGrid);
+    store.set("snap", doSnap);
+    $("#s-saved").textContent = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }, 500);
+
+  function afterChange() {
+    invalidate();
+    syncPanel();
+    save();
+  }
+
+  /* ======================================================================
+     Pointer interaction
+     ====================================================================== */
+
+  var mode = null;          // draw | move | resize | marquee | pan
+  var start = null;         // world point where the gesture began
+  var startScreen = null;
+  var dragOrig = null;      // deep copies of the objects being transformed
+  var origBox = null;
+  var resizeKey = null;
+  var penRaw = null;
+  var spaceDown = false;
+  var moved = false;
+
+  function localPoint(ev) {
+    var r = stage.getBoundingClientRect();
+    return { x: ev.clientX - r.left, y: ev.clientY - r.top };
+  }
+
+  function newObject(type, p) {
+    return {
+      id: Bench.uuid(), type: type,
+      x: p.x, y: p.y, w: 0, h: 0,
+      flipX: false, flipY: false,
+      stroke: style.stroke, fill: type === "line" || type === "arrow" || type === "text" ? "none" : style.fill,
+      sw: style.sw, opacity: style.opacity
+    };
+  }
+
+  function makePen(raw, base) {
+    var x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+    raw.forEach(function (p) {
+      x1 = Math.min(x1, p[0]); y1 = Math.min(y1, p[1]);
+      x2 = Math.max(x2, p[0]); y2 = Math.max(y2, p[1]);
+    });
+    var w = Math.max(x2 - x1, 0.001), h = Math.max(y2 - y1, 0.001);
+    var o = Object.assign({}, base, {
+      x: x1, y: y1, w: w, h: h,
+      pts: raw.map(function (p) { return [(p[0] - x1) / w, (p[1] - y1) / h]; })
+    });
+    return o;
+  }
+
+  stage.addEventListener("pointerdown", function (ev) {
+    if (ev.target === editor) return;
+    if (editor.style.display === "block") closeEditor();
+    stage.setPointerCapture(ev.pointerId);
+    var lp = localPoint(ev);
+    var p = toWorld(lp.x, lp.y);
+    start = p; startScreen = lp; moved = false;
+
+    // pan: middle button, or space held
+    if (ev.button === 1 || spaceDown) {
+      mode = "pan";
+      dragOrig = { x: view.x, y: view.y };
+      ev.preventDefault();
+      return;
+    }
+    if (ev.button !== 0) return;
+
+    if (tool === "select") {
+      var handle = pickHandle(p);
+      if (handle) {
+        mode = "resize";
+        resizeKey = handle.k;
+        origBox = handle.box;
+        dragOrig = selected().map(function (o) { return JSON.parse(JSON.stringify(o)); });
+        return;
+      }
+      var target = pick(p);
+      if (target) {
+        if (ev.shiftKey) {
+          var at = sel.indexOf(target.id);
+          if (at >= 0) sel.splice(at, 1); else sel.push(target.id);
+        } else if (sel.indexOf(target.id) < 0) {
+          sel = [target.id];
+        }
+        mode = "move";
+        dragOrig = selected().map(function (o) { return JSON.parse(JSON.stringify(o)); });
+        syncPanel();
+        invalidate();
+        return;
+      }
+      if (!ev.shiftKey) sel = [];
+      mode = "marquee";
+      marquee = { x: p.x, y: p.y, w: 0, h: 0 };
+      syncPanel();
+      invalidate();
+      return;
+    }
+
+    if (tool === "text") {
+      var t = newObject("text", { x: snapVal(p.x), y: snapVal(p.y) });
+      t.text = "";
+      t.size = style.size;
+      measureText(t);
+      scene.push(t);
+      sel = [t.id];
+      mode = null;
+      openEditor(t, true);
+      return;
+    }
+
+    // shape tools
+    mode = "draw";
+    if (tool === "pen") {
+      penRaw = [[p.x, p.y]];
+      draft = makePen(penRaw, newObject("pen", p));
+    } else {
+      draft = newObject(tool, { x: snapVal(p.x), y: snapVal(p.y) });
+    }
+    invalidate();
+  });
+
+  stage.addEventListener("pointermove", function (ev) {
+    var lp = localPoint(ev);
+    var p = toWorld(lp.x, lp.y);
+
+    if (!mode) {
+      // cursor feedback
+      if (tool === "select") {
+        var h = pickHandle(p);
+        stage.style.cursor = h ? (h.k === "nw" || h.k === "se" ? "nwse-resize" : "nesw-resize")
+          : (pick(p) ? "move" : (spaceDown ? "grab" : "default"));
+      } else {
+        stage.style.cursor = tool === "text" ? "text" : "crosshair";
+      }
+      return;
+    }
+
+    moved = true;
+
+    if (mode === "pan") {
+      view.x = dragOrig.x + (lp.x - startScreen.x);
+      view.y = dragOrig.y + (lp.y - startScreen.y);
+      invalidate();
+      return;
+    }
+
+    if (mode === "draw") {
+      if (tool === "pen") {
+        var last = penRaw[penRaw.length - 1];
+        if (Math.hypot(p.x - last[0], p.y - last[1]) > 1.2 / view.z) {
+          penRaw.push([p.x, p.y]);
+          draft = makePen(penRaw, draft);
+        }
+      } else {
+        var sx = snapVal(start.x), sy = snapVal(start.y);
+        var ex = snapVal(p.x), ey = snapVal(p.y);
+        if (ev.shiftKey && (tool === "rect" || tool === "ellipse")) {
+          var side = Math.max(Math.abs(ex - sx), Math.abs(ey - sy));
+          ex = sx + (ex < sx ? -side : side);
+          ey = sy + (ey < sy ? -side : side);
+        }
+        draft.x = Math.min(sx, ex); draft.y = Math.min(sy, ey);
+        draft.w = Math.abs(ex - sx); draft.h = Math.abs(ey - sy);
+        draft.flipX = ex < sx; draft.flipY = ey < sy;
+      }
+      invalidate();
+      return;
+    }
+
+    if (mode === "move") {
+      var dx = p.x - start.x, dy = p.y - start.y;
+      if (doSnap && dragOrig.length) {
+        dx = Math.round((dragOrig[0].x + dx) / GRID) * GRID - dragOrig[0].x;
+        dy = Math.round((dragOrig[0].y + dy) / GRID) * GRID - dragOrig[0].y;
+      }
+      dragOrig.forEach(function (o) {
+        var live = byId(o.id);
+        if (live) { live.x = o.x + dx; live.y = o.y + dy; }
+      });
+      invalidate();
+      return;
+    }
+
+    if (mode === "resize") {
+      applyResize(p, ev.shiftKey);
+      invalidate();
+      return;
+    }
+
+    if (mode === "marquee") {
+      marquee = {
+        x: Math.min(start.x, p.x), y: Math.min(start.y, p.y),
+        w: Math.abs(p.x - start.x), h: Math.abs(p.y - start.y)
+      };
+      invalidate();
+    }
+  });
+
+  function applyResize(p, keepRatio) {
+    var anchor = {
+      nw: { x: origBox.x + origBox.w, y: origBox.y + origBox.h },
+      ne: { x: origBox.x, y: origBox.y + origBox.h },
+      se: { x: origBox.x, y: origBox.y },
+      sw: { x: origBox.x + origBox.w, y: origBox.y }
+    }[resizeKey];
+
+    var tx = snapVal(p.x), ty = snapVal(p.y);
+    var sx = origBox.w > 0.5 ? (tx - anchor.x) / ((resizeKey === "nw" || resizeKey === "sw" ? origBox.x : origBox.x + origBox.w) - anchor.x) : 1;
+    var sy = origBox.h > 0.5 ? (ty - anchor.y) / ((resizeKey === "nw" || resizeKey === "ne" ? origBox.y : origBox.y + origBox.h) - anchor.y) : 1;
+    if (!isFinite(sx) || sx === 0) sx = 0.01;
+    if (!isFinite(sy) || sy === 0) sy = 0.01;
+    if (keepRatio) {
+      var m = Math.min(Math.abs(sx), Math.abs(sy));
+      sx = m * (sx < 0 ? -1 : 1);
+      sy = m * (sy < 0 ? -1 : 1);
+    }
+
+    dragOrig.forEach(function (orig) {
+      var live = byId(orig.id);
+      if (!live) return;
+      var ax1 = anchor.x + (orig.x - anchor.x) * sx;
+      var ax2 = anchor.x + (orig.x + orig.w - anchor.x) * sx;
+      var ay1 = anchor.y + (orig.y - anchor.y) * sy;
+      var ay2 = anchor.y + (orig.y + orig.h - anchor.y) * sy;
+      live.x = Math.min(ax1, ax2); live.w = Math.abs(ax2 - ax1);
+      live.y = Math.min(ay1, ay2); live.h = Math.abs(ay2 - ay1);
+
+      if (sx < 0) {
+        live.flipX = !orig.flipX;
+        if (live.type === "pen") live.pts = orig.pts.map(function (q) { return [1 - q[0], q[1]]; });
+      } else {
+        live.flipX = orig.flipX;
+        if (live.type === "pen") live.pts = orig.pts.map(function (q) { return [q[0], q[1]]; });
+      }
+      if (sy < 0) {
+        live.flipY = !orig.flipY;
+        if (live.type === "pen") live.pts = live.pts.map(function (q) { return [q[0], 1 - q[1]]; });
+      } else {
+        live.flipY = orig.flipY;
+      }
+
+      if (live.type === "text") {
+        live.size = clamp(orig.size * Math.abs(sy), 6, 400);
+        measureText(live);
+      }
+    });
+  }
+
+  stage.addEventListener("pointerup", function (ev) {
+    if (stage.hasPointerCapture && stage.hasPointerCapture(ev.pointerId)) stage.releasePointerCapture(ev.pointerId);
+    finishGesture();
+  });
+  stage.addEventListener("pointercancel", finishGesture);
+
+  function finishGesture() {
+    if (mode === "draw" && draft) {
+      var keep = draft.type === "pen"
+        ? draft.pts.length > 1
+        : (draft.w > 1.5 || draft.h > 1.5);
+      if (keep) {
+        undoStack.push(snapshot());
+        if (undoStack.length > HISTORY) undoStack.shift();
+        redoStack.length = 0;
+        scene.push(draft);
+        sel = [draft.id];
+        setTool("select");
+        afterChange();
+      }
+      draft = null;
+      penRaw = null;
+      invalidate();
+    } else if (mode === "move" || mode === "resize") {
+      if (moved) {
+        // the gesture already mutated the live objects, so push the pre-drag state
+        undoStack.push(JSON.stringify(scene.map(function (o) {
+          var was = dragOrig.filter(function (d) { return d.id === o.id; })[0];
+          return was || o;
+        })));
+        if (undoStack.length > HISTORY) undoStack.shift();
+        redoStack.length = 0;
+      }
+      afterChange();
+    } else if (mode === "marquee" && marquee) {
+      var m = marquee;
+      scene.forEach(function (o) {
+        var overlap = o.x <= m.x + m.w && o.x + o.w >= m.x && o.y <= m.y + m.h && o.y + o.h >= m.y;
+        if (overlap && sel.indexOf(o.id) < 0) sel.push(o.id);
+      });
+      marquee = null;
+      syncPanel();
+      invalidate();
+    } else if (mode === "pan") {
+      save();
+    }
+    mode = null;
+    dragOrig = null;
+  }
+
+  /* --- zoom ---------------------------------------------------------------- */
+
+  function zoomAt(factor, cx, cy) {
+    var before = toWorld(cx, cy);
+    view.z = clamp(view.z * factor, 0.1, 6);
+    var after = toWorld(cx, cy);
+    view.x += (after.x - before.x) * view.z;
+    view.y += (after.y - before.y) * view.z;
+    invalidate();
+    save();
+  }
+
+  stage.addEventListener("wheel", function (ev) {
+    var lp = localPoint(ev);
+    if (ev.ctrlKey || ev.metaKey) {
+      ev.preventDefault();
+      zoomAt(Math.pow(0.999, ev.deltaY), lp.x, lp.y);
+    } else {
+      ev.preventDefault();
+      view.x -= ev.deltaX;
+      view.y -= ev.deltaY;
+      invalidate();
+      save();
+    }
+  }, { passive: false });
+
+  function fit() {
+    var b = bboxOf(scene);
+    var r = stage.getBoundingClientRect();
+    if (!b || b.w <= 0 && b.h <= 0) { view = { x: 0, y: 0, z: 1 }; invalidate(); save(); return; }
+    var pad = 40;
+    var z = clamp(Math.min((r.width - pad * 2) / Math.max(b.w, 1), (r.height - pad * 2) / Math.max(b.h, 1)), 0.1, 3);
+    view.z = z;
+    view.x = r.width / 2 - (b.x + b.w / 2) * z;
+    view.y = r.height / 2 - (b.y + b.h / 2) * z;
+    invalidate();
+    save();
+  }
+
+  /* ======================================================================
+     Inline text editing
+     ====================================================================== */
+
+  var editing = null, editingIsNew = false;
+
+  function openEditor(o, isNew) {
+    editing = o;
+    editingIsNew = !!isNew;
+    var s = toScreen(o.x, o.y);
+    editor.style.display = "block";
+    editor.style.left = s.x + "px";
+    editor.style.top = s.y + "px";
+    editor.style.fontFamily = CSS.font;
+    editor.style.fontSize = (o.size * view.z) + "px";
+    editor.style.color = resolveColour(o.stroke);
+    editor.value = o.text || "";
+    sizeEditor();
+    editor.focus();
+    editor.select();
+  }
+
+  function sizeEditor() {
+    editor.style.width = "10px";
+    editor.style.height = "10px";
+    editor.style.width = Math.max(60, editor.scrollWidth + 6) + "px";
+    editor.style.height = Math.max(20, editor.scrollHeight) + "px";
+  }
+
+  function closeEditor() {
+    if (!editing) { editor.style.display = "none"; return; }
+    var o = editing, was = editingIsNew;
+    editing = null;
+    editor.style.display = "none";
+    var text = editor.value.replace(/\s+$/, "");
+    if (!text) {
+      scene = scene.filter(function (x) { return x !== o; });
+      sel = sel.filter(function (id) { return id !== o.id; });
+      if (!was) commit();
+      afterChange();
+      return;
+    }
+    if (o.text !== text || was) {
+      if (!was) undoStack.push(snapshot());
+      o.text = text;
+      measureText(o);
+      commit();
+    }
+    afterChange();
+  }
+
+  editor.addEventListener("input", sizeEditor);
+  editor.addEventListener("blur", closeEditor);
+  editor.addEventListener("keydown", function (ev) {
+    ev.stopPropagation();
+    if (ev.key === "Escape") { ev.preventDefault(); editor.blur(); }
+    if (ev.key === "Enter" && !ev.shiftKey) { ev.preventDefault(); editor.blur(); }
+  });
+
+  stage.addEventListener("dblclick", function (ev) {
+    var lp = localPoint(ev);
+    var o = pick(toWorld(lp.x, lp.y));
+    if (o && o.type === "text") { sel = [o.id]; openEditor(o, false); }
+  });
+
+  /* ======================================================================
+     Commands
+     ====================================================================== */
+
+  function deleteSelection() {
+    if (!sel.length) { Bench.toast("Select something first", "bad"); return; }
+    undoStack.push(snapshot());
+    scene = scene.filter(function (o) { return sel.indexOf(o.id) < 0; });
+    sel = [];
+    redoStack.length = 0;
+    afterChange();
+  }
+
+  function duplicateSelection() {
+    var list = selected();
+    if (!list.length) { Bench.toast("Select something first", "bad"); return; }
+    undoStack.push(snapshot());
+    var copies = list.map(function (o) {
+      var c = JSON.parse(JSON.stringify(o));
+      c.id = Bench.uuid();
+      c.x += 14; c.y += 14;
+      return c;
+    });
+    scene = scene.concat(copies);
+    sel = copies.map(function (c) { return c.id; });
+    redoStack.length = 0;
+    afterChange();
+  }
+
+  function reorder(dir) {
+    if (!sel.length) { Bench.toast("Select something first", "bad"); return; }
+    undoStack.push(snapshot());
+    var idx = scene.map(function (o, i) { return sel.indexOf(o.id) >= 0 ? i : -1; })
+      .filter(function (i) { return i >= 0; });
+    if (dir > 0) idx.reverse();
+    idx.forEach(function (i) {
+      var j = i + dir;
+      if (j < 0 || j >= scene.length) return;
+      if (sel.indexOf(scene[j].id) >= 0) return;     // don't shuffle within the selection
+      var tmp = scene[i]; scene[i] = scene[j]; scene[j] = tmp;
+    });
+    redoStack.length = 0;
+    afterChange();
+  }
+
+  function nudge(dx, dy) {
+    var list = selected();
+    if (!list.length) return;
+    undoStack.push(snapshot());
+    list.forEach(function (o) { o.x += dx; o.y += dy; });
+    redoStack.length = 0;
+    afterChange();
+  }
+
+  /* --- style panel --------------------------------------------------------- */
+
+  function syncStyleInputs() {
+    var list = selected();
+    var ref = list.length ? list[0] : style;
+    var strokeIsInk = ref.stroke === "ink";
+    $("#stroke").value = strokeIsInk ? hexOf(CSS["--ink"]) : hexOf(ref.stroke);
+    $("#stroke-auto").classList.toggle("btn--on", strokeIsInk);
+    var noFill = !ref.fill || ref.fill === "none";
+    $("#fill-none").classList.toggle("btn--on", noFill);
+    if (!noFill) $("#fill").value = hexOf(ref.fill);
+    $("#sw").value = ref.sw;
+    $("#sw-val").textContent = ref.sw;
+    $("#opacity").value = Math.round(ref.opacity * 100);
+    $("#op-val").textContent = Math.round(ref.opacity * 100) + "%";
+    var textish = list.length ? list.some(function (o) { return o.type === "text"; }) : tool === "text";
+    $("#size-prop").hidden = !textish;
+    var size = list.length ? (list.filter(function (o) { return o.type === "text"; })[0] || { size: style.size }).size : style.size;
+    $("#fsize").value = size;
+    $("#fs-val").textContent = size;
+  }
+
+  /** Coerce whatever the stylesheet gave us into the #rrggbb an input[type=color] needs. */
+  function hexOf(c) {
+    c = String(c || "").trim();
+    if (/^#[0-9a-f]{6}$/i.test(c)) return c.toLowerCase();
+    if (/^#[0-9a-f]{3}$/i.test(c)) return "#" + c[1] + c[1] + c[2] + c[2] + c[3] + c[3];
+    var m = /rgba?\(([^)]+)\)/.exec(c);
+    if (m) {
+      var p = m[1].split(",").map(function (n) { return clamp(parseInt(n, 10) || 0, 0, 255); });
+      return "#" + p.slice(0, 3).map(function (n) { return n.toString(16).padStart(2, "0"); }).join("");
+    }
+    return "#14211f";
+  }
+
+  function applyStyle(patch) {
+    var list = selected();
+    if (list.length) {
+      undoStack.push(snapshot());
+      list.forEach(function (o) {
+        Object.keys(patch).forEach(function (k) {
+          if (k === "size" && o.type !== "text") return;
+          if (k === "fill" && (o.type === "line" || o.type === "arrow" || o.type === "text")) return;
+          o[k] = patch[k];
+        });
+        if (o.type === "text") measureText(o);
+      });
+      redoStack.length = 0;
+    }
+    Object.keys(patch).forEach(function (k) { style[k] = patch[k]; });
+    afterChange();
+  }
+
+  function syncPanel() {
+    var list = selected();
+    $("#s-objects").textContent = scene.length;
+    $("#s-selected").textContent = list.length;
+    $("#s-tool").textContent = tool.charAt(0).toUpperCase() + tool.slice(1);
+    $("#prop-scope").textContent = list.length
+      ? Bench.plural(list.length, "object") + " selected — changes apply to " + (list.length === 1 ? "it" : "them") + "."
+      : "Nothing selected — these set the style of the next thing you draw.";
+    $("#prop-title").firstChild.nodeValue = list.length ? "Selection style" : "Style";
+    $("#undo").disabled = !undoStack.length;
+    $("#redo").disabled = !redoStack.length;
+    syncStyleInputs();
+  }
+
+  /* --- tools --------------------------------------------------------------- */
+
+  function setTool(next) {
+    tool = next;
+    $$("[data-tool]").forEach(function (b) { b.classList.toggle("btn--on", b.dataset.tool === next); });
+    stage.style.cursor = next === "select" ? "default" : next === "text" ? "text" : "crosshair";
+    syncPanel();
+  }
+
+  $$("[data-tool]").forEach(function (b) {
+    b.addEventListener("click", function () { setTool(b.dataset.tool); });
+  });
+
+  /* --- toolbar wiring ------------------------------------------------------ */
+
+  $("#undo").addEventListener("click", undo);
+  $("#redo").addEventListener("click", redo);
+  $("#del").addEventListener("click", deleteSelection);
+  $("#dupe").addEventListener("click", duplicateSelection);
+  $("#forward").addEventListener("click", function () { reorder(1); });
+  $("#back").addEventListener("click", function () { reorder(-1); });
+  $("#fit").addEventListener("click", fit);
+  $("#zoom-in").addEventListener("click", function () {
+    var r = stage.getBoundingClientRect(); zoomAt(1.2, r.width / 2, r.height / 2);
+  });
+  $("#zoom-out").addEventListener("click", function () {
+    var r = stage.getBoundingClientRect(); zoomAt(1 / 1.2, r.width / 2, r.height / 2);
+  });
+  $("#zoom-reset").addEventListener("click", function () {
+    view = { x: 0, y: 0, z: 1 }; invalidate(); save();
+  });
+  $("#grid-toggle").addEventListener("click", function (e) {
+    showGrid = !showGrid;
+    e.currentTarget.classList.toggle("btn--on", showGrid);
+    invalidate(); save();
+  });
+  $("#snap-toggle").addEventListener("click", function (e) {
+    doSnap = !doSnap;
+    e.currentTarget.classList.toggle("btn--on", doSnap);
+    save();
+  });
+
+  $("#stroke").addEventListener("input", function () { applyStyle({ stroke: $("#stroke").value }); });
+  $("#stroke-auto").addEventListener("click", function () { applyStyle({ stroke: "ink" }); });
+  $("#fill").addEventListener("input", function () { applyStyle({ fill: $("#fill").value }); });
+  $("#fill-none").addEventListener("click", function () {
+    var noFill = $("#fill-none").classList.contains("btn--on");
+    applyStyle({ fill: noFill ? $("#fill").value : "none" });
+  });
+  $("#sw").addEventListener("input", function () { applyStyle({ sw: Number($("#sw").value) }); });
+  $("#opacity").addEventListener("input", function () { applyStyle({ opacity: Number($("#opacity").value) / 100 }); });
+  $("#fsize").addEventListener("input", function () { applyStyle({ size: Number($("#fsize").value) }); });
+
+  /* --- board file ---------------------------------------------------------- */
+
+  function note(kind, mark, msg) {
+    status.innerHTML = '<div class="note note--' + kind + '"><span class="note__mark">' + mark
+      + '</span><span>' + Bench.esc(msg) + "</span></div>";
+  }
+
+  $("#png").addEventListener("click", function () {
+    var b = bboxOf(scene);
+    if (!b) { Bench.toast("Draw something first", "bad"); return; }
+    var pad = 28, scale = 2;
+    var w = Math.max(1, Math.ceil((b.w + pad * 2) * scale));
+    var h = Math.max(1, Math.ceil((b.h + pad * 2) * scale));
+    var c = document.createElement("canvas");
+    c.width = w; c.height = h;
+    var g = c.getContext("2d");
+    g.fillStyle = CSS["--card"];               // never export transparent-on-dark
+    g.fillRect(0, 0, w, h);
+    g.setTransform(scale, 0, 0, scale, -(b.x - pad) * scale, -(b.y - pad) * scale);
+    scene.forEach(function (o) { drawObject(g, o); });
+    c.toBlob(function (blob) {
+      if (!blob) { note("bad", "✕", "The browser refused to encode the PNG. Try a smaller board."); return; }
+      Bench.download("whiteboard.png", blob);
+      note("ok", "✓", "Exported " + w + "×" + h + " PNG with a solid background.");
+    }, "image/png");
+  });
+
+  $("#json").addEventListener("click", function () {
+    Bench.download("whiteboard.json", JSON.stringify({ format: "bench-whiteboard", version: 1, objects: scene }, null, 2), "application/json");
+    note("ok", "✓", "Exported " + Bench.plural(scene.length, "object") + " as JSON.");
+  });
+
+  $("#import").addEventListener("click", function () { $("#file").click(); });
+  $("#file").addEventListener("change", function () {
+    var f = $("#file").files[0];
+    if (!f) return;
+    Bench.readFile(f).then(function (text) {
+      var data;
+      try { data = JSON.parse(text); } catch (e) {
+        note("bad", "✕", "That file is not valid JSON. Export a board from this tool and import that.");
+        return;
+      }
+      var list = sanitise(Array.isArray(data) ? data : data && data.objects);
+      if (!list.length) {
+        note("bad", "✕", "No drawable objects in that file. Expected an { objects: [...] } board export.");
+        return;
+      }
+      undoStack.push(snapshot());
+      scene = list;
+      sel = [];
+      redoStack.length = 0;
+      afterChange();
+      fit();
+      note("ok", "✓", "Imported " + Bench.plural(list.length, "object") + ".");
+    }).catch(function (e) { note("bad", "✕", e.message); });
+    $("#file").value = "";
+  });
+
+  /* Two-step clear rather than a browser dialog. */
+  var clearArmed = null;
+  $("#clear").addEventListener("click", function (e) {
+    var btn = e.currentTarget;
+    if (!scene.length) { Bench.toast("The board is already empty", "bad"); return; }
+    if (!clearArmed) {
+      btn.textContent = "Confirm clear";
+      btn.classList.add("btn--on");
+      clearArmed = setTimeout(function () {
+        clearArmed = null;
+        btn.textContent = "Clear board";
+        btn.classList.remove("btn--on");
+      }, 4000);
+      return;
+    }
+    clearTimeout(clearArmed);
+    clearArmed = null;
+    btn.textContent = "Clear board";
+    btn.classList.remove("btn--on");
+    undoStack.push(snapshot());
+    scene = [];
+    sel = [];
+    redoStack.length = 0;
+    afterChange();
+    note("info", "·", "Board cleared. Ctrl+Z brings it back.");
+  });
+
+  /* --- example board -------------------------------------------------------
+     A small flow so a first-time visitor can see what objects behave like. */
+
+  function example() {
+    var mk = function (o) {
+      return Object.assign({
+        id: Bench.uuid(), flipX: false, flipY: false,
+        stroke: "ink", fill: "none", sw: 2, opacity: 1
+      }, o);
+    };
+    var signal = hexOf(CSS["--signal"]);
+    return sanitise([
+      mk({ type: "rect", x: 60, y: 70, w: 170, h: 74 }),
+      mk({ type: "text", x: 84, y: 92, text: "Draft", size: 24 }),
+      mk({ type: "arrow", x: 230, y: 100, w: 90, h: 0, stroke: signal, sw: 2.5 }),
+      mk({ type: "rect", x: 320, y: 70, w: 170, h: 74 }),
+      mk({ type: "text", x: 348, y: 92, text: "Review", size: 24 }),
+      mk({ type: "arrow", x: 405, y: 144, w: 0, h: 76, stroke: signal, sw: 2.5 }),
+      mk({ type: "ellipse", x: 318, y: 220, w: 174, h: 82, fill: hexOf(CSS["--sunk"]) }),
+      mk({ type: "text", x: 352, y: 246, text: "Shipped", size: 24 }),
+      mk({ type: "line", x: 60, y: 330, w: 430, h: 0, sw: 1, opacity: 0.5 }),
+      mk({ type: "text", x: 60, y: 344, text: "Drag a corner handle to resize.", size: 14, opacity: 0.85 })
+    ]);
+  }
+
+  $("#example").addEventListener("click", function () {
+    undoStack.push(snapshot());
+    scene = scene.concat(example());
+    sel = [];
+    redoStack.length = 0;
+    afterChange();
+    fit();
+    note("ok", "✓", "Example flow added. Select anything and restyle it.");
+  });
+
+  /* --- keyboard ------------------------------------------------------------ */
+
+  function typing(t) {
+    return t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
+  }
+
+  document.addEventListener("keydown", function (ev) {
+    if (typing(ev.target)) return;
+
+    if (ev.code === "Space" && !spaceDown) {
+      spaceDown = true;
+      stage.style.cursor = "grab";
+      if (ev.target === document.body || stage.contains(ev.target)) ev.preventDefault();
+      return;
+    }
+
+    var mod = ev.ctrlKey || ev.metaKey;
+
+    if (mod && ev.key.toLowerCase() === "z") {
+      ev.preventDefault();
+      if (ev.shiftKey) redo(); else undo();
+      return;
+    }
+    if (mod && ev.key.toLowerCase() === "y") { ev.preventDefault(); redo(); return; }
+    if (mod && ev.key.toLowerCase() === "d") { ev.preventDefault(); duplicateSelection(); return; }
+    if (mod && ev.key.toLowerCase() === "a") {
+      ev.preventDefault();
+      sel = scene.map(function (o) { return o.id; });
+      syncPanel(); invalidate();
+      return;
+    }
+    if (mod) return;
+
+    if (ev.key === "Delete" || ev.key === "Backspace") {
+      if (sel.length) { ev.preventDefault(); deleteSelection(); }
+      return;
+    }
+    if (ev.key === "Escape") { sel = []; syncPanel(); invalidate(); return; }
+    if (ev.key === "]") { ev.preventDefault(); reorder(1); return; }
+    if (ev.key === "[") { ev.preventDefault(); reorder(-1); return; }
+
+    if (ev.key.indexOf("Arrow") === 0) {
+      if (!sel.length) return;
+      ev.preventDefault();
+      var step = ev.shiftKey ? (doSnap ? GRID * 2 : 10) : (doSnap ? GRID : 1);
+      nudge(ev.key === "ArrowLeft" ? -step : ev.key === "ArrowRight" ? step : 0,
+            ev.key === "ArrowUp" ? -step : ev.key === "ArrowDown" ? step : 0);
+      return;
+    }
+
+    var keys = { v: "select", p: "pen", l: "line", a: "arrow", r: "rect", e: "ellipse", t: "text" };
+    var k = keys[ev.key.toLowerCase()];
+    if (k) { ev.preventDefault(); setTool(k); }
+  });
+
+  document.addEventListener("keyup", function (ev) {
+    if (ev.code === "Space") {
+      spaceDown = false;
+      if (mode !== "pan") stage.style.cursor = tool === "select" ? "default" : "crosshair";
+    }
+  });
+
+  /* --- boot ---------------------------------------------------------------- */
+
+  if (window.ResizeObserver) new ResizeObserver(resize).observe(stage);
+  window.addEventListener("resize", resize);
+
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(function () {
+      scene.forEach(function (o) { if (o.type === "text") measureText(o); });
+      invalidate();
+    }).catch(function () {});
+  }
+
+  resize();
+  syncPanel();
+  if (scene.length) {
+    note("info", "·", Bench.plural(scene.length, "object") + " restored from this browser.");
+  } else {
+    note("info", "·", "Nothing saved yet. Draw something, or press Insert example.");
+  }
+});
+</script>
+
+</body>
+</html>

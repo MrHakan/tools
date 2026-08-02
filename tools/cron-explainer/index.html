@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cron Explainer — Bench</title>
+<meta name="description" content="Read a cron expression in plain English, or build one field by field. Runs entirely in your browser.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/css/bench.css">
+<style>
+  /* Page-specific CSS only. Everything is prefixed .cronx- */
+
+  .cronx-sentence {
+    margin-top: 14px;
+    padding: 16px 18px;
+    background: var(--sunk);
+    border: 1px solid var(--edge);
+    border-radius: var(--r);
+    font-size: 1.1rem;
+    line-height: 1.5;
+    color: var(--ink);
+  }
+  .cronx-sentence--empty { color: var(--steel); font-size: 0.95rem; }
+
+  .cronx-presets { margin-top: 14px; }
+
+  #validation { margin-top: 12px; }
+  #validation:empty { display: none; }
+
+  .cronx-fields {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: var(--gap);
+  }
+
+  .cronx-field {
+    border: 1px solid var(--edge);
+    border-radius: var(--r);
+    padding: 14px;
+    background: var(--sunk);
+  }
+
+  .cronx-field__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--steel);
+    margin-bottom: 11px;
+  }
+
+  .cronx-field__val {
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: 13px;
+    color: var(--signal);
+    overflow-wrap: anywhere;
+    text-align: right;
+  }
+
+  .cronx-modebar { margin-bottom: 11px; }
+
+  .cronx-chips { max-height: 132px; overflow-y: auto; padding-right: 2px; }
+
+  .cronx-num { width: 68px; padding: 7px 8px; }
+
+  .cronx-hint { font-size: 12.5px; color: var(--steel); line-height: 1.5; }
+
+  .cronx-runs__rel { color: var(--steel); }
+
+  @media (max-width: 460px) {
+    .cronx-field__head { flex-direction: column; align-items: flex-start; gap: 2px; }
+    .cronx-field__val { text-align: left; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__home" href="../../index.html"><span class="topbar__mark">▚</span> bench</a>
+  <span class="topbar__sep">/</span>
+  <span class="topbar__here">Cron Explainer</span>
+  <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
+</header>
+
+<main class="wrap">
+
+  <div class="toolhead">
+    <p class="toolhead__spec mono">*/5 * * * *</p>
+    <h1 class="toolhead__title">Cron Explainer</h1>
+    <p class="toolhead__desc">Read a cron expression in plain English, or build one field by field. Nothing is sent anywhere — parsing and scheduling maths happen in this tab.</p>
+  </div>
+
+  <div class="stack">
+
+    <section class="panel">
+      <h2 class="panel__title">Expression</h2>
+      <div class="field">
+        <label class="label" for="expr">Cron expression — minute hour day-of-month month day-of-week</label>
+        <input class="input input--mono" id="expr" spellcheck="false" autocomplete="off" value="*/5 * * * *">
+      </div>
+      <div id="validation"></div>
+      <div class="cronx-sentence" id="sentence"></div>
+      <div class="cronx-presets">
+        <div class="label">Common schedules</div>
+        <div class="chips" id="presets"></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel__title">Build it field by field</h2>
+      <div class="cronx-fields" id="builder"></div>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel__title">Next 10 runs</h2>
+      <div id="runs"></div>
+    </section>
+
+  </div>
+
+  <footer class="foot">
+    <a href="../../index.html">← All tools</a>
+    <span>·</span>
+    <span>Runs entirely in your browser</span>
+  </footer>
+
+</main>
+
+<script src="../../assets/js/bench.js" defer></script>
+<script defer>
+document.addEventListener("DOMContentLoaded", function () {
+  "use strict";
+  var $ = Bench.$, esc = Bench.esc;
+
+  /* ==========================================================================
+     Cron engine — standard 5-field crontab: minute hour day-of-month month
+     day-of-week. Supports wildcards, comma lists, a-b ranges, step syntax
+     (both the bare and the ranged form), JAN-DEC / SUN-SAT names, and the
+     @yearly / @monthly / @daily shorthands.
+
+     The classic trap: when BOTH day-of-month and day-of-week are restricted
+     (neither is "*"), cron fires on the UNION of the two — a day matches if
+     it satisfies either field, not both. cronDayMatches() implements that.
+     ========================================================================== */
+
+  var CRON_FIELDS = [
+    { name: "minute", label: "Minute", min: 0, max: 59 },
+    { name: "hour", label: "Hour", min: 0, max: 23 },
+    { name: "dom", label: "Day of month", min: 1, max: 31 },
+    { name: "month", label: "Month", min: 1, max: 12,
+      names: ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"] },
+    { name: "dow", label: "Day of week", min: 0, max: 7,
+      names: ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"] }
+  ];
+
+  var CRON_SHORTHANDS = {
+    "@yearly": "0 0 1 1 *", "@annually": "0 0 1 1 *", "@monthly": "0 0 1 * *",
+    "@weekly": "0 0 * * 0", "@daily": "0 0 * * *", "@midnight": "0 0 * * *",
+    "@hourly": "0 * * * *"
+  };
+
+  function cronExpandNames(text, def) {
+    if (!def.names) return text;
+    return text.replace(/[A-Za-z]{3,}/g, function (word) {
+      var idx = def.names.indexOf(word.toUpperCase().slice(0, 3));
+      return idx === -1 ? word : String(idx + def.min);
+    });
+  }
+
+  // Parse one field — "*/5", "1-5", "MON-FRI", "1,15,30" and so on — into a
+  // sorted, deduped array of concrete values, or an { ok:false } explanation.
+  function cronParseField(rawText, def) {
+    var text = cronExpandNames(rawText.trim(), def);
+    if (!text) return { ok: false, error: "is empty" };
+
+    var seen = {};
+    var parts = text.split(",");
+    for (var i = 0; i < parts.length; i++) {
+      var part = parts[i].trim();
+      if (!part) return { ok: false, error: "has an empty entry between commas" };
+
+      var step = 1, base = part;
+      var stepMatch = /^([^\/]+)\/(\d+)$/.exec(part);
+      if (stepMatch) {
+        base = stepMatch[1];
+        step = parseInt(stepMatch[2], 10);
+        if (!(step > 0)) return { ok: false, error: "'" + part + "' has a step that isn't a positive number" };
+      }
+
+      var lo, hi;
+      if (base === "*") {
+        lo = def.min; hi = def.max;
+      } else if (/^\d+-\d+$/.test(base)) {
+        var bits = base.split("-");
+        lo = parseInt(bits[0], 10); hi = parseInt(bits[1], 10);
+        if (lo > hi) return { ok: false, error: "'" + base + "' is a backwards range (" + lo + " is after " + hi + ")" };
+      } else if (/^\d+$/.test(base)) {
+        lo = hi = parseInt(base, 10);
+      } else {
+        return { ok: false, error: "'" + part + "' isn't a number, range, list or *" };
+      }
+
+      if (lo < def.min || hi > def.max) {
+        return { ok: false, error: "'" + base + "' is outside " + def.min + "-" + def.max };
+      }
+
+      for (var v = lo; v <= hi; v += step) seen[v] = true;
+    }
+
+    var values = Object.keys(seen).map(Number).sort(function (a, b) { return a - b; });
+    // Day-of-week accepts 7 as an alias for Sunday (0) — fold it in.
+    if (def.max === 7) {
+      values = values.map(function (v) { return v === 7 ? 0 : v; });
+      values = values.filter(function (v, idx, arr) { return arr.indexOf(v) === idx; }).sort(function (a, b) { return a - b; });
+    }
+    return { ok: true, values: values };
+  }
+
+  /** Parse a full 5-field expression (or @shorthand). Returns { ok:true,
+      minute, hour, dom, month, dow, raw, domRestricted, dowRestricted } or
+      { ok:false, error } naming exactly which field is wrong and why. */
+  function cronParse(expr) {
+    var text = (expr || "").trim();
+    if (!text) return { ok: false, error: "Enter a cron expression." };
+
+    if (text.charAt(0) === "@") {
+      var word = text.toLowerCase().split(/\s+/)[0];
+      if (!CRON_SHORTHANDS[word]) {
+        return { ok: false, error: "Unknown shorthand '" + text.split(/\s+/)[0] + "'. Try @yearly, @monthly, @weekly, @daily, @hourly." };
+      }
+      text = CRON_SHORTHANDS[word];
+    }
+
+    var fields = text.split(/\s+/);
+    if (fields.length !== 5) {
+      return { ok: false, error: "Expected 5 fields (minute hour day month weekday) — found " + fields.length + "." };
+    }
+
+    var parsed = {};
+    for (var i = 0; i < 5; i++) {
+      var def = CRON_FIELDS[i];
+      var r = cronParseField(fields[i], def);
+      if (!r.ok) {
+        return { ok: false, error: def.label + " field ('" + fields[i] + "') " + r.error + "." };
+      }
+      parsed[def.name] = r.values;
+    }
+
+    return {
+      ok: true, raw: fields,
+      minute: parsed.minute, hour: parsed.hour, dom: parsed.dom, month: parsed.month, dow: parsed.dow,
+      domRestricted: fields[2].trim() !== "*",
+      dowRestricted: fields[4].trim() !== "*"
+    };
+  }
+
+  /** Does this real calendar date satisfy the schedule's day fields?
+      Implements the union rule: when both day-of-month and day-of-week are
+      restricted, a day qualifies if it matches EITHER — not both. */
+  function cronDayMatches(schedule, y, m0, dom) {
+    if (schedule.month.indexOf(m0 + 1) === -1) return false;
+    var domOk = schedule.dom.indexOf(dom) !== -1;
+    var dowOk = schedule.dow.indexOf(new Date(y, m0, dom).getDay()) !== -1;
+    if (schedule.domRestricted && schedule.dowRestricted) return domOk || dowOk;
+    return domOk && dowOk;
+  }
+
+  function cronMatches(schedule, date) {
+    if (schedule.minute.indexOf(date.getMinutes()) === -1) return false;
+    if (schedule.hour.indexOf(date.getHours()) === -1) return false;
+    return cronDayMatches(schedule, date.getFullYear(), date.getMonth(), date.getDate());
+  }
+
+  /** Next `count` fire times strictly after `from`, found by literally
+      stepping a Date forward minute by minute and testing cronMatches().
+      Whole dead days (the day's fields can never match) are skipped in one
+      jump to midnight instead of 1440 minute-by-minute tests, so an
+      impossible expression like "0 0 30 2 *" still terminates quickly
+      against the maxDays cap instead of grinding through it minute by minute. */
+  function cronNextRuns(schedule, from, count, maxDays) {
+    maxDays = maxDays || 8 * 366;
+    var results = [];
+    var d = new Date(from.getFullYear(), from.getMonth(), from.getDate(), from.getHours(), from.getMinutes(), 0, 0);
+    d.setMinutes(d.getMinutes() + 1);
+    var startDay = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    var lastDayKey = null, daysSpanned = 0;
+
+    while (results.length < count && daysSpanned <= maxDays) {
+      var dayKey = d.getFullYear() + "-" + d.getMonth() + "-" + d.getDate();
+      if (dayKey !== lastDayKey) {
+        lastDayKey = dayKey;
+        daysSpanned = Math.floor((new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() - startDay) / 86400000);
+        if (!cronDayMatches(schedule, d.getFullYear(), d.getMonth(), d.getDate())) {
+          d.setDate(d.getDate() + 1);
+          d.setHours(0, 0, 0, 0);
+          continue;
+        }
+      }
+      if (cronMatches(schedule, d)) results.push(new Date(d.getTime()));
+      d.setMinutes(d.getMinutes() + 1);
+    }
+    return results;
+  }
+
+  /* --- plain-English generator ---------------------------------------------
+     Written deliberately: this is what the tool is for. Handles the union
+     case explicitly ("on day 1 of the month and on Monday"). --------------- */
+
+  var DOW_FULL = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  var MONTH_FULL = ["", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+  function cronRanges(values) {
+    var ranges = [], i = 0;
+    while (i < values.length) {
+      var start = values[i], end = values[i];
+      while (i + 1 < values.length && values[i + 1] === end + 1) { end = values[++i]; }
+      ranges.push(start === end ? [start] : [start, end]);
+      i++;
+    }
+    return ranges;
+  }
+
+  function cronJoinAnd(items) {
+    if (!items.length) return "";
+    if (items.length === 1) return items[0];
+    if (items.length === 2) return items[0] + " and " + items[1];
+    return items.slice(0, -1).join(", ") + " and " + items[items.length - 1];
+  }
+
+  function cronNumList(values) {
+    return cronJoinAnd(cronRanges(values).map(function (r) {
+      return r.length === 1 ? String(r[0]) : (r[0] + " through " + r[1]);
+    }));
+  }
+
+  function cronNameList(values, names) {
+    return cronJoinAnd(cronRanges(values).map(function (r) {
+      return r.length === 1 ? names[r[0]] : (names[r[0]] + " through " + names[r[1]]);
+    }));
+  }
+
+  function cronStepOf(raw) {
+    var m = /^\*\/(\d+)$/.exec((raw || "").trim());
+    return m ? Number(m[1]) : null;
+  }
+
+  function cronPad2(n) { return (n < 10 ? "0" : "") + n; }
+
+  function cronTimeClause(schedule) {
+    var minVals = schedule.minute, hrVals = schedule.hour;
+    var minEvery = minVals.length === 60, hrEvery = hrVals.length === 24;
+    var minStep = cronStepOf(schedule.raw[0]), hrStep = cronStepOf(schedule.raw[1]);
+
+    if (minEvery && hrEvery) return "every minute";
+    if (minStep && hrEvery) return "every " + minStep + " minutes";
+    if (minEvery && hrStep) return "every minute, every " + hrStep + " hours";
+    if (minEvery && !hrEvery) {
+      return "every minute past " + (hrVals.length === 1 ? "hour " + hrVals[0] : "hours " + cronNumList(hrVals));
+    }
+
+    function minuteWord(v) { return v === 1 ? "1 minute" : v + " minutes"; }
+    function minutePhrase() {
+      if (minStep) return "every " + minStep + " minutes";
+      return minVals.length === 1 ? minuteWord(minVals[0]) : "minutes " + cronNumList(minVals);
+    }
+    function hourPhrase() {
+      if (hrStep) return "every " + hrStep + " hours";
+      return hrVals.length === 1 ? "hour " + hrVals[0] : "hours " + cronNumList(hrVals);
+    }
+
+    if (hrEvery) return "at " + minutePhrase() + " past every hour";
+
+    if (!minStep && !hrStep && minVals.length * hrVals.length <= 12) {
+      var times = [];
+      for (var hi = 0; hi < hrVals.length; hi++) {
+        for (var mi = 0; mi < minVals.length; mi++) times.push(cronPad2(hrVals[hi]) + ":" + cronPad2(minVals[mi]));
+      }
+      return "at " + cronJoinAnd(times);
+    }
+
+    return "at " + minutePhrase() + ", during " + hourPhrase();
+  }
+
+  function cronDayPart(schedule) {
+    var domR = schedule.domRestricted, dowR = schedule.dowRestricted;
+    if (!domR && !dowR) return "every day";
+    var domText = domR ? ((schedule.dom.length === 1 ? "day " : "days ") + cronNumList(schedule.dom) + " of the month") : null;
+    var dowText = dowR ? cronNameList(schedule.dow, DOW_FULL) : null;
+    if (domR && dowR) return "on " + domText + " and on " + dowText;
+    return "on " + (domText || dowText);
+  }
+
+  function cronMonthPart(schedule) {
+    if (schedule.month.length === 12) return null;
+    return "in " + cronNameList(schedule.month, MONTH_FULL);
+  }
+
+  function cronEnglish(schedule) {
+    var parts = [cronTimeClause(schedule), cronDayPart(schedule)];
+    var mp = cronMonthPart(schedule);
+    if (mp) parts.push(mp);
+    var sentence = parts.join(", ");
+    sentence = sentence.charAt(0).toUpperCase() + sentence.slice(1);
+    if (!/[.!?]$/.test(sentence)) sentence += ".";
+    return sentence;
+  }
+
+  /* ==========================================================================
+     Builder — five field groups (every / specific chips / range / step) that
+     write back into the expression, and read back out of it.
+     ========================================================================== */
+
+  var expr = $("#expr"), validation = $("#validation"), sentenceEl = $("#sentence");
+  var builderEl = $("#builder"), runsEl = $("#runs"), presetsEl = $("#presets");
+
+  var builderState = [{ mode: "every" }, { mode: "every" }, { mode: "every" }, { mode: "every" }, { mode: "every" }];
+
+  function cronDecomposeField(rawFieldText, def) {
+    var t = cronExpandNames(rawFieldText.trim(), def);
+    if (t === "*") return { mode: "every" };
+    var m = /^\*\/(\d+)$/.exec(t);
+    if (m) return { mode: "step", n: Number(m[1]) };
+    m = /^(\d+)-(\d+)(?:\/(\d+))?$/.exec(t);
+    if (m) return { mode: "range", from: Number(m[1]), to: Number(m[2]), step: m[3] ? Number(m[3]) : 1 };
+    var parsed = cronParseField(rawFieldText, def);
+    return { mode: "specific", specific: parsed.ok ? parsed.values : [] };
+  }
+
+  function cronComposeField(state, def) {
+    if (!state || state.mode === "every") return "*";
+    if (state.mode === "step") return "*/" + (state.n > 0 ? state.n : 1);
+    if (state.mode === "range") {
+      var from = state.from != null ? state.from : def.min;
+      var to = state.to != null ? state.to : def.max;
+      var s = from + "-" + to;
+      if (state.step && state.step > 1) s += "/" + state.step;
+      return s;
+    }
+    if (state.mode === "specific") {
+      if (!state.specific || !state.specific.length) return "*";
+      return state.specific.slice().sort(function (a, b) { return a - b; }).join(",");
+    }
+    return "*";
+  }
+
+  function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+  function fieldGroupHTML(idx) {
+    var def = CRON_FIELDS[idx];
+    var state = builderState[idx];
+    var maxChip = def.max === 7 ? 6 : def.max;
+    var html = '<div class="cronx-field" data-field-index="' + idx + '">';
+    html += '<div class="cronx-field__head"><span>' + esc(def.label) + '</span><span class="mono cronx-field__val">' + esc(cronComposeField(state, def)) + '</span></div>';
+    html += '<div class="row cronx-modebar">';
+    ["every", "specific", "range", "step"].forEach(function (mo) {
+      html += '<button type="button" class="btn btn--sm' + (state.mode === mo ? ' btn--on' : '') + '" data-mode="' + mo + '">' + capitalize(mo) + '</button>';
+    });
+    html += '</div><div class="cronx-field__body">';
+
+    if (state.mode === "specific") {
+      if (!state.specific || !state.specific.length) {
+        html += '<p class="cronx-hint" style="margin-bottom:8px">Nothing picked yet — this field reads as every value until you choose some.</p>';
+      }
+      html += '<div class="chips cronx-chips">';
+      for (var v = def.min; v <= maxChip; v++) {
+        var label = def.names ? def.names[v - def.min] : String(v);
+        var on = state.specific && state.specific.indexOf(v) !== -1;
+        html += '<button type="button" class="chip' + (on ? ' chip--on' : '') + '" data-chip-value="' + v + '">' + esc(label) + '</button>';
+      }
+      html += '</div>';
+    } else if (state.mode === "range") {
+      var rFrom = state.from != null ? state.from : def.min, rTo = state.to != null ? state.to : def.max, rStep = state.step || 1;
+      html += '<div class="row">'
+        + '<label class="sr-only" for="rf-' + idx + '">From</label><input class="input input--mono cronx-num" id="rf-' + idx + '" type="number" min="' + def.min + '" max="' + def.max + '" data-range="from" value="' + rFrom + '">'
+        + '<span class="mono" style="color:var(--steel);font-size:12px">to</span>'
+        + '<label class="sr-only" for="rt-' + idx + '">To</label><input class="input input--mono cronx-num" id="rt-' + idx + '" type="number" min="' + def.min + '" max="' + def.max + '" data-range="to" value="' + rTo + '">'
+        + '</div><div class="row" style="margin-top:8px">'
+        + '<span class="mono" style="color:var(--steel);font-size:12px">step</span>'
+        + '<label class="sr-only" for="rs-' + idx + '">Step</label><input class="input input--mono cronx-num" id="rs-' + idx + '" type="number" min="1" max="' + def.max + '" data-range="step" value="' + rStep + '">'
+        + '</div>';
+    } else if (state.mode === "step") {
+      var n = state.n > 0 ? state.n : 1;
+      html += '<div class="row"><span class="mono" style="color:var(--steel);font-size:12px">every</span>'
+        + '<label class="sr-only" for="sn-' + idx + '">Interval</label><input class="input input--mono cronx-num" id="sn-' + idx + '" type="number" min="1" max="' + def.max + '" data-step-n value="' + n + '">'
+        + '<span class="mono" style="color:var(--steel);font-size:12px">' + esc(def.label.toLowerCase()) + '(s)</span></div>';
+    } else {
+      html += '<p class="cronx-hint">Fires on every value of this field.</p>';
+    }
+
+    html += '</div></div>';
+    return html;
+  }
+
+  function renderBuilder() {
+    builderEl.innerHTML = builderState.map(function (s, i) { return fieldGroupHTML(i); }).join("");
+  }
+
+  function composeExprFromBuilder() {
+    return builderState.map(function (st, i) { return cronComposeField(st, CRON_FIELDS[i]); }).join(" ");
+  }
+
+  /* --- runs ------------------------------------------------------------- */
+
+  function renderRuns(result) {
+    if (!result.ok) {
+      runsEl.innerHTML = '<span class="empty">Fix the expression above to see upcoming runs.</span>';
+      return;
+    }
+    var now = new Date();
+    var runs = cronNextRuns(result, now, 10);
+    if (!runs.length) {
+      runsEl.innerHTML = '<div class="note note--warn"><span class="note__mark">!</span><span>'
+        + 'This expression never fires — the date it describes doesn’t exist within a searchable window (for example, day 30 of February, or a day-of-month/day-of-week combination that never lands together).</span></div>';
+      return;
+    }
+    var rows = runs.map(function (d, i) {
+      var when = d.toLocaleString(undefined, { weekday: "short", year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+      return "<tr><td class='num'>" + (i + 1) + "</td><td>" + esc(when) + "</td><td class='cronx-runs__rel'>" + esc(relativeTime(now, d)) + "</td></tr>";
+    }).join("");
+    var note = runs.length < 10
+      ? '<p class="cronx-hint" style="margin-top:10px">Only ' + runs.length + ' upcoming ' + (runs.length === 1 ? "run was" : "runs were") + ' found within the next 8 years.</p>'
+      : "";
+    runsEl.innerHTML = '<div class="tablewrap"><table class="table"><thead><tr><th>#</th><th>Local date &amp; time</th><th>From now</th></tr></thead><tbody>'
+      + rows + "</tbody></table></div>" + note;
+  }
+
+  function relativeTime(from, to) {
+    var mins = Math.round((to - from) / 60000);
+    if (mins < 1) return "under a minute";
+    if (mins < 60) return "in " + mins + " " + Bench.plural(mins, "minute").split(" ").slice(1).join(" ") === "" ? "" : "in " + Bench.plural(mins, "minute");
+    var hours = Math.round(mins / 60);
+    if (hours < 48) return "in " + Bench.plural(hours, "hour");
+    var days = Math.round(hours / 24);
+    return "in " + Bench.plural(days, "day");
+  }
+
+  /* --- presets ------------------------------------------------------------ */
+
+  var PRESETS = [
+    { expr: "* * * * *", label: "Every minute" },
+    { expr: "*/5 * * * *", label: "Every 5 minutes" },
+    { expr: "*/15 * * * *", label: "Every 15 minutes" },
+    { expr: "0 * * * *", label: "Every hour" },
+    { expr: "0 */2 * * *", label: "Every 2 hours" },
+    { expr: "0 9 * * *", label: "Daily at 9am" },
+    { expr: "0 9 * * 1-5", label: "Weekdays at 9am" },
+    { expr: "0 22 * * 1-5", label: "Weeknights at 10pm" },
+    { expr: "0 0 * * 0", label: "Sundays at midnight" },
+    { expr: "0 0 1 * *", label: "First of the month" },
+    { expr: "0 0 1 1 *", label: "Every January 1st" },
+    { expr: "*/30 9-17 * * 1-5", label: "Every 30 min, business hours" }
+  ];
+
+  function renderPresets() {
+    presetsEl.innerHTML = PRESETS.map(function (p) {
+      var on = expr.value.trim() === p.expr;
+      return '<button type="button" class="chip' + (on ? ' chip--on' : '') + '" data-preset="' + esc(p.expr) + '" title="' + esc(p.expr) + '">' + esc(p.label) + '</button>';
+    }).join("");
+  }
+
+  /* --- master render -------------------------------------------------------- */
+
+  function renderAll() {
+    var result = cronParse(expr.value);
+
+    if (!result.ok) {
+      validation.innerHTML = '<div class="note note--bad"><span class="note__mark">✕</span><span>' + esc(result.error) + '</span></div>';
+      sentenceEl.className = "cronx-sentence cronx-sentence--empty";
+      sentenceEl.textContent = "Fix the expression above to see its plain-English meaning.";
+    } else {
+      validation.innerHTML = '<div class="note note--ok"><span class="note__mark">✓</span><span>Valid — all 5 fields parsed.</span></div>';
+      sentenceEl.className = "cronx-sentence";
+      sentenceEl.textContent = cronEnglish(result);
+      builderState = CRON_FIELDS.map(function (def, i) { return cronDecomposeField(result.raw[i], def); });
+    }
+
+    renderBuilder();
+    renderPresets();
+    renderRuns(result);
+  }
+
+  function refreshFromBuilderNumber(fieldIndex) {
+    expr.value = composeExprFromBuilder();
+    var result = cronParse(expr.value);
+    if (result.ok) {
+      sentenceEl.className = "cronx-sentence";
+      sentenceEl.textContent = cronEnglish(result);
+      validation.innerHTML = '<div class="note note--ok"><span class="note__mark">✓</span><span>Valid — all 5 fields parsed.</span></div>';
+    }
+    renderPresets();
+    renderRuns(result);
+    var head = builderEl.querySelector('[data-field-index="' + fieldIndex + '"] .cronx-field__val');
+    if (head) head.textContent = cronComposeField(builderState[fieldIndex], CRON_FIELDS[fieldIndex]);
+  }
+
+  /* --- wiring -------------------------------------------------------------- */
+
+  Bench.live(expr, Bench.debounce(renderAll, 150));
+
+  presetsEl.addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-preset]");
+    if (!btn) return;
+    expr.value = btn.dataset.preset;
+    renderAll();
+  });
+
+  builderEl.addEventListener("click", function (e) {
+    var modeBtn = e.target.closest("[data-mode]");
+    if (modeBtn) {
+      var fi = Number(modeBtn.closest("[data-field-index]").dataset.fieldIndex);
+      var def = CRON_FIELDS[fi];
+      var mode = modeBtn.dataset.mode;
+      var st = { mode: mode };
+      if (mode === "specific") st.specific = builderState[fi].specific || [];
+      if (mode === "range") { st.from = def.min; st.to = def.max; st.step = 1; }
+      if (mode === "step") st.n = builderState[fi].n || 1;
+      builderState[fi] = st;
+      expr.value = composeExprFromBuilder();
+      renderAll();
+      return;
+    }
+    var chip = e.target.closest("[data-chip-value]");
+    if (chip) {
+      var fi2 = Number(chip.closest("[data-field-index]").dataset.fieldIndex);
+      var v = Number(chip.dataset.chipValue);
+      var s2 = builderState[fi2];
+      s2.specific = s2.specific || [];
+      var pos = s2.specific.indexOf(v);
+      if (pos === -1) s2.specific.push(v); else s2.specific.splice(pos, 1);
+      expr.value = composeExprFromBuilder();
+      renderAll();
+    }
+  });
+
+  // Number inputs (range from/to/step, step interval) update in place so
+  // typing doesn't lose focus to a full builder rebuild.
+  builderEl.addEventListener("input", Bench.debounce(function (e) {
+    var rangeInput = e.target.closest("[data-range]");
+    if (rangeInput) {
+      var fi = Number(rangeInput.closest("[data-field-index]").dataset.fieldIndex);
+      var val = Number(rangeInput.value);
+      if (!isFinite(val)) return;
+      builderState[fi][rangeInput.dataset.range] = val;
+      refreshFromBuilderNumber(fi);
+      return;
+    }
+    var stepInput = e.target.closest("[data-step-n]");
+    if (stepInput) {
+      var fi2 = Number(stepInput.closest("[data-field-index]").dataset.fieldIndex);
+      var val2 = Number(stepInput.value);
+      if (!isFinite(val2) || val2 < 1) return;
+      builderState[fi2].n = val2;
+      refreshFromBuilderNumber(fi2);
+    }
+  }, 180));
+
+  renderAll();
+});
+</script>
+
+</body>
+</html>

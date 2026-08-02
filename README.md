@@ -1,12 +1,18 @@
 # Bench
 
-**59 small tools that run entirely in your browser.** No accounts, no uploads, no build step.
+**Small tools that run entirely in your browser.** No accounts, no uploads, no build step.
 
 → **[mrhakan.github.io/tools](https://mrhakan.github.io/tools/)**
 
 Each tool does one thing. Open the page, paste something in, get something out. Nothing you type or open ever leaves the tab — there is no server to send it to. Once the page has loaded it keeps working offline.
 
-## What's in it
+## Status
+
+**19 of a planned 59 tools are built and working.** The hub shows the full set: finished tools are live links, the rest render as dashed "building" cards so the shape of the collection stays legible. Nothing links to a page that doesn't exist.
+
+Built so far: Kanban board · diff checker · JSON formatter · regex tester · encoder & hasher · JWT decoder · ID generator · text case converter · HTML entity converter · cron explainer · CSS generator · palette extractor · favicon generator · Markdown editor · text analyser · word counter · QR code studio · HTTP status codes · whiteboard
+
+## The full plan
 
 | Group | Tools |
 | --- | --- |

@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Word Counter — Bench</title>
+<meta name="description" content="Counts, reading time and sentence length, updating as you type.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/css/bench.css">
+<style>
+  /* Page-specific CSS only, prefixed .wc */
+
+  .wc-big {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 1px;
+    background: var(--edge);
+    border: 1px solid var(--edge);
+    border-radius: var(--r);
+    overflow: hidden;
+    margin-bottom: var(--gap);
+  }
+  @media (max-width: 760px) { .wc-big { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 420px) { .wc-big { grid-template-columns: repeat(2, 1fr); } }
+
+  .wc-big__cell { background: var(--card); padding: 16px 16px 14px; }
+  .wc-big__n { font-family: var(--mono); font-size: 2rem; font-weight: 500; letter-spacing: -0.02em; line-height: 1; }
+  .wc-big__k { font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--steel); margin-top: 7px; display: block; }
+
+  .wc-time {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--gap);
+  }
+  @media (max-width: 600px) { .wc-time { grid-template-columns: 1fr; } }
+
+  .wc-time__card { background: var(--card); border: 1px solid var(--edge); border-radius: var(--r); padding: 16px; }
+  .wc-time__n { font-family: var(--mono); font-size: 1.8rem; font-weight: 500; }
+  .wc-time__k { font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--steel); margin-top: 2px; }
+  .wc-presets { display: flex; gap: 6px; margin-top: 10px; }
+
+  .wc-progress { height: 10px; border-radius: 5px; background: var(--sunk); overflow: hidden; border: 1px solid var(--edge); }
+  .wc-progress > i { display: block; height: 100%; background: var(--signal); transition: width .12s ease; }
+  .wc-progress.is-over > i { background: var(--fault); }
+
+  .wc-target-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__home" href="../../index.html"><span class="topbar__mark">▚</span> bench</a>
+  <span class="topbar__sep">/</span>
+  <span class="topbar__here">Word Counter</span>
+  <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
+</header>
+
+<main class="wrap">
+
+  <div class="toolhead">
+    <p class="toolhead__spec mono">1,240 words · 5 min</p>
+    <h1 class="toolhead__title">Word Counter</h1>
+    <p class="toolhead__desc">Counts, reading time and sentence length, updating as you type. Your draft autosaves in this browser only.</p>
+  </div>
+
+  <div class="split split--wide">
+
+    <section class="panel">
+      <h2 class="panel__title">Text</h2>
+      <div class="row" style="margin-bottom:12px">
+        <button class="btn btn--sm" id="sample">Load sample</button>
+        <button class="btn btn--sm btn--danger" id="clear">Clear</button>
+        <span class="note note--info" style="border:0;padding:0;background:none" id="saved-note"></span>
+      </div>
+      <label class="sr-only" for="src">Text to count</label>
+      <textarea class="textarea textarea--prose" id="src" spellcheck="true" placeholder="Start writing or paste a draft — counts update as you go…" style="min-height:360px"></textarea>
+    </section>
+
+    <div class="stack">
+
+      <section class="panel">
+        <h2 class="panel__title">Counts</h2>
+        <div class="wc-big">
+          <div class="wc-big__cell"><span class="wc-big__n" id="n-words">0</span><span class="wc-big__k">Words</span></div>
+          <div class="wc-big__cell"><span class="wc-big__n" id="n-chars">0</span><span class="wc-big__k">Characters</span></div>
+          <div class="wc-big__cell"><span class="wc-big__n" id="n-chars-ns">0</span><span class="wc-big__k">Chars, no spaces</span></div>
+          <div class="wc-big__cell"><span class="wc-big__n" id="n-sentences">0</span><span class="wc-big__k">Sentences</span></div>
+          <div class="wc-big__cell"><span class="wc-big__n" id="n-paragraphs">0</span><span class="wc-big__k">Paragraphs</span></div>
+        </div>
+        <div class="stats">
+          <div class="stat"><span class="stat__n" id="n-lines">0</span><span class="stat__k">Lines</span></div>
+          <div class="stat"><span class="stat__n" id="n-avgword">0</span><span class="stat__k">Avg word length</span></div>
+          <div class="stat"><span class="stat__n" id="n-avgsent">0</span><span class="stat__k">Avg sentence length</span></div>
+          <div class="stat"><span class="stat__n" id="n-longest">—</span><span class="stat__k">Longest word</span></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2 class="panel__title">Reading &amp; speaking time</h2>
+        <div class="wc-time">
+          <div class="wc-time__card">
+            <div class="wc-time__n" id="t-read">0:00</div>
+            <div class="wc-time__k">Reading time</div>
+          </div>
+          <div class="wc-time__card">
+            <div class="wc-time__n" id="t-speak">0:00</div>
+            <div class="wc-time__k">Speaking time</div>
+          </div>
+        </div>
+        <div class="row" style="margin-top:16px; align-items:flex-end">
+          <div class="field grow" style="margin-bottom:0">
+            <label class="label" for="wpm-read">Reading speed (words / min)</label>
+            <input class="input input--mono" id="wpm-read" type="number" min="50" max="1000" value="238">
+          </div>
+          <div class="field grow" style="margin-bottom:0">
+            <label class="label" for="wpm-speak">Speaking speed (words / min)</label>
+            <input class="input input--mono" id="wpm-speak" type="number" min="50" max="1000" value="150">
+          </div>
+        </div>
+        <div class="wc-presets">
+          <button class="btn btn--sm" data-preset="slow">Slow reader</button>
+          <button class="btn btn--sm" data-preset="average">Average</button>
+          <button class="btn btn--sm" data-preset="fast">Fast reader</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2 class="panel__title">Target</h2>
+        <div class="wc-target-row" style="margin-bottom:14px">
+          <div class="field" style="margin-bottom:0">
+            <label class="label" for="target-unit">Count</label>
+            <select class="select" id="target-unit" style="width:auto">
+              <option value="words">Words</option>
+              <option value="chars">Characters</option>
+            </select>
+          </div>
+          <div class="field grow" style="margin-bottom:0">
+            <label class="label" for="target-n">Goal</label>
+            <input class="input input--mono" id="target-n" type="number" min="1" value="280">
+          </div>
+          <div class="field" style="margin-bottom:0">
+            <label class="label">Presets</label>
+            <div class="row" style="gap:6px">
+              <button class="btn btn--sm" data-target="280,words">Tweet 280</button>
+              <button class="btn btn--sm" data-target="155,chars">Meta 155</button>
+              <button class="btn btn--sm" data-target="1500,words">Essay 1500</button>
+            </div>
+          </div>
+        </div>
+        <div class="wc-progress" id="target-bar"><i style="width:0%"></i></div>
+        <div class="note note--info" id="target-note" style="margin-top:12px"></div>
+      </section>
+
+    </div>
+
+  </div>
+
+  <footer class="foot">
+    <a href="../../index.html">← All tools</a>
+    <span>·</span>
+    <span>Runs entirely in your browser</span>
+  </footer>
+
+</main>
+
+<script src="../../assets/js/bench.js" defer></script>
+<script defer>
+document.addEventListener("DOMContentLoaded", function () {
+  "use strict";
+  var $ = Bench.$, $$ = Bench.$$;
+
+  var store = Bench.store("reading-time");
+  var src = $("#src");
+  var wpmRead = $("#wpm-read"), wpmSpeak = $("#wpm-speak");
+  var targetUnit = $("#target-unit"), targetN = $("#target-n");
+
+  var SAMPLE = "Write, then walk away, then come back. The first draft only has to exist — it does not have to be good. "
+    + "That is the whole trick: separate making the thing from judging the thing, because doing both at once is how "
+    + "good ideas die in the first paragraph. Draft fast, edit slow, and let this counter tell you when you have "
+    + "written enough to stop pretending you are still thinking and start admitting you are stalling.";
+
+  /* --- counting, kept to a single pass over the text -----------------------
+     Everything below runs in O(n) per keystroke: one match for words, one
+     scan for sentence terminators and one scan for characters. On a very
+     long document this stays cheap; the debounce below keeps it off the
+     hot path of every single keystroke. */
+
+  function count(text) {
+    var chars = text.length;
+    var charsNoSpaces = text.replace(/\s/g, "").length;
+    var lines = text === "" ? 0 : text.split("\n").length;
+
+    var wordList = text.match(/[^\s]+/g) || [];
+    var nWords = wordList.length;
+
+    var letterLen = 0, longest = "";
+    for (var i = 0; i < wordList.length; i++) {
+      var w = wordList[i].replace(/[^A-Za-z0-9']/g, "");
+      letterLen += w.length;
+      if (w.length > longest.length) longest = w;
+    }
+    var avgWordLen = nWords ? letterLen / nWords : 0;
+
+    var sentenceMatches = text.match(/[^.!?]+[.!?]+/g);
+    var nSentences = sentenceMatches ? sentenceMatches.length : (text.trim() ? 1 : 0);
+    var avgSentLen = nSentences ? nWords / nSentences : 0;
+
+    var paraMatches = text.split(/\n\s*\n+/).map(function (p) { return p.trim(); }).filter(Boolean);
+    var nParagraphs = paraMatches.length ? paraMatches.length : (text.trim() ? 1 : 0);
+
+    return {
+      words: nWords, chars: chars, charsNoSpaces: charsNoSpaces,
+      sentences: nSentences, paragraphs: nParagraphs, lines: lines,
+      avgWordLen: avgWordLen, avgSentLen: avgSentLen, longest: longest
+    };
+  }
+
+  function fmtTime(minutesFloat) {
+    var totalSeconds = Math.max(0, Math.round(minutesFloat * 60));
+    var m = Math.floor(totalSeconds / 60), s = totalSeconds % 60;
+    return m + ":" + (s < 10 ? "0" : "") + s;
+  }
+
+  function clampWpm(v) {
+    var n = Number(v);
+    if (!isFinite(n) || n <= 0) return 200;
+    return Math.min(1000, Math.max(20, n));
+  }
+
+  function render() {
+    var text = src.value;
+    var c = count(text);
+
+    $("#n-words").textContent = Bench.num(c.words);
+    $("#n-chars").textContent = Bench.num(c.chars);
+    $("#n-chars-ns").textContent = Bench.num(c.charsNoSpaces);
+    $("#n-sentences").textContent = Bench.num(c.sentences);
+    $("#n-paragraphs").textContent = Bench.num(c.paragraphs);
+    $("#n-lines").textContent = Bench.num(c.lines);
+    $("#n-avgword").textContent = c.avgWordLen ? c.avgWordLen.toFixed(1) : "0";
+    $("#n-avgsent").textContent = c.avgSentLen ? c.avgSentLen.toFixed(1) : "0";
+    $("#n-longest").textContent = c.longest || "—";
+
+    var rWpm = clampWpm(wpmRead.value), sWpm = clampWpm(wpmSpeak.value);
+    $("#t-read").textContent = fmtTime(c.words / rWpm);
+    $("#t-speak").textContent = fmtTime(c.words / sWpm);
+
+    // target progress
+    var unit = targetUnit.value;
+    var have = unit === "words" ? c.words : c.chars;
+    var goal = Math.max(1, Number(targetN.value) || 1);
+    var pct = Math.min(100, (have / goal) * 100);
+    var bar = $("#target-bar");
+    bar.querySelector("i").style.width = pct + "%";
+    bar.classList.toggle("is-over", have > goal);
+
+    var noun = unit === "words" ? "word" : "character";
+    var note;
+    if (have >= goal) {
+      var over = have - goal;
+      note = over
+        ? "Over the goal by " + Bench.num(over) + " " + Bench.plural(over, noun).split(" ")[1] + "."
+        : "Exactly on target.";
+    } else {
+      var remaining = goal - have;
+      note = Bench.num(remaining) + " " + Bench.plural(remaining, noun).split(" ")[1] + " to go — " + Bench.num(have) + " of " + Bench.num(goal) + "."
+    }
+    $("#target-note").textContent = note;
+
+    store.set("draft", text);
+  }
+
+  var debouncedRender = Bench.debounce(render, 120);
+
+  /* --- wiring --------------------------------------------------------------- */
+
+  src.addEventListener("input", debouncedRender);
+  [wpmRead, wpmSpeak, targetUnit, targetN].forEach(function (node) {
+    node.addEventListener("input", render);
+    node.addEventListener("change", render);
+  });
+
+  $$("[data-preset]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var p = btn.dataset.preset;
+      if (p === "slow") { wpmRead.value = 150; wpmSpeak.value = 110; }
+      else if (p === "average") { wpmRead.value = 238; wpmSpeak.value = 150; }
+      else if (p === "fast") { wpmRead.value = 350; wpmSpeak.value = 190; }
+      render();
+    });
+  });
+
+  $$("[data-target]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var parts = btn.dataset.target.split(",");
+      targetN.value = parts[0];
+      targetUnit.value = parts[1];
+      render();
+    });
+  });
+
+  $("#sample").addEventListener("click", function () { src.value = SAMPLE; render(); });
+  $("#clear").addEventListener("click", function () { src.value = ""; render(); src.focus(); });
+
+  // restore an autosaved draft, if any
+  var saved = store.get("draft", "");
+  if (saved) {
+    src.value = saved;
+    $("#saved-note").textContent = "Restored your last draft.";
+  } else {
+    $("#saved-note").textContent = "";
+  }
+
+  render();
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Diff Checker — Bench</title>
+<meta name="description" content="Compare two blocks of text line by line and see exactly what changed. Runs entirely in your browser.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/css/bench.css">
+<style>
+  /* Page-specific CSS, prefixed dc- (diff-checker). */
+
+  .dc-toolbar { margin-bottom: 14px; }
+  .dc-opts { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--edge); }
+  .dc-ctx { width: auto; min-width: 168px; }
+
+  /* --- the diff table: shared shell for both side-by-side and unified --- */
+
+  .dc-wrap { overflow-x: auto; border: 1px solid var(--edge); border-radius: var(--r); background: var(--sunk); }
+  .dc-table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 12.5px; line-height: 1.7; }
+  .dc-table td { padding: 0 10px; white-space: pre; vertical-align: top; }
+
+  .dc-num {
+    width: 1%; min-width: 42px; text-align: right;
+    color: var(--steel); user-select: none; font-variant-numeric: tabular-nums;
+  }
+  .dc-num--b { border-left: 1px solid var(--edge); }
+  .dc-marker { width: 1%; min-width: 20px; text-align: center; color: var(--steel); user-select: none; }
+  .dc-marker--del { color: var(--fault); }
+  .dc-marker--add { color: var(--verify); }
+  .dc-code { min-width: 260px; }
+  .dc-code--empty { min-width: 0; }
+
+  .dc-row--del .dc-code, .dc-row--del .dc-marker { background: var(--fault-soft); }
+  .dc-row--add .dc-code, .dc-row--add .dc-marker { background: var(--verify-soft); }
+  .dc-row--chg .dc-code--old { background: var(--fault-soft); }
+  .dc-row--chg .dc-code--new { background: var(--verify-soft); }
+
+  .dc-row--gap td {
+    text-align: center; color: var(--steel); font-style: italic;
+    padding: 7px 10px; background: var(--card);
+    border-top: 1px solid var(--edge); border-bottom: 1px solid var(--edge);
+  }
+
+  @media (max-width: 600px) {
+    .dc-table { font-size: 11.5px; }
+    .dc-code { min-width: 180px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__home" href="../../index.html"><span class="topbar__mark">▚</span> bench</a>
+  <span class="topbar__sep">/</span>
+  <span class="topbar__here">Diff Checker</span>
+  <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
+</header>
+
+<main class="wrap">
+
+  <div class="toolhead">
+    <p class="toolhead__spec mono">−old   +new</p>
+    <h1 class="toolhead__title">Diff Checker</h1>
+    <p class="toolhead__desc">Compare two blocks of text line by line and see exactly what changed. Nothing you paste here leaves the tab.</p>
+  </div>
+
+  <section class="panel">
+    <h2 class="panel__title">Input</h2>
+    <div class="row dc-toolbar">
+      <button class="btn btn--sm" id="sample">Load sample</button>
+      <button class="btn btn--sm" id="swap">Swap sides</button>
+      <button class="btn btn--sm btn--danger" id="clear">Clear</button>
+    </div>
+
+    <div class="split">
+      <div class="field">
+        <label class="label" for="old">Old text</label>
+        <textarea class="textarea" id="old" spellcheck="false" placeholder="Paste the original version"></textarea>
+      </div>
+      <div class="field">
+        <label class="label" for="new">New text</label>
+        <textarea class="textarea" id="new" spellcheck="false" placeholder="Paste the changed version"></textarea>
+      </div>
+    </div>
+
+    <div class="row dc-opts">
+      <label class="check"><input type="checkbox" id="opt-trim"> Ignore leading/trailing whitespace</label>
+      <label class="check"><input type="checkbox" id="opt-ws"> Ignore all whitespace</label>
+      <label class="check"><input type="checkbox" id="opt-case"> Ignore case</label>
+      <label class="sr-only" for="ctx">Context lines</label>
+      <select class="select dc-ctx" id="ctx">
+        <option value="3" selected>3 lines of context</option>
+        <option value="1">1 line of context</option>
+        <option value="0">0 lines of context</option>
+        <option value="all">Show everything</option>
+      </select>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2 class="panel__title">Comparison</h2>
+    <div class="row row--between" style="margin-bottom:12px">
+      <div class="tabs row">
+        <button class="btn btn--sm btn--on" data-view="side">Side by side</button>
+        <button class="btn btn--sm" data-view="unified">Unified</button>
+      </div>
+    </div>
+
+    <div id="warn"></div>
+    <div id="out"><p class="empty">Paste two versions of a text above to see what changed.</p></div>
+
+    <div class="stats" id="stats" style="margin-top:12px" hidden>
+      <div class="stat"><span class="stat__n" id="s-add">0</span><span class="stat__k">Added</span></div>
+      <div class="stat"><span class="stat__n" id="s-del">0</span><span class="stat__k">Removed</span></div>
+      <div class="stat"><span class="stat__n" id="s-chg">0</span><span class="stat__k">Changed</span></div>
+      <div class="stat"><span class="stat__n" id="s-eq">0</span><span class="stat__k">Unchanged</span></div>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <a href="../../index.html">← All tools</a>
+    <span>·</span>
+    <span>Runs entirely in your browser</span>
+  </footer>
+
+</main>
+
+<script src="../../assets/js/bench.js" defer></script>
+<script defer>
+document.addEventListener("DOMContentLoaded", function () {
+  "use strict";
+  var $ = Bench.$, $$ = Bench.$$, esc = Bench.esc;
+
+  /* ==========================================================================
+     Diff engine — Myers O(ND) over token arrays, plus a prefix/suffix trim
+     wrapper that makes the common case (mostly-identical text) fast. This
+     shape is duplicated in word-diff and patch-generator.
+     ========================================================================== */
+
+  var MAX_UNITS = 4000; // guard against pathological input; see render()
+
+  function myers(a, b) {
+    var n = a.length, m = b.length;
+    var max = n + m;
+    if (max === 0) return [];
+
+    var offset = max;
+    var v = new Int32Array(2 * max + 1);
+    v[offset + 1] = 0;
+    var trace = [];
+
+    for (var d = 0; d <= max; d++) {
+      for (var k = -d; k <= d; k += 2) {
+        var x, y;
+        if (k === -d || (k !== d && v[offset + k - 1] < v[offset + k + 1])) {
+          x = v[offset + k + 1];
+        } else {
+          x = v[offset + k - 1] + 1;
+        }
+        y = x - k;
+        while (x < n && y < m && a[x] === b[y]) { x++; y++; }
+        v[offset + k] = x;
+        if (x >= n && y >= m) {
+          trace.push(v.slice());
+          return backtrack(trace, a, b, offset);
+        }
+      }
+      trace.push(v.slice());
+    }
+    return backtrack(trace, a, b, offset); // unreachable: Myers always finds d <= max
+  }
+
+  function backtrack(trace, a, b, offset) {
+    var x = a.length, y = b.length;
+    var ops = [];
+    for (var d = trace.length - 1; d >= 0; d--) {
+      var v = trace[d];
+      var k = x - y;
+      var prevK;
+      if (k === -d || (k !== d && v[offset + k - 1] < v[offset + k + 1])) prevK = k + 1;
+      else prevK = k - 1;
+      var prevX = d === 0 ? 0 : v[offset + prevK];
+      var prevY = prevX - prevK;
+      while (x > prevX && y > prevY) { ops.push({ type: "eq", a: x - 1, b: y - 1 }); x--; y--; }
+      if (d > 0) {
+        if (x === prevX) ops.push({ type: "add", a: null, b: y - 1 });
+        else ops.push({ type: "del", a: x - 1, b: null });
+      }
+      x = prevX; y = prevY;
+    }
+    ops.reverse();
+    return ops;
+  }
+
+  /** Trim common prefix/suffix, then run Myers on the shrunken middle. */
+  function diffArrays(a, b) {
+    var prefix = 0, minLen = Math.min(a.length, b.length);
+    while (prefix < minLen && a[prefix] === b[prefix]) prefix++;
+    var suffix = 0, maxSuffix = minLen - prefix;
+    while (suffix < maxSuffix && a[a.length - 1 - suffix] === b[b.length - 1 - suffix]) suffix++;
+
+    var midOps = myers(a.slice(prefix, a.length - suffix), b.slice(prefix, b.length - suffix));
+    var ops = [];
+    var i, j;
+    for (i = 0; i < prefix; i++) ops.push({ type: "eq", a: i, b: i });
+    midOps.forEach(function (op) {
+      ops.push({ type: op.type, a: op.a == null ? null : op.a + prefix, b: op.b == null ? null : op.b + prefix });
+    });
+    var aBase = a.length - suffix, bBase = b.length - suffix;
+    for (j = 0; j < suffix; j++) ops.push({ type: "eq", a: aBase + j, b: bBase + j });
+    return ops;
+  }
+
+  /* Pair up consecutive del/add runs into "changed" rows so a modified line
+     renders as one aligned row instead of a separate delete + insert. */
+  function groupRows(ops) {
+    var rows = [];
+    var i = 0;
+    while (i < ops.length) {
+      var op = ops[i];
+      if (op.type === "eq") { rows.push({ type: "eq", a: op.a, b: op.b }); i++; continue; }
+      var dels = [], adds = [];
+      while (i < ops.length && ops[i].type !== "eq") {
+        if (ops[i].type === "del") dels.push(ops[i].a); else adds.push(ops[i].b);
+        i++;
+      }
+      var pc = Math.min(dels.length, adds.length);
+      for (var p = 0; p < pc; p++) rows.push({ type: "chg", a: dels[p], b: adds[p] });
+      for (var d = pc; d < dels.length; d++) rows.push({ type: "del", a: dels[d], b: null });
+      for (var ad = pc; ad < adds.length; ad++) rows.push({ type: "add", a: null, b: adds[ad] });
+    }
+    return rows;
+  }
+
+  /* Cluster the changed rows into windows, expanding each by `context` rows
+     of surrounding unchanged text, merging windows whose context would
+     otherwise overlap. context === Infinity means "show everything". */
+  function buildWindows(rows, context) {
+    if (context === Infinity) return rows.length ? [{ start: 0, end: rows.length - 1 }] : [];
+    var n = rows.length;
+    var changeIdxs = [];
+    for (var i = 0; i < n; i++) if (rows[i].type !== "eq") changeIdxs.push(i);
+    if (!changeIdxs.length) return [];
+    var clusters = [];
+    var s = changeIdxs[0], e = changeIdxs[0];
+    for (var c = 1; c < changeIdxs.length; c++) {
+      var idx = changeIdxs[c];
+      if (idx - e - 1 <= 2 * context) e = idx;
+      else { clusters.push([s, e]); s = idx; e = idx; }
+    }
+    clusters.push([s, e]);
+    return clusters.map(function (cl) {
+      return { start: Math.max(0, cl[0] - context), end: Math.min(n - 1, cl[1] + context) };
+    });
+  }
+
+  /* Character-level diff of one changed line pair, for inline highlighting.
+     Guarded: very long lines fall back to marking the whole line changed
+     rather than running an O(len^2)-ish comparison on them. */
+  function inlineDiff(oldStr, newStr) {
+    if (oldStr.length > 600 || newStr.length > 600 || oldStr === newStr) {
+      return {
+        oldHtml: '<span class="hl-del">' + (esc(oldStr) || "&nbsp;") + "</span>",
+        newHtml: '<span class="hl-add">' + (esc(newStr) || "&nbsp;") + "</span>"
+      };
+    }
+    var a = Array.from(oldStr), b = Array.from(newStr);
+    var ops = diffArrays(a, b);
+    var oldHtml = "", newHtml = "";
+    var i = 0;
+    while (i < ops.length) {
+      var t = ops[i].type, buf = "";
+      while (i < ops.length && ops[i].type === t) {
+        buf += t === "add" ? b[ops[i].b] : a[ops[i].a];
+        i++;
+      }
+      if (t === "eq") { oldHtml += esc(buf); newHtml += esc(buf); }
+      else if (t === "del") oldHtml += '<span class="hl-del">' + esc(buf) + "</span>";
+      else newHtml += '<span class="hl-add">' + esc(buf) + "</span>";
+    }
+    return { oldHtml: oldHtml, newHtml: newHtml };
+  }
+
+  /* ==========================================================================
+     Tool wiring
+     ========================================================================== */
+
+  var oldTa = $("#old"), newTa = $("#new");
+  var optTrim = $("#opt-trim"), optWs = $("#opt-ws"), optCase = $("#opt-case"), ctxSel = $("#ctx");
+  var out = $("#out"), warnBox = $("#warn"), stats = $("#stats");
+  var view = "side";
+
+  var SAMPLE_OLD = [
+    "# app.conf", 'name = "bench-api"', 'env = "staging"', "port = 8080",
+    "workers = 2", "timeout = 30", 'log_level = "info"', "retries = 3", "cache = false"
+  ].join("\n");
+
+  var SAMPLE_NEW = [
+    "# app.conf", 'name = "bench-api"', 'env = "production"', "port = 8443",
+    "workers = 4", "timeout = 30", 'log_level = "warn"', "cache = true", "tls = true"
+  ].join("\n");
+
+  function normaliseLine(line) {
+    var s = line;
+    if (optWs.checked) s = s.replace(/\s+/g, "");
+    else if (optTrim.checked) s = s.trim();
+    if (optCase.checked) s = s.toLowerCase();
+    return s;
+  }
+
+  function codeCell(s) { return esc(s) || "&nbsp;"; }
+
+  function gapRow(colspan, n) {
+    return '<tr class="dc-row--gap"><td colspan="' + colspan + '">⋯ ' + Bench.plural(n, "unchanged line") + " ⋯</td></tr>";
+  }
+
+  function renderSide(rows, windows, oldLines, newLines) {
+    var html = "";
+    var prevEnd = -1;
+    windows.forEach(function (w) {
+      if (w.start > prevEnd + 1) html += gapRow(4, w.start - prevEnd - 1);
+      for (var i = w.start; i <= w.end; i++) html += sideRow(rows[i], oldLines, newLines);
+      prevEnd = w.end;
+    });
+    if (rows.length && prevEnd < rows.length - 1) html += gapRow(4, rows.length - 1 - prevEnd);
+    return '<div class="dc-wrap"><table class="dc-table"><tbody>' + html + "</tbody></table></div>";
+  }
+
+  function sideRow(r, oldLines, newLines) {
+    if (r.type === "eq") {
+      var t = codeCell(oldLines[r.a]);
+      return '<tr class="dc-row dc-row--eq"><td class="dc-num">' + (r.a + 1) + '</td><td class="dc-code">' + t
+        + '</td><td class="dc-num dc-num--b">' + (r.b + 1) + '</td><td class="dc-code">' + t + "</td></tr>";
+    }
+    if (r.type === "chg") {
+      var inline = inlineDiff(oldLines[r.a], newLines[r.b]);
+      return '<tr class="dc-row dc-row--chg"><td class="dc-num">' + (r.a + 1) + '</td><td class="dc-code dc-code--old">'
+        + (inline.oldHtml || "&nbsp;") + '</td><td class="dc-num dc-num--b">' + (r.b + 1)
+        + '</td><td class="dc-code dc-code--new">' + (inline.newHtml || "&nbsp;") + "</td></tr>";
+    }
+    if (r.type === "del") {
+      return '<tr class="dc-row dc-row--del"><td class="dc-num">' + (r.a + 1) + '</td><td class="dc-code">'
+        + codeCell(oldLines[r.a]) + '</td><td class="dc-num dc-num--b"></td><td class="dc-code dc-code--empty"></td></tr>';
+    }
+    return '<tr class="dc-row dc-row--add"><td class="dc-num"></td><td class="dc-code dc-code--empty"></td>'
+      + '<td class="dc-num dc-num--b">' + (r.b + 1) + '</td><td class="dc-code">' + codeCell(newLines[r.b]) + "</td></tr>";
+  }
+
+  function renderUnified(rows, windows, oldLines, newLines) {
+    var html = "";
+    var prevEnd = -1;
+    windows.forEach(function (w) {
+      if (w.start > prevEnd + 1) html += gapRow(3, w.start - prevEnd - 1);
+      for (var i = w.start; i <= w.end; i++) html += unifiedRow(rows[i], oldLines, newLines);
+      prevEnd = w.end;
+    });
+    if (rows.length && prevEnd < rows.length - 1) html += gapRow(3, rows.length - 1 - prevEnd);
+    return '<div class="dc-wrap"><table class="dc-table"><tbody>' + html + "</tbody></table></div>";
+  }
+
+  function unifiedRow(r, oldLines, newLines) {
+    if (r.type === "eq") {
+      return '<tr class="dc-row dc-row--eq"><td class="dc-num">' + (r.a + 1) + '</td><td class="dc-num dc-num--b">'
+        + (r.b + 1) + '</td><td class="dc-marker"> </td><td class="dc-code">' + codeCell(oldLines[r.a]) + "</td></tr>";
+    }
+    if (r.type === "chg") {
+      var inline = inlineDiff(oldLines[r.a], newLines[r.b]);
+      return '<tr class="dc-row dc-row--del"><td class="dc-num">' + (r.a + 1) + '</td><td class="dc-num dc-num--b"></td>'
+        + '<td class="dc-marker dc-marker--del">−</td><td class="dc-code">' + (inline.oldHtml || "&nbsp;") + "</td></tr>"
+        + '<tr class="dc-row dc-row--add"><td class="dc-num"></td><td class="dc-num dc-num--b">' + (r.b + 1) + '</td>'
+        + '<td class="dc-marker dc-marker--add">+</td><td class="dc-code">' + (inline.newHtml || "&nbsp;") + "</td></tr>";
+    }
+    if (r.type === "del") {
+      return '<tr class="dc-row dc-row--del"><td class="dc-num">' + (r.a + 1) + '</td><td class="dc-num dc-num--b"></td>'
+        + '<td class="dc-marker dc-marker--del">−</td><td class="dc-code">' + codeCell(oldLines[r.a]) + "</td></tr>";
+    }
+    return '<tr class="dc-row dc-row--add"><td class="dc-num"></td><td class="dc-num dc-num--b">' + (r.b + 1) + '</td>'
+      + '<td class="dc-marker dc-marker--add">+</td><td class="dc-code">' + codeCell(newLines[r.b]) + "</td></tr>";
+  }
+
+  function render() {
+    var oldText = oldTa.value, newText = newTa.value;
+
+    if (!oldText && !newText) {
+      out.innerHTML = '<p class="empty">Paste two versions of a text above to see what changed.</p>';
+      stats.hidden = true;
+      warnBox.innerHTML = "";
+      return;
+    }
+
+    var oldFull = oldText.split("\n"), newFull = newText.split("\n");
+    var truncated = oldFull.length > MAX_UNITS || newFull.length > MAX_UNITS;
+    var oldLines = truncated ? oldFull.slice(0, MAX_UNITS) : oldFull;
+    var newLines = truncated ? newFull.slice(0, MAX_UNITS) : newFull;
+
+    warnBox.innerHTML = truncated
+      ? '<div class="note note--warn" style="margin-bottom:12px"><span class="note__mark">!</span><span>Comparison truncated to the first '
+        + Bench.num(MAX_UNITS) + " lines per side for performance.</span></div>"
+      : "";
+
+    var normOld = oldLines.map(normaliseLine);
+    var normNew = newLines.map(normaliseLine);
+    var ops = diffArrays(normOld, normNew);
+    var rows = groupRows(ops);
+
+    var added = 0, removed = 0, changed = 0, unchanged = 0;
+    rows.forEach(function (r) {
+      if (r.type === "eq") unchanged++;
+      else if (r.type === "chg") changed++;
+      else if (r.type === "add") added++;
+      else removed++;
+    });
+    $("#s-add").textContent = Bench.num(added);
+    $("#s-del").textContent = Bench.num(removed);
+    $("#s-chg").textContent = Bench.num(changed);
+    $("#s-eq").textContent = Bench.num(unchanged);
+    stats.hidden = false;
+
+    if (added + removed + changed === 0) {
+      out.innerHTML = '<div class="note note--ok"><span class="note__mark">✓</span><span>No differences'
+        + (truncated ? " in the compared portion." : ".") + "</span></div>";
+      return;
+    }
+
+    var ctxRaw = ctxSel.value;
+    var context = ctxRaw === "all" ? Infinity : Number(ctxRaw);
+    var windows = buildWindows(rows, context);
+
+    out.innerHTML = view === "side"
+      ? renderSide(rows, windows, oldLines, newLines)
+      : renderUnified(rows, windows, oldLines, newLines);
+  }
+
+  Bench.live(oldTa, Bench.debounce(render, 120));
+  Bench.live(newTa, Bench.debounce(render, 120));
+  [optTrim, optWs, optCase, ctxSel].forEach(function (el) { el.addEventListener("change", render); });
+
+  $$("[data-view]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      view = btn.dataset.view;
+      $$("[data-view]").forEach(function (b) { b.classList.toggle("btn--on", b === btn); });
+      render();
+    });
+  });
+
+  $("#sample").addEventListener("click", function () {
+    oldTa.value = SAMPLE_OLD; newTa.value = SAMPLE_NEW; render();
+  });
+  $("#swap").addEventListener("click", function () {
+    var t = oldTa.value; oldTa.value = newTa.value; newTa.value = t; render();
+  });
+  $("#clear").addEventListener("click", function () {
+    oldTa.value = ""; newTa.value = ""; render(); oldTa.focus();
+  });
+
+  render();
+});
+</script>
+
+</body>
+</html>

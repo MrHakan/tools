@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Bench — 59 tools that run in your browser</title>
-<meta name="description" content="A workbench of 59 small, single-purpose tools for developers, designers and writers. Everything runs client-side: nothing you type or open is ever uploaded.">
+<title>Bench — tools that run in your browser</title>
+<meta name="description" content="A workbench of small, single-purpose tools for developers, designers and writers. Everything runs client-side: nothing you type or open is ever uploaded.">
 <meta name="color-scheme" content="light dark">
 <meta property="og:type" content="website">
-<meta property="og:title" content="Bench — 59 tools that run in your browser">
-<meta property="og:description" content="JSON, regex, cron, diff, colour, Markdown and 54 more. All client-side, nothing uploaded.">
+<meta property="og:title" content="Bench — tools that run in your browser">
+<meta property="og:description" content="JSON, regex, cron, diff, colour, Markdown and more. All client-side, nothing uploaded.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
 <link rel="preload" href="assets/fonts/space-grotesk-700-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="assets/fonts/jetbrains-mono-400-latin.woff2" as="font" type="font/woff2" crossorigin>
@@ -19,7 +19,7 @@
 <header class="topbar">
   <a class="topbar__home" href="index.html"><span class="topbar__mark">▚</span> bench</a>
   <span class="topbar__sep">/</span>
-  <span class="topbar__here">59 tools, no server</span>
+  <span class="topbar__here">no server, no uploads</span>
   <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
 </header>
 
@@ -44,10 +44,10 @@
     </div>
 
     <p class="hero__meta" id="finder-count">
-      <span><b id="count">59</b> tools</span>
+      <span><b id="count">19</b> ready</span>
+      <span><b>40</b> still being built</span>
       <span>Everything runs in your browser</span>
       <span>Nothing is uploaded</span>
-      <span>Works offline once loaded</span>
     </p>
   </section>
 
@@ -58,7 +58,7 @@
   <footer class="foot">
     <span>Bench</span>
     <span>·</span>
-    <span>59 client-side tools</span>
+    <span>client-side tools</span>
     <span>·</span>
     <a href="https://github.com/MrHakan/tools">Source on GitHub</a>
     <span>·</span>
@@ -108,16 +108,20 @@
     var counter = section.querySelector(".cat__n");
 
     inCat.forEach(function (t) {
-      var a = document.createElement("a");
-      a.className = "tool";
-      a.href = "tools/" + t.slug + "/index.html";
+      // Tools still being built render as inert cards. Linking to a page that
+      // does not exist yet would just 404.
+      var a = document.createElement(t.soon ? "div" : "a");
+      a.className = "tool" + (t.soon ? " tool--soon" : "");
+      if (!t.soon) a.href = "tools/" + t.slug + "/index.html";
       a.innerHTML =
         '<span class="tool__spec">' + esc(t.spec) + '</span>' +
-        '<span class="tool__name">' + esc(t.name) + '</span>' +
+        '<span class="tool__name">' + esc(t.name) +
+          (t.soon ? ' <span class="tool__flag">building</span>' : '') + '</span>' +
         '<span class="tool__desc">' + esc(t.blurb) + '</span>';
       grid.appendChild(a);
       nodes.push({
         el: a,
+        soon: !!t.soon,
         section: section,
         counter: counter,
         hay: (t.name + " " + t.blurb + " " + t.keys + " " + t.cat + " " + t.slug + " " + t.spec).toLowerCase()
@@ -130,14 +134,16 @@
   function filter() {
     var q = finder.value.trim().toLowerCase();
     var terms = q ? q.split(/\s+/) : [];
-    var shown = 0;
+    var ready = 0;   // matches you can actually open — the headline number
+    var hits = 0;    // every match, so a soon-only result isn't called empty
     var perSection = new Map();
 
     nodes.forEach(function (n) {
       var hit = terms.every(function (term) { return n.hay.indexOf(term) !== -1; });
       n.el.hidden = !hit;
       if (hit) {
-        shown++;
+        hits++;
+        if (!n.soon) ready++;
         perSection.set(n.section, (perSection.get(n.section) || 0) + 1);
       }
     });
@@ -148,9 +154,9 @@
       n.counter.textContent = c;
     });
 
-    count.textContent = shown;
-    noresult.hidden = shown !== 0;
-    if (!shown) noresultQ.textContent = '"' + finder.value.trim() + '"';
+    count.textContent = ready;
+    noresult.hidden = hits !== 0;
+    if (!hits) noresultQ.textContent = '"' + finder.value.trim() + '"';
   }
 
   finder.addEventListener("input", filter);
@@ -160,7 +166,7 @@
   finder.addEventListener("keydown", function (e) {
     if (e.key === "Escape") { finder.value = ""; filter(); return; }
     if (e.key !== "Enter") return;
-    var visible = nodes.filter(function (n) { return !n.el.hidden; });
+    var visible = nodes.filter(function (n) { return !n.el.hidden && !n.soon; });
     if (visible.length) window.location.href = visible[0].el.href;
   });
 
