@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Encrypted Vault — Bench</title>
+<meta name="description" content="A local AES-GCM vault behind one master password, using the browser's own WebCrypto.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/css/bench.css">
+<style>
+  .vt__gate { max-width: 440px; margin-inline: auto; }
+  .vt__entry { border: 1px solid var(--edge); border-radius: var(--r); background: var(--card); padding: 11px 13px; margin-bottom: 7px; cursor: pointer; }
+  .vt__entry--on { border-color: var(--signal); background: var(--signal-soft); }
+  .vt__t { font-size: 14.5px; font-weight: 600; }
+  .vt__u { font-family: var(--mono); font-size: 12px; color: var(--steel); }
+  .vt__tags { font-family: var(--mono); font-size: 11px; color: var(--steel); margin-top: 4px; }
+  .vt__secret { font-family: var(--mono); font-size: 13.5px; background: var(--sunk); border: 1px solid var(--edge); border-radius: var(--r); padding: 9px 11px; overflow-wrap: anywhere; }
+  .vt__ico { width: 24px; height: 24px; background: none; border: 1px solid transparent; border-radius: var(--r); color: var(--steel); font-size: 11px; flex: none; }
+  .vt__ico:hover { border-color: var(--signal); color: var(--signal); }
+  .vt__ico--del:hover { border-color: var(--fault); color: var(--fault); }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__home" href="../../index.html"><span class="topbar__mark">▚</span> bench</a>
+  <span class="topbar__sep">/</span>
+  <span class="topbar__here">Encrypted Vault</span>
+  <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
+</header>
+
+<main class="wrap">
+
+  <div class="toolhead">
+    <p class="toolhead__spec mono">••••••••••</p>
+    <h1 class="toolhead__title">Encrypted Vault</h1>
+    <p class="toolhead__desc">Notes and credentials encrypted with AES-GCM behind one master password, using the browser's own crypto.</p>
+  </div>
+
+  <div class="note note--warn" style="margin-bottom:var(--gap)">
+    <span class="note__mark">!</span>
+    <span><b>Read this before you trust it with anything.</b> This is a demonstration of the browser's
+    crypto primitives, not a password manager. The vault lives in this browser's storage: clearing
+    site data destroys it, and there is no recovery if you forget the master password. It cannot
+    protect you from malware on the machine, and anything held in memory while unlocked is visible
+    to other scripts on this origin. Export a backup, and use a dedicated password manager for
+    anything that matters.</span>
+  </div>
+
+  <!-- ============================================================== gate -->
+  <section class="panel vt__gate" id="gate">
+    <h2 class="panel__title" id="gate-title">Unlock</h2>
+    <form id="gate-form">
+      <div class="field">
+        <label class="label" for="master">Master password</label>
+        <input class="input" type="password" id="master" autocomplete="current-password">
+      </div>
+      <div class="field" id="confirm-wrap" hidden>
+        <label class="label" for="confirm">Confirm it</label>
+        <input class="input" type="password" id="confirm" autocomplete="new-password">
+      </div>
+      <div id="strength" style="margin-bottom:12px"></div>
+      <button class="btn btn--primary btn--block" type="submit" id="gate-go">Unlock</button>
+    </form>
+    <div id="gate-note" style="margin-top:12px"></div>
+    <div class="row" style="margin-top:12px">
+      <button class="btn btn--sm" id="restore">Restore from a backup file</button>
+      <input type="file" id="restore-file" accept=".json" hidden>
+      <button class="btn btn--sm btn--danger" id="destroy" hidden>Destroy this vault</button>
+    </div>
+  </section>
+
+  <!-- ============================================================== vault -->
+  <div id="vault" hidden>
+    <section class="panel">
+      <div class="row row--between">
+        <span class="mono" style="font-size:12px;color:var(--steel)" id="lock-info"></span>
+        <div class="row">
+          <button class="btn btn--sm" id="backup">Export encrypted backup</button>
+          <button class="btn btn--sm" id="plain">Export plaintext</button>
+          <button class="btn btn--sm btn--primary" id="lock">Lock now</button>
+        </div>
+      </div>
+    </section>
+
+    <div class="split split--narrow" style="margin-top:var(--gap)">
+      <section class="panel">
+        <div class="row" style="margin-bottom:10px">
+          <label class="sr-only" for="q">Search</label>
+          <input class="input grow" id="q" type="search" placeholder="Search titles, usernames, tags" autocomplete="off">
+          <button class="btn btn--primary" id="new">New</button>
+        </div>
+        <div id="list"></div>
+      </section>
+
+      <section class="panel">
+        <h2 class="panel__title" id="ed-title">Entry</h2>
+        <div id="editor"><p class="empty">Pick an entry, or add one.</p></div>
+      </section>
+    </div>
+  </div>
+
+  <footer class="foot">
+    <a href="../../index.html">← All tools</a>
+    <span>·</span>
+    <span>Runs entirely in your browser</span>
+  </footer>
+
+</main>
+
+<script src="../../assets/js/bench.js" defer></script>
+<script defer>
+document.addEventListener("DOMContentLoaded", function () {
+  "use strict";
+  var $ = Bench.$, $$ = Bench.$$, esc = Bench.esc;
+  var store = Bench.store("password-vault");
+
+  var ITERATIONS = 310000;   // OWASP's floor for PBKDF2-SHA256
+  var IDLE_MS = 5 * 60 * 1000;
+
+  var key = null;            // CryptoKey, memory only — never persisted
+  var entries = [];
+  var selected = null;
+  var idleTimer = null;
+
+  function enc(s) { return new TextEncoder().encode(s); }
+  function b64(buf) { return btoa(String.fromCharCode.apply(null, new Uint8Array(buf))); }
+  function unb64(s) { return Uint8Array.from(atob(s), function (c) { return c.charCodeAt(0); }); }
+
+  function haveVault() { return !!store.get("vault", null); }
+
+  /* --- crypto ------------------------------------------------------------ */
+
+  function deriveKey(password, salt, iterations) {
+    return crypto.subtle.importKey("raw", enc(password), "PBKDF2", false, ["deriveKey"])
+      .then(function (base) {
+        return crypto.subtle.deriveKey(
+          { name: "PBKDF2", salt: salt, iterations: iterations, hash: "SHA-256" },
+          base, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+      });
+  }
+
+  function encryptVault() {
+    // A fresh IV for every single write. Reusing one with the same key breaks
+    // AES-GCM outright, so it is generated here and nowhere else.
+    var iv = crypto.getRandomValues(new Uint8Array(12));
+    var plain = enc(JSON.stringify(entries));
+    return crypto.subtle.encrypt({ name: "AES-GCM", iv: iv }, key, plain).then(function (ct) {
+      var v = store.get("vault", {});
+      store.set("vault", { salt: v.salt, iterations: v.iterations || ITERATIONS, iv: b64(iv), data: b64(ct) });
+    });
+  }
+
+  function decryptVault(vault, k) {
+    return crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(vault.iv) }, k, unb64(vault.data))
+      .then(function (buf) { return JSON.parse(new TextDecoder().decode(buf)); });
+  }
+
+  /* --- gate -------------------------------------------------------------- */
+
+  function note(host, html, kind) {
+    host.innerHTML = '<div class="note note--' + kind + '"><span class="note__mark">'
+      + (kind === "bad" ? "✕" : kind === "ok" ? "✓" : kind === "warn" ? "!" : "i") + "</span><span>" + html + "</span></div>";
+  }
+
+  function setupGate() {
+    var creating = !haveVault();
+    $("#gate-title").textContent = creating ? "Create a vault" : "Unlock";
+    $("#gate-go").textContent = creating ? "Create vault" : "Unlock";
+    $("#confirm-wrap").hidden = !creating;
+    $("#master").autocomplete = creating ? "new-password" : "current-password";
+    $("#destroy").hidden = creating;
+    if (creating) {
+      note($("#gate-note"), "Pick a master password you will not forget. There is no reset — "
+        + "the key is derived from it and never stored.", "info");
+    } else {
+      $("#gate-note").innerHTML = "";
+    }
+  }
+
+  function strengthOf(pw) {
+    var pool = 0;
+    if (/[a-z]/.test(pw)) pool += 26;
+    if (/[A-Z]/.test(pw)) pool += 26;
+    if (/[0-9]/.test(pw)) pool += 10;
+    if (/[^a-zA-Z0-9]/.test(pw)) pool += 33;
+    return pw.length ? Math.round(Math.log2(pool) * pw.length) : 0;
+  }
+
+  $("#master").addEventListener("input", function () {
+    if ($("#confirm-wrap").hidden) { $("#strength").innerHTML = ""; return; }
+    var bits = strengthOf(this.value);
+    if (!this.value) { $("#strength").innerHTML = ""; return; }
+    note($("#strength"), "<b>" + bits + " bits</b> — "
+      + (bits >= 80 ? "strong." : bits >= 60 ? "reasonable; longer would be better." : "weak. Use a long passphrase."),
+      bits >= 80 ? "ok" : bits >= 60 ? "warn" : "bad");
+  });
+
+  $("#gate-form").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var pw = $("#master").value;
+    var host = $("#gate-note");
+    if (!pw) { note(host, "Enter your master password.", "bad"); return; }
+
+    if (!crypto.subtle) {
+      note(host, "WebCrypto is unavailable. This page needs to be served over HTTPS or from localhost.", "bad");
+      return;
+    }
+
+    var creating = !haveVault();
+    $("#gate-go").disabled = true;
+    $("#gate-go").textContent = "Deriving key…";
+
+    if (creating) {
+      if (pw !== $("#confirm").value) {
+        note(host, "The two passwords do not match.", "bad");
+        $("#gate-go").disabled = false;
+        $("#gate-go").textContent = "Create vault";
+        return;
+      }
+      var salt = crypto.getRandomValues(new Uint8Array(16));
+      store.set("vault", { salt: b64(salt), iterations: ITERATIONS, iv: "", data: "" });
+      deriveKey(pw, salt, ITERATIONS).then(function (k) {
+        key = k;
+        entries = [];
+        return encryptVault();
+      }).then(openVault).catch(function (err) {
+        note(host, "Could not create the vault: " + esc(err.message), "bad");
+        $("#gate-go").disabled = false;
+        $("#gate-go").textContent = "Create vault";
+      });
+      return;
+    }
+
+    var vault = store.get("vault");
+    deriveKey(pw, unb64(vault.salt), vault.iterations || ITERATIONS).then(function (k) {
+      return decryptVault(vault, k).then(function (data) {
+        key = k;
+        entries = Array.isArray(data) ? data : [];
+        openVault();
+      });
+    }).catch(function () {
+      // A wrong password fails the GCM authentication tag, which is exactly
+      // what should happen — there is nothing else to check against.
+      note(host, "That master password did not decrypt the vault.", "bad");
+      $("#gate-go").disabled = false;
+      $("#gate-go").textContent = "Unlock";
+      $("#master").select();
+    });
+  });
+
+  /* --- lifecycle ---------------------------------------------------------- */
+
+  function openVault() {
+    $("#master").value = "";
+    $("#confirm").value = "";
+    $("#gate-go").disabled = false;
+    $("#gate").hidden = true;
+    $("#vault").hidden = false;
+    $("#strength").innerHTML = "";
+    selected = entries.length ? 0 : null;
+    touch();
+    render();
+  }
+
+  function lock() {
+    key = null;             // the only copy; nothing derived is persisted
+    entries = [];
+    selected = null;
+    clearTimeout(idleTimer);
+    $("#vault").hidden = true;
+    $("#gate").hidden = false;
+    setupGate();
+    $("#master").focus();
+  }
+
+  function touch() {
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(function () {
+      lock();
+      note($("#gate-note"), "Locked after five minutes of inactivity.", "info");
+    }, IDLE_MS);
+    $("#lock-info").textContent = "Unlocked · auto-locks after 5 minutes idle · "
+      + Bench.plural(entries.length, "entry", "entries");
+  }
+
+  ["click", "keydown", "input"].forEach(function (evt) {
+    document.addEventListener(evt, function () { if (key) touch(); });
+  });
+  window.addEventListener("beforeunload", function () { key = null; });
+
+  $("#lock").addEventListener("click", lock);
+
+  /* --- entries ------------------------------------------------------------ */
+
+  function persist() { if (key) encryptVault().then(touch); }
+
+  function renderList() {
+    var q = $("#q").value.trim().toLowerCase();
+    var shown = entries.map(function (e, i) { return { e: e, i: i }; }).filter(function (x) {
+      if (!q) return true;
+      return (x.e.title + " " + x.e.username + " " + (x.e.tags || []).join(" ") + " " + x.e.url).toLowerCase().indexOf(q) !== -1;
+    });
+
+    $("#list").innerHTML = shown.map(function (x) {
+      return '<div class="vt__entry' + (x.i === selected ? " vt__entry--on" : "") + '" data-i="' + x.i + '">'
+        + '<div class="row row--between"><span><span class="vt__t">' + esc(x.e.title || "Untitled") + "</span>"
+        + (x.e.username ? '<br><span class="vt__u">' + esc(x.e.username) + "</span>" : "") + "</span>"
+        + '<span class="row"><button class="vt__ico" data-copy-pw="' + x.i + '" title="Copy the password" aria-label="Copy the password for ' + esc(x.e.title) + '">⧉</button>'
+        + '<button class="vt__ico vt__ico--del" data-del="' + x.i + '" aria-label="Delete ' + esc(x.e.title) + '">✕</button></span></div>'
+        + ((x.e.tags || []).length ? '<div class="vt__tags">' + x.e.tags.map(esc).join(" · ") + "</div>" : "")
+        + "</div>";
+    }).join("") || '<p class="empty">' + (entries.length ? "Nothing matches." : "The vault is empty. Add an entry.") + "</p>";
+  }
+
+  function renderEditor() {
+    var e = entries[selected];
+    if (!e) { $("#editor").innerHTML = '<p class="empty">Pick an entry, or add one.</p>'; $("#ed-title").textContent = "Entry"; return; }
+    $("#ed-title").textContent = e.title || "Untitled";
+
+    $("#editor").innerHTML =
+      '<div class="field"><label class="label" for="v-title">Title</label><input class="input" id="v-title" value="' + esc(e.title) + '"></div>'
+      + '<div class="field"><label class="label" for="v-user">Username</label><input class="input" id="v-user" value="' + esc(e.username) + '"></div>'
+      + '<div class="field"><label class="label" for="v-pass">Password</label>'
+      + '<div class="row"><input class="input input--mono grow" type="password" id="v-pass" value="' + esc(e.password) + '">'
+      + '<button class="btn btn--sm" id="v-reveal" type="button">Show</button>'
+      + '<button class="btn btn--sm" id="v-gen" type="button">Generate</button></div></div>'
+      + '<div class="field"><label class="label" for="v-url">URL</label><input class="input input--mono" id="v-url" value="' + esc(e.url) + '"></div>'
+      + '<div class="field"><label class="label" for="v-tags">Tags, comma separated</label><input class="input" id="v-tags" value="' + esc((e.tags || []).join(", ")) + '"></div>'
+      + '<div class="field"><label class="label" for="v-notes">Notes</label><textarea class="textarea textarea--prose" id="v-notes" style="min-height:90px">' + esc(e.notes) + "</textarea></div>";
+
+    [["v-title", "title"], ["v-user", "username"], ["v-pass", "password"], ["v-url", "url"], ["v-notes", "notes"]]
+      .forEach(function (p) {
+        $("#" + p[0]).addEventListener("input", function () {
+          e[p[1]] = this.value;
+          if (p[1] === "title") { $("#ed-title").textContent = this.value || "Untitled"; }
+          renderList();
+          persist();
+        });
+      });
+    $("#v-tags").addEventListener("input", function () {
+      e.tags = this.value.split(",").map(function (t) { return t.trim(); }).filter(Boolean);
+      renderList(); persist();
+    });
+
+    $("#v-reveal").addEventListener("click", function () {
+      var f = $("#v-pass");
+      f.type = f.type === "password" ? "text" : "password";
+      this.textContent = f.type === "password" ? "Show" : "Hide";
+    });
+
+    $("#v-gen").addEventListener("click", function () {
+      var pool = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!#$%&*+-=?@^_";
+      var out = "";
+      for (var i = 0; i < 24; i++) out += pool[Bench.randInt(pool.length)];
+      $("#v-pass").value = out;
+      e.password = out;
+      persist();
+      Bench.toast("Generated a 24-character password");
+    });
+  }
+
+  function render() { renderList(); renderEditor(); }
+
+  $("#list").addEventListener("click", function (ev) {
+    var c = ev.target.closest("[data-copy-pw]");
+    if (c) {
+      // Copy without ever putting the secret on screen.
+      Bench.copy(entries[+c.dataset.copyPw].password, c);
+      return;
+    }
+    var d = ev.target.closest("[data-del]");
+    if (d) {
+      if (d.dataset.armed) {
+        entries.splice(+d.dataset.del, 1);
+        if (selected >= entries.length) selected = entries.length ? entries.length - 1 : null;
+        persist(); render();
+        return;
+      }
+      d.dataset.armed = "1";
+      d.textContent = "?";
+      setTimeout(function () { if (d.isConnected) { d.textContent = "✕"; delete d.dataset.armed; } }, 3000);
+      return;
+    }
+    var it = ev.target.closest("[data-i]");
+    if (!it) return;
+    selected = +it.dataset.i;
+    render();
+  });
+
+  $("#new").addEventListener("click", function () {
+    entries.unshift({ title: "New entry", username: "", password: "", url: "", tags: [], notes: "" });
+    selected = 0;
+    persist(); render();
+    $("#v-title").focus();
+    $("#v-title").select();
+  });
+
+  Bench.live($("#q"), Bench.debounce(renderList, 110));
+
+  /* --- backup ------------------------------------------------------------- */
+
+  $("#backup").addEventListener("click", function () {
+    var v = store.get("vault");
+    Bench.download("vault-backup.json", JSON.stringify(v, null, 2), "application/json");
+    Bench.toast("Backed up — still encrypted, still needs the master password");
+  });
+
+  $("#plain").addEventListener("click", function () {
+    var b = $("#plain");
+    if (b.dataset.armed) {
+      Bench.download("vault-plaintext.json", JSON.stringify(entries, null, 2), "application/json");
+      b.textContent = "Export plaintext";
+      delete b.dataset.armed;
+      return;
+    }
+    b.dataset.armed = "1";
+    b.textContent = "Confirm: readable by anyone";
+    setTimeout(function () { if (b.dataset.armed) { b.textContent = "Export plaintext"; delete b.dataset.armed; } }, 4000);
+  });
+
+  $("#restore").addEventListener("click", function () { $("#restore-file").click(); });
+  $("#restore-file").addEventListener("change", function () {
+    var f = this.files[0];
+    this.value = "";
+    if (!f) return;
+    Bench.readFile(f).then(function (t) {
+      var v;
+      try { v = JSON.parse(t); } catch (e) { note($("#gate-note"), "That file is not valid JSON.", "bad"); return; }
+      if (!v || !v.salt || !v.data) { note($("#gate-note"), "That file is not a vault backup.", "bad"); return; }
+      store.set("vault", v);
+      setupGate();
+      note($("#gate-note"), "Backup loaded. Unlock it with the master password that vault was created with.", "ok");
+    });
+  });
+
+  $("#destroy").addEventListener("click", function () {
+    var b = $("#destroy");
+    if (b.dataset.armed) {
+      store.remove("vault");
+      key = null; entries = [];
+      setupGate();
+      note($("#gate-note"), "Vault destroyed. Create a new one below.", "info");
+      b.textContent = "Destroy this vault";
+      delete b.dataset.armed;
+      return;
+    }
+    b.dataset.armed = "1";
+    b.textContent = "Really destroy? This cannot be undone";
+    setTimeout(function () { if (b.dataset.armed) { b.textContent = "Destroy this vault"; delete b.dataset.armed; } }, 4000);
+  });
+
+  setupGate();
+});
+</script>
+
+</body>
+</html>

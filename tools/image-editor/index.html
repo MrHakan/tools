@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Image Editor — Bench</title>
+<meta name="description" content="Crop, resize, rotate and filter images entirely on your own machine, then export as PNG, JPEG or WebP.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/css/bench.css">
+<style>
+  .ie__stage {
+    position: relative; background: var(--sunk); border: 1px solid var(--edge);
+    border-radius: var(--r); padding: 14px; display: grid; place-items: center; min-height: 260px;
+    background-image:
+      linear-gradient(45deg, var(--edge) 25%, transparent 25%),
+      linear-gradient(-45deg, var(--edge) 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, var(--edge) 75%),
+      linear-gradient(-45deg, transparent 75%, var(--edge) 75%);
+    background-size: 16px 16px;
+    background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+  }
+  .ie__holder { position: relative; line-height: 0; max-width: 100%; }
+  .ie__canvas { max-width: 100%; height: auto; border-radius: 2px; touch-action: none; }
+  .ie__crop {
+    position: absolute; border: 1px solid var(--signal);
+    box-shadow: 0 0 0 9999px rgba(0,0,0,.45); cursor: move;
+  }
+  .ie__h { position: absolute; width: 12px; height: 12px; background: var(--signal); border-radius: 2px; }
+  .ie__h--nw { left: -6px; top: -6px; cursor: nwse-resize; }
+  .ie__h--ne { right: -6px; top: -6px; cursor: nesw-resize; }
+  .ie__h--sw { left: -6px; bottom: -6px; cursor: nesw-resize; }
+  .ie__h--se { right: -6px; bottom: -6px; cursor: nwse-resize; }
+  .ie__drop { border: 1px dashed var(--edge-2); border-radius: var(--r); padding: 40px 20px; text-align: center; }
+  .ie__drop.is-drop { border-color: var(--signal); background: var(--signal-soft); }
+  .ie__sl { display: flex; align-items: center; gap: 10px; margin-bottom: 7px; }
+  .ie__sl label { font-size: 12.5px; width: 84px; flex: none; }
+  .ie__sl input[type="range"] { flex: 1; }
+  .ie__sl output { font-family: var(--mono); font-size: 11.5px; color: var(--steel); width: 44px; text-align: right; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__home" href="../../index.html"><span class="topbar__mark">▚</span> bench</a>
+  <span class="topbar__sep">/</span>
+  <span class="topbar__here">Image Editor</span>
+  <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
+</header>
+
+<main class="wrap">
+
+  <div class="toolhead">
+    <p class="toolhead__spec mono">blur(4px)</p>
+    <h1 class="toolhead__title">Image Editor</h1>
+    <p class="toolhead__desc">Crop, resize, rotate and filter. The image is decoded and drawn by this tab and never uploaded.</p>
+  </div>
+
+  <div class="split split--narrow">
+
+    <section class="panel">
+      <h2 class="panel__title">Canvas</h2>
+      <div class="ie__stage" id="stage">
+        <div class="ie__drop" id="drop">
+          <p style="font-family:var(--mono);font-size:22px;color:var(--steel)">⇩</p>
+          <p style="color:var(--steel);font-size:13.5px;margin-top:8px">Drop an image here, or
+            <button class="btn btn--sm" id="choose">choose a file</button></p>
+          <input type="file" id="file" accept="image/*" hidden>
+        </div>
+        <div class="ie__holder" id="holder" hidden>
+          <canvas class="ie__canvas" id="canvas"></canvas>
+          <div class="ie__crop" id="crop" hidden>
+            <span class="ie__h ie__h--nw" data-h="nw"></span>
+            <span class="ie__h ie__h--ne" data-h="ne"></span>
+            <span class="ie__h ie__h--sw" data-h="sw"></span>
+            <span class="ie__h ie__h--se" data-h="se"></span>
+          </div>
+        </div>
+      </div>
+      <div class="row" style="margin-top:12px" id="bar" hidden>
+        <button class="btn btn--sm" id="undo">Undo</button>
+        <button class="btn btn--sm" id="redo">Redo</button>
+        <span class="grow"></span>
+        <span class="mono" style="font-size:11.5px;color:var(--steel)" id="dims"></span>
+      </div>
+    </section>
+
+    <div class="stack" id="tools" hidden>
+
+      <section class="panel">
+        <h2 class="panel__title">Crop</h2>
+        <div class="row" style="margin-bottom:10px">
+          <button class="btn btn--sm" id="crop-start">Start a crop</button>
+          <label class="sr-only" for="crop-ratio">Ratio</label>
+          <select class="select" id="crop-ratio" style="width:auto">
+            <option value="0">Free</option><option value="1">1:1</option>
+            <option value="1.7778">16:9</option><option value="1.3333">4:3</option>
+          </select>
+          <button class="btn btn--sm btn--primary" id="crop-apply" hidden>Apply</button>
+          <button class="btn btn--sm" id="crop-cancel" hidden>Cancel</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2 class="panel__title">Transform</h2>
+        <div class="row">
+          <button class="btn btn--sm" data-rot="-90">Rotate ↺</button>
+          <button class="btn btn--sm" data-rot="90">Rotate ↻</button>
+          <button class="btn btn--sm" data-flip="h">Flip ⇋</button>
+          <button class="btn btn--sm" data-flip="v">Flip ⇵</button>
+        </div>
+        <div class="split" style="gap:12px; margin-top:12px">
+          <div class="field"><label class="label" for="rw">Width</label><input class="input input--mono" type="number" id="rw" min="1"></div>
+          <div class="field"><label class="label" for="rh">Height</label><input class="input input--mono" type="number" id="rh" min="1"></div>
+        </div>
+        <div class="row">
+          <label class="check"><input type="checkbox" id="ratio-lock" checked> Keep the ratio</label>
+          <button class="btn btn--sm" id="resize">Resize</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2 class="panel__title">Filters</h2>
+        <div id="sliders"></div>
+        <div class="row" style="margin-top:10px">
+          <button class="btn btn--sm btn--primary" id="bake">Apply filters</button>
+          <button class="btn btn--sm" id="reset-f">Reset</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2 class="panel__title">Export</h2>
+        <div class="split" style="gap:12px">
+          <div class="field"><label class="label" for="fmt">Format</label>
+            <select class="select" id="fmt"><option value="image/png">PNG</option><option value="image/jpeg">JPEG</option><option value="image/webp">WebP</option></select></div>
+          <div class="field"><label class="label" for="q">Quality <span class="mono" id="q-n">0.9</span></label>
+            <input type="range" id="q" min="0.1" max="1" step="0.01" value="0.9"></div>
+        </div>
+        <div class="row">
+          <button class="btn btn--primary" id="save">Download</button>
+          <span class="mono" style="font-size:11.5px;color:var(--steel)" id="size"></span>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <footer class="foot">
+    <a href="../../index.html">← All tools</a>
+    <span>·</span>
+    <span>Runs entirely in your browser</span>
+  </footer>
+
+</main>
+
+<script src="../../assets/js/bench.js" defer></script>
+<script defer>
+document.addEventListener("DOMContentLoaded", function () {
+  "use strict";
+  var $ = Bench.$, $$ = Bench.$$, esc = Bench.esc;
+
+  var canvas = $("#canvas"), ctx = canvas.getContext("2d");
+  var history = [], hIndex = -1;
+  var name = "image";
+
+  var FILTERS = [
+    { k: "brightness", label: "Brightness", min: 0, max: 200, val: 100, unit: "%" },
+    { k: "contrast", label: "Contrast", min: 0, max: 200, val: 100, unit: "%" },
+    { k: "saturate", label: "Saturation", min: 0, max: 300, val: 100, unit: "%" },
+    { k: "grayscale", label: "Grayscale", min: 0, max: 100, val: 0, unit: "%" },
+    { k: "sepia", label: "Sepia", min: 0, max: 100, val: 0, unit: "%" },
+    { k: "invert", label: "Invert", min: 0, max: 100, val: 0, unit: "%" },
+    { k: "blur", label: "Blur", min: 0, max: 20, val: 0, unit: "px" },
+    { k: "hue-rotate", label: "Hue", min: 0, max: 360, val: 0, unit: "deg" }
+  ];
+
+  $("#sliders").innerHTML = FILTERS.map(function (f) {
+    return '<div class="ie__sl"><label for="f-' + f.k + '">' + f.label + "</label>"
+      + '<input type="range" id="f-' + f.k + '" min="' + f.min + '" max="' + f.max + '" value="' + f.val + '" data-f="' + f.k + '">'
+      + '<output id="o-' + f.k + '">' + f.val + f.unit + "</output></div>";
+  }).join("");
+
+  function filterString() {
+    return FILTERS.map(function (f) {
+      var v = Number($("#f-" + f.k).value);
+      return v === f.val ? "" : f.k + "(" + v + f.unit + ")";
+    }).filter(Boolean).join(" ") || "none";
+  }
+
+  function paintFilterPreview() {
+    canvas.style.filter = filterString();
+    FILTERS.forEach(function (f) { $("#o-" + f.k).textContent = $("#f-" + f.k).value + f.unit; });
+  }
+
+  $("#sliders").addEventListener("input", paintFilterPreview);
+  $("#reset-f").addEventListener("click", function () {
+    FILTERS.forEach(function (f) { $("#f-" + f.k).value = f.val; });
+    paintFilterPreview();
+  });
+
+  /* --- history ----------------------------------------------------------- */
+
+  function push() {
+    history = history.slice(0, hIndex + 1);
+    history.push(canvas.toDataURL("image/png"));
+    if (history.length > 20) history.shift();
+    hIndex = history.length - 1;
+    updateBar();
+  }
+
+  function restore(i) {
+    if (i < 0 || i >= history.length) return;
+    var img = new Image();
+    img.onload = function () {
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      ctx.drawImage(img, 0, 0);
+      hIndex = i;
+      updateBar();
+    };
+    img.src = history[i];
+  }
+
+  function updateBar() {
+    $("#undo").disabled = hIndex <= 0;
+    $("#redo").disabled = hIndex >= history.length - 1;
+    $("#dims").textContent = canvas.width + " × " + canvas.height;
+    $("#rw").value = canvas.width;
+    $("#rh").value = canvas.height;
+    estimate();
+  }
+
+  $("#undo").addEventListener("click", function () { restore(hIndex - 1); });
+  $("#redo").addEventListener("click", function () { restore(hIndex + 1); });
+
+  document.addEventListener("keydown", function (e) {
+    if (!(e.ctrlKey || e.metaKey)) return;
+    if (e.key.toLowerCase() !== "z") return;
+    e.preventDefault();
+    if (e.shiftKey) restore(hIndex + 1); else restore(hIndex - 1);
+  });
+
+  /* --- loading ----------------------------------------------------------- */
+
+  function load(file) {
+    if (!file || !/^image\//.test(file.type)) { Bench.toast("Choose an image file", "bad"); return; }
+    name = file.name.replace(/\.[^.]+$/, "") || "image";
+    Bench.readFile(file, "dataURL").then(function (url) {
+      var img = new Image();
+      img.onload = function () {
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        ctx.drawImage(img, 0, 0);
+        $("#drop").hidden = true;
+        $("#holder").hidden = false;
+        $("#tools").hidden = false;
+        $("#bar").hidden = false;
+        history = []; hIndex = -1;
+        push();
+      };
+      img.onerror = function () { Bench.toast("That file could not be decoded as an image", "bad"); };
+      img.src = url;
+    });
+  }
+
+  $("#choose").addEventListener("click", function () { $("#file").click(); });
+  $("#file").addEventListener("change", function () { load(this.files[0]); this.value = ""; });
+  Bench.dropzone($("#drop"), function (files) { load(files[0]); });
+  Bench.dropzone($("#stage"), function (files) { load(files[0]); });
+
+  /* --- transforms --------------------------------------------------------- */
+
+  function withTemp(w, h, draw) {
+    var t = document.createElement("canvas");
+    t.width = w; t.height = h;
+    draw(t.getContext("2d"));
+    canvas.width = w; canvas.height = h;
+    ctx.drawImage(t, 0, 0);
+    push();
+  }
+
+  $$("[data-rot]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var deg = Number(b.dataset.rot);
+      var src = canvas;
+      withTemp(src.height, src.width, function (c) {
+        c.translate(src.height / 2, src.width / 2);
+        c.rotate(deg * Math.PI / 180);
+        c.drawImage(src, -src.width / 2, -src.height / 2);
+      });
+    });
+  });
+
+  $$("[data-flip]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var h = b.dataset.flip === "h";
+      var src = canvas;
+      var snapshot = document.createElement("canvas");
+      snapshot.width = src.width; snapshot.height = src.height;
+      snapshot.getContext("2d").drawImage(src, 0, 0);
+      withTemp(src.width, src.height, function (c) {
+        c.translate(h ? snapshot.width : 0, h ? 0 : snapshot.height);
+        c.scale(h ? -1 : 1, h ? 1 : -1);
+        c.drawImage(snapshot, 0, 0);
+      });
+    });
+  });
+
+  $("#rw").addEventListener("input", function () {
+    if (!$("#ratio-lock").checked) return;
+    var ratio = canvas.height / canvas.width;
+    $("#rh").value = Math.max(1, Math.round(Number(this.value) * ratio));
+  });
+  $("#rh").addEventListener("input", function () {
+    if (!$("#ratio-lock").checked) return;
+    var ratio = canvas.width / canvas.height;
+    $("#rw").value = Math.max(1, Math.round(Number(this.value) * ratio));
+  });
+
+  $("#resize").addEventListener("click", function () {
+    var w = Math.max(1, Math.min(10000, Number($("#rw").value) || canvas.width));
+    var h = Math.max(1, Math.min(10000, Number($("#rh").value) || canvas.height));
+    var src = canvas;
+    var snapshot = document.createElement("canvas");
+    snapshot.width = src.width; snapshot.height = src.height;
+    snapshot.getContext("2d").drawImage(src, 0, 0);
+    withTemp(w, h, function (c) {
+      c.imageSmoothingQuality = "high";
+      c.drawImage(snapshot, 0, 0, w, h);
+    });
+  });
+
+  $("#bake").addEventListener("click", function () {
+    var f = filterString();
+    if (f === "none") { Bench.toast("No filters to apply", "bad"); return; }
+    var src = canvas;
+    var snapshot = document.createElement("canvas");
+    snapshot.width = src.width; snapshot.height = src.height;
+    snapshot.getContext("2d").drawImage(src, 0, 0);
+    withTemp(src.width, src.height, function (c) {
+      c.filter = f;
+      c.drawImage(snapshot, 0, 0);
+    });
+    FILTERS.forEach(function (x) { $("#f-" + x.k).value = x.val; });
+    paintFilterPreview();
+  });
+
+  /* --- crop ---------------------------------------------------------------
+     The selection is kept in canvas pixels and converted to CSS pixels only
+     when drawn, so it stays correct however the canvas is scaled to fit. */
+
+  var sel = null, dragMode = null, dragStart = null;
+
+  function scale() { return canvas.clientWidth / canvas.width; }
+
+  function drawSel() {
+    if (!sel) { $("#crop").hidden = true; return; }
+    var s = scale();
+    var el = $("#crop");
+    el.hidden = false;
+    el.style.left = (sel.x * s) + "px";
+    el.style.top = (sel.y * s) + "px";
+    el.style.width = (sel.w * s) + "px";
+    el.style.height = (sel.h * s) + "px";
+  }
+
+  function ratio() { return Number($("#crop-ratio").value) || 0; }
+
+  function applyRatio() {
+    var r = ratio();
+    if (!r || !sel) return;
+    sel.h = Math.round(sel.w / r);
+    if (sel.y + sel.h > canvas.height) { sel.h = canvas.height - sel.y; sel.w = Math.round(sel.h * r); }
+  }
+
+  $("#crop-start").addEventListener("click", function () {
+    var w = Math.round(canvas.width * 0.6), h = Math.round(canvas.height * 0.6);
+    sel = { x: Math.round((canvas.width - w) / 2), y: Math.round((canvas.height - h) / 2), w: w, h: h };
+    applyRatio();
+    drawSel();
+    $("#crop-apply").hidden = false;
+    $("#crop-cancel").hidden = false;
+  });
+
+  $("#crop-ratio").addEventListener("change", function () { applyRatio(); drawSel(); });
+
+  $("#crop-cancel").addEventListener("click", function () {
+    sel = null; drawSel();
+    $("#crop-apply").hidden = true;
+    $("#crop-cancel").hidden = true;
+  });
+
+  $("#crop-apply").addEventListener("click", function () {
+    if (!sel) return;
+    var src = canvas;
+    var snapshot = document.createElement("canvas");
+    snapshot.width = src.width; snapshot.height = src.height;
+    snapshot.getContext("2d").drawImage(src, 0, 0);
+    var s = sel;
+    withTemp(s.w, s.h, function (c) { c.drawImage(snapshot, s.x, s.y, s.w, s.h, 0, 0, s.w, s.h); });
+    sel = null; drawSel();
+    $("#crop-apply").hidden = true;
+    $("#crop-cancel").hidden = true;
+  });
+
+  $("#crop").addEventListener("pointerdown", function (e) {
+    var h = e.target.closest("[data-h]");
+    dragMode = h ? h.dataset.h : "move";
+    dragStart = { x: e.clientX, y: e.clientY, sel: { x: sel.x, y: sel.y, w: sel.w, h: sel.h } };
+    e.target.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+
+  $("#crop").addEventListener("pointermove", function (e) {
+    if (!dragMode || !sel) return;
+    var s = scale();
+    var dx = Math.round((e.clientX - dragStart.x) / s);
+    var dy = Math.round((e.clientY - dragStart.y) / s);
+    var o = dragStart.sel;
+
+    if (dragMode === "move") {
+      sel.x = Math.max(0, Math.min(canvas.width - o.w, o.x + dx));
+      sel.y = Math.max(0, Math.min(canvas.height - o.h, o.y + dy));
+    } else {
+      var right = dragMode.indexOf("e") !== -1, bottom = dragMode.indexOf("s") !== -1;
+      var nx = right ? o.x : Math.min(o.x + dx, o.x + o.w - 20);
+      var ny = bottom ? o.y : Math.min(o.y + dy, o.y + o.h - 20);
+      var nw = right ? Math.max(20, o.w + dx) : o.w - (nx - o.x);
+      var nh = bottom ? Math.max(20, o.h + dy) : o.h - (ny - o.y);
+      sel.x = Math.max(0, nx); sel.y = Math.max(0, ny);
+      sel.w = Math.min(canvas.width - sel.x, nw);
+      sel.h = Math.min(canvas.height - sel.y, nh);
+      if (ratio()) applyRatio();
+    }
+    drawSel();
+  });
+
+  ["pointerup", "pointercancel"].forEach(function (t) {
+    $("#crop").addEventListener(t, function () { dragMode = null; });
+  });
+
+  window.addEventListener("resize", drawSel);
+
+  /* --- export -------------------------------------------------------------- */
+
+  Bench.live($("#q"), function () { $("#q-n").textContent = Number($("#q").value).toFixed(2); estimate(); });
+  $("#fmt").addEventListener("change", estimate);
+
+  function estimate() {
+    if (!canvas.width) return;
+    canvas.toBlob(function (blob) {
+      $("#size").textContent = blob ? "about " + Bench.bytes(blob.size) : "";
+    }, $("#fmt").value, Number($("#q").value));
+  }
+
+  $("#save").addEventListener("click", function () {
+    var fmt = $("#fmt").value;
+    // JPEG has no alpha; without a fill, transparency comes out black.
+    var out = canvas;
+    if (fmt === "image/jpeg") {
+      out = document.createElement("canvas");
+      out.width = canvas.width; out.height = canvas.height;
+      var c = out.getContext("2d");
+      c.fillStyle = "#ffffff";
+      c.fillRect(0, 0, out.width, out.height);
+      c.drawImage(canvas, 0, 0);
+    }
+    out.toBlob(function (blob) {
+      if (!blob) { Bench.toast("This browser cannot write that format", "bad"); return; }
+      var ext = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" }[fmt];
+      Bench.download(name + "-edited." + ext, blob);
+    }, fmt, Number($("#q").value));
+  });
+
+  paintFilterPreview();
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Game Corner — Bench</title>
+<meta name="description" content="2048, a word guesser and Sudoku — three complete games for a quiet ten minutes.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/css/bench.css">
+<style>
+  .gm__wrap { max-width: 460px; margin-inline: auto; }
+
+  /* 2048 */
+  .g2 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; background: var(--sunk); padding: 8px; border-radius: var(--r); aspect-ratio: 1; }
+  .g2 div {
+    display: grid; place-items: center; border-radius: var(--r); background: var(--edge);
+    font-family: var(--mono); font-weight: 700; font-size: clamp(15px, 5vw, 26px);
+    color: var(--ink); transition: background .08s ease;
+  }
+  @media (prefers-reduced-motion: reduce) { .g2 div { transition: none; } }
+
+  /* word guesser */
+  .gw { display: grid; grid-template-rows: repeat(6, 1fr); gap: 6px; }
+  .gw__row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+  .gw__c {
+    aspect-ratio: 1; display: grid; place-items: center; border: 1.5px solid var(--edge-2);
+    border-radius: var(--r); font-weight: 700; font-size: clamp(17px, 6vw, 26px); text-transform: uppercase;
+  }
+  .gw__c--hit { background: var(--verify); border-color: var(--verify); color: #fff; }
+  .gw__c--near { background: var(--signal); border-color: var(--signal); color: #fff; }
+  .gw__c--miss { background: var(--steel); border-color: var(--steel); color: #fff; }
+  .gw__kb { display: grid; gap: 5px; margin-top: 14px; }
+  .gw__kr { display: flex; gap: 4px; justify-content: center; }
+  .gw__k {
+    flex: 1; min-width: 0; padding: 11px 2px; border-radius: var(--r); border: 1px solid var(--edge-2);
+    background: var(--card); font-size: 12px; font-weight: 600; text-transform: uppercase;
+  }
+  .gw__k--wide { flex: 1.6; font-size: 10px; }
+  .gw__k--hit { background: var(--verify); border-color: var(--verify); color: #fff; }
+  .gw__k--near { background: var(--signal); border-color: var(--signal); color: #fff; }
+  .gw__k--miss { background: var(--steel); border-color: var(--steel); color: #fff; opacity: .6; }
+
+  /* sudoku */
+  .gs { display: grid; grid-template-columns: repeat(9, 1fr); gap: 1px; background: var(--edge-2); border: 2px solid var(--edge-2); border-radius: 2px; aspect-ratio: 1; }
+  .gs__c {
+    background: var(--card); display: grid; place-items: center; position: relative;
+    font-family: var(--mono); font-size: clamp(13px, 3.6vw, 19px); border: 0; padding: 0; color: var(--ink);
+  }
+  .gs__c--given { font-weight: 700; background: var(--sunk); }
+  .gs__c--sel { background: var(--signal-soft); outline: 2px solid var(--signal); outline-offset: -2px; z-index: 1; }
+  .gs__c--peer { background: var(--signal-soft); }
+  .gs__c--bad { color: var(--fault); }
+  .gs__c:nth-child(3n) { border-right: 2px solid var(--edge-2); }
+  .gs__c:nth-child(9n) { border-right: 0; }
+  .gs__c:nth-child(n+19):nth-child(-n+27), .gs__c:nth-child(n+46):nth-child(-n+54) { border-bottom: 2px solid var(--edge-2); }
+  .gs__n { position: absolute; inset: 2px; display: grid; grid-template-columns: repeat(3, 1fr); font-size: 7px; color: var(--steel); font-family: var(--mono); }
+  .gs__pad { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-top: 12px; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__home" href="../../index.html"><span class="topbar__mark">▚</span> bench</a>
+  <span class="topbar__sep">/</span>
+  <span class="topbar__here">Game Corner</span>
+  <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
+</header>
+
+<main class="wrap">
+
+  <div class="toolhead">
+    <p class="toolhead__spec mono">2048 · Wordle</p>
+    <h1 class="toolhead__title">Game Corner</h1>
+    <p class="toolhead__desc">Three complete games for a quiet ten minutes. Scores stay in this browser.</p>
+  </div>
+
+  <div class="row" style="margin-bottom:var(--gap); justify-content:center">
+    <button class="btn btn--on" data-g="g2">2048</button>
+    <button class="btn" data-g="gw">Word guesser</button>
+    <button class="btn" data-g="gs">Sudoku</button>
+  </div>
+
+  <!-- ============================================================== 2048 -->
+  <section class="panel gm__wrap" id="p-g2">
+    <div class="row row--between" style="margin-bottom:12px">
+      <span class="mono" style="font-size:13px">Score <b id="g2-score">0</b> · best <b id="g2-best">0</b></span>
+      <div class="row">
+        <button class="btn btn--sm" id="g2-undo">Undo</button>
+        <button class="btn btn--sm btn--primary" id="g2-new">New game</button>
+      </div>
+    </div>
+    <div class="g2" id="g2-board"></div>
+    <div id="g2-msg" style="margin-top:12px"></div>
+    <p class="empty" style="margin-top:8px">Arrow keys or WASD to slide; swipe on a touchscreen. Matching tiles merge once per move.</p>
+  </section>
+
+  <!-- ====================================================== word guesser -->
+  <section class="panel gm__wrap" id="p-gw" hidden>
+    <div class="row row--between" style="margin-bottom:12px">
+      <span class="mono" style="font-size:13px" id="gw-mode">Daily puzzle</span>
+      <div class="row">
+        <button class="btn btn--sm" id="gw-toggle">Practice</button>
+        <button class="btn btn--sm btn--primary" id="gw-new">New word</button>
+      </div>
+    </div>
+    <div class="gw" id="gw-board"></div>
+    <div id="gw-msg" style="margin-top:12px"></div>
+    <div class="gw__kb" id="gw-kb"></div>
+    <p class="empty" style="margin-top:8px">Green is right letter, right place. Amber is right letter, wrong place. Any five letters are accepted — there is no dictionary to argue with.</p>
+  </section>
+
+  <!-- ============================================================ sudoku -->
+  <section class="panel gm__wrap" id="p-gs" hidden>
+    <div class="row row--between" style="margin-bottom:12px">
+      <span class="mono" style="font-size:13px" id="gs-info">—</span>
+      <div class="row">
+        <label class="sr-only" for="gs-diff">Difficulty</label>
+        <select class="select" id="gs-diff" style="width:auto">
+          <option value="40">Easy</option>
+          <option value="32" selected>Medium</option>
+          <option value="26">Hard</option>
+        </select>
+        <button class="btn btn--sm btn--primary" id="gs-new">New</button>
+      </div>
+    </div>
+    <div class="gs" id="gs-board"></div>
+    <div class="gs__pad" id="gs-pad"></div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn btn--sm" id="gs-notes">Notes: off</button>
+      <button class="btn btn--sm" id="gs-hint">Hint</button>
+      <button class="btn btn--sm" id="gs-check">Check</button>
+      <button class="btn btn--sm" id="gs-undo">Undo</button>
+    </div>
+    <div id="gs-msg" style="margin-top:12px"></div>
+    <p class="empty" style="margin-top:8px">Click a cell, then type 1–9 or use the pad. Every puzzle is generated with exactly one solution.</p>
+  </section>
+
+  <footer class="foot">
+    <a href="../../index.html">← All tools</a>
+    <span>·</span>
+    <span>Runs entirely in your browser</span>
+  </footer>
+
+</main>
+
+<script src="../../assets/js/bench.js" defer></script>
+<script defer>
+document.addEventListener("DOMContentLoaded", function () {
+  "use strict";
+  var $ = Bench.$, $$ = Bench.$$, esc = Bench.esc;
+  var store = Bench.store("games");
+
+  function note(host, html, kind) {
+    host.innerHTML = html ? '<div class="note note--' + kind + '"><span class="note__mark">'
+      + (kind === "bad" ? "✕" : kind === "ok" ? "✓" : "i") + "</span><span>" + html + "</span></div>" : "";
+  }
+
+  var active = store.get("tab", "g2");
+  function showTab(n) {
+    active = n; store.set("tab", n);
+    $$("[data-g]").forEach(function (b) { b.classList.toggle("btn--on", b.dataset.g === n); });
+    ["g2", "gw", "gs"].forEach(function (t) { $("#p-" + t).hidden = t !== n; });
+  }
+  $$("[data-g]").forEach(function (b) { b.addEventListener("click", function () { showTab(b.dataset.g); }); });
+
+  /* ==================================================================
+     2048
+     ================================================================== */
+
+  var TILE = { 0: ["var(--edge)", "transparent"], 2: ["#eee4da", "#776e65"], 4: ["#ede0c8", "#776e65"],
+    8: ["#f2b179", "#fff"], 16: ["#f59563", "#fff"], 32: ["#f67c5f", "#fff"], 64: ["#f65e3b", "#fff"],
+    128: ["#edcf72", "#fff"], 256: ["#edcc61", "#fff"], 512: ["#edc850", "#fff"],
+    1024: ["#edc53f", "#fff"], 2048: ["#edc22e", "#fff"] };
+
+  var g2 = { grid: [], score: 0, prev: null, over: false, won: false };
+
+  function g2New() {
+    g2.grid = Array.from({ length: 4 }, function () { return [0, 0, 0, 0]; });
+    g2.score = 0; g2.prev = null; g2.over = false; g2.won = false;
+    g2Spawn(); g2Spawn(); g2Draw();
+    note($("#g2-msg"), "", "info");
+  }
+
+  function g2Spawn() {
+    var free = [];
+    for (var r = 0; r < 4; r++) for (var c = 0; c < 4; c++) if (!g2.grid[r][c]) free.push([r, c]);
+    if (!free.length) return;
+    var p = free[Bench.randInt(free.length)];
+    g2.grid[p[0]][p[1]] = Bench.randInt(10) === 0 ? 4 : 2;   // 10% fours
+  }
+
+  function g2Draw() {
+    $("#g2-board").innerHTML = g2.grid.map(function (row) {
+      return row.map(function (v) {
+        var t = TILE[v] || ["#3c3a32", "#fff"];
+        return '<div style="background:' + t[0] + ";color:" + t[1] + '">' + (v || "") + "</div>";
+      }).join("");
+    }).join("");
+    $("#g2-score").textContent = g2.score;
+    var best = store.get("g2best", 0);
+    if (g2.score > best) { best = g2.score; store.set("g2best", best); }
+    $("#g2-best").textContent = best;
+    $("#g2-undo").disabled = !g2.prev;
+    store.set("g2", { grid: g2.grid, score: g2.score });
+  }
+
+  // Slide one row left, merging each tile at most once.
+  function g2Slide(row) {
+    var vals = row.filter(function (v) { return v; });
+    var out = [], gained = 0;
+    for (var i = 0; i < vals.length; i++) {
+      if (vals[i] === vals[i + 1]) {
+        out.push(vals[i] * 2);
+        gained += vals[i] * 2;
+        i++;                       // consume the partner so it cannot merge again
+      } else out.push(vals[i]);
+    }
+    while (out.length < 4) out.push(0);
+    return { row: out, gained: gained };
+  }
+
+  function g2Rotate(grid, times) {
+    var g = grid.map(function (r) { return r.slice(); });
+    for (var t = 0; t < times; t++) {
+      var n = Array.from({ length: 4 }, function () { return [0, 0, 0, 0]; });
+      for (var r = 0; r < 4; r++) for (var c = 0; c < 4; c++) n[c][3 - r] = g[r][c];
+      g = n;
+    }
+    return g;
+  }
+
+  var DIRS = { left: 0, up: 1, right: 2, down: 3 };
+
+  function g2Move(dir) {
+    if (g2.over) return;
+    var turns = DIRS[dir];
+    var before = JSON.stringify(g2.grid);
+    var work = g2Rotate(g2.grid, turns);
+    var gained = 0;
+    work = work.map(function (row) {
+      var s = g2Slide(row);
+      gained += s.gained;
+      return s.row;
+    });
+    var after = g2Rotate(work, (4 - turns) % 4);
+    if (JSON.stringify(after) === before) return;      // nothing moved
+
+    g2.prev = { grid: JSON.parse(before), score: g2.score };
+    g2.grid = after;
+    g2.score += gained;
+    g2Spawn();
+    g2Draw();
+
+    if (!g2.won && g2.grid.some(function (r) { return r.indexOf(2048) !== -1; })) {
+      g2.won = true;
+      note($("#g2-msg"), "<b>2048.</b> Keep going if you want to push further.", "ok");
+    }
+    if (!g2Moves()) {
+      g2.over = true;
+      note($("#g2-msg"), "<b>No moves left.</b> Final score " + g2.score + ".", "bad");
+    }
+  }
+
+  function g2Moves() {
+    for (var r = 0; r < 4; r++) for (var c = 0; c < 4; c++) {
+      if (!g2.grid[r][c]) return true;
+      if (c < 3 && g2.grid[r][c] === g2.grid[r][c + 1]) return true;
+      if (r < 3 && g2.grid[r][c] === g2.grid[r + 1][c]) return true;
+    }
+    return false;
+  }
+
+  $("#g2-new").addEventListener("click", g2New);
+  $("#g2-undo").addEventListener("click", function () {
+    if (!g2.prev) return;
+    g2.grid = g2.prev.grid; g2.score = g2.prev.score;
+    g2.prev = null; g2.over = false;
+    note($("#g2-msg"), "", "info");
+    g2Draw();
+  });
+
+  var touch = null;
+  $("#g2-board").addEventListener("touchstart", function (e) {
+    touch = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  }, { passive: true });
+  $("#g2-board").addEventListener("touchend", function (e) {
+    if (!touch) return;
+    var dx = e.changedTouches[0].clientX - touch.x, dy = e.changedTouches[0].clientY - touch.y;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) return;
+    g2Move(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left") : (dy > 0 ? "down" : "up"));
+    touch = null;
+  });
+
+  /* ==================================================================
+     Word guesser
+     ================================================================== */
+
+  var WORDS = ("about above actor acute admit adopt adult after again agent agree ahead alarm album "
+    + "alert alike alive allow alone along alter among anger angle angry apart apple apply arena argue "
+    + "arise armor array arrow aside asset audio audit avoid awake award aware badly baker basic basis "
+    + "beach began begin begun being below bench birth black blade blame blank blast blend bless blind "
+    + "block blood board boost booth bound brain brand brass brave bread break breed brief bring broad "
+    + "broke brown brush build built bunch burst cabin cable candy carry catch cause cease chain chair "
+    + "chalk charm chart chase cheap check chest chief child chill china chose civic civil claim clash "
+    + "class clean clear clerk click cliff climb clock close cloth cloud coach coast could count court "
+    + "cover crack craft crash crazy cream crime crisp cross crowd crown crude curve cycle daily dance "
+    + "dated dealt death debut decay delay dense depth doing doubt dozen draft drain drama drank drawn "
+    + "dream dress drift drill drink drive drove dryer eager early earth eight elbow elder elect empty "
+    + "enemy enjoy enter entry equal equip error essay event every exact exist extra faith false fault "
+    + "favor feast fence fever fewer fiber field fifth fifty fight final first flame flash fleet flesh "
+    + "flick fling float flood floor flour fluid flush focus force forge forth forty forum found frame "
+    + "fraud fresh front frost fruit fully funny giant given glass globe glory glove going grace grade "
+    + "grain grand grant grape graph grasp grass grave great green greet grief grill gross group grown "
+    + "guard guess guest guide happy harsh haste hatch heart heavy hedge hello hence hobby honey honor "
+    + "horse hotel house human humor hurry ideal image imply index inner input irony issue ivory joint "
+    + "judge juice known label labor large laser later laugh layer learn lease least leave legal lemon "
+    + "level lever light limit linen liver lobby local lodge logic loose lorry lower loyal lucky lunar "
+    + "lunch magic major maker maple march match maybe mayor meant medal media mercy merge merit metal "
+    + "meter midst might minor minus mixed model moist money month moral motor mount mouse mouth movie "
+    + "music naked nasty naval nerve never newly night noble noise north noted novel nurse ocean offer "
+    + "often olive onion order organ other ought ounce outer owner paint panel panic paper party pasta "
+    + "patch pause peace pearl pedal penny phase phone photo piano piece pilot pinch pitch pixel place "
+    + "plain plane plant plate plaza point polar porch pound power press price pride prime print prior "
+    + "prize probe proof proud prove pulse punch pupil purse quart queen query quest quick quiet quilt "
+    + "quite quota radar radio raise rally ranch range rapid ratio reach react ready realm rebel refer "
+    + "reign relax relay renew reply rider ridge rifle right rigid rival river roast robot rocky roman "
+    + "rough round route royal rugby rural sadly saint salad sauce scale scene scent scope score scrap "
+    + "screw sense serve seven shade shaft shake shall shape share sharp sheep sheet shelf shell shift "
+    + "shine shirt shock shoot shore short shown sight silly since sixth sixty skill sleep slice slide "
+    + "slope small smart smile smoke snake solar solid solve sorry sound south space spare speak speed "
+    + "spend spent spice spike spine split spoke sport spray squad stack staff stage stain stair stake "
+    + "stamp stand stare start state steam steel steep steer stern stick stiff still stock stone stood "
+    + "store storm story stove strap straw strip stuck study stuff style sugar suite sunny super sweet "
+    + "swept swift swing sword table taken taste teach tempo tenth thank theft their theme there thick "
+    + "thief thing think third those three threw throw thumb tiger tight timer tired title toast today "
+    + "token topic torch total touch tough tower toxic trace track trade trail train trait trash treat "
+    + "trend trial tribe trick tried tromp trout truck truly trunk trust truth twice twist ultra uncle "
+    + "under union unite unity until upper upset urban usage usual vague valid value valve vapor vault "
+    + "venue verse video vigor villa vinyl viral virus visit vital vivid vocal voice voter wagon waste "
+    + "watch water weigh weird whale wheat wheel where which while white whole whose widow width wield "
+    + "windy witty woman world worry worse worst worth would wound wrist write wrong yield young youth").split(/\s+/);
+
+  var gw = { answer: "", rows: [], cur: "", daily: true, done: false };
+
+  function dailyWord() {
+    // Deterministic from the local date, so everyone who plays today gets the
+    // same word without a server telling them what it is.
+    var d = new Date();
+    var seed = d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+    var h = seed;
+    h = (h ^ 61) ^ (h >>> 16);
+    h = h + (h << 3);
+    h = h ^ (h >>> 4);
+    h = Math.imul(h, 0x27d4eb2d);
+    h = h ^ (h >>> 15);
+    return WORDS[Math.abs(h) % WORDS.length];
+  }
+
+  function gwNew(daily) {
+    gw.daily = daily;
+    gw.answer = daily ? dailyWord() : Bench.randPick(WORDS);
+    gw.rows = [];
+    gw.cur = "";
+    gw.done = false;
+    $("#gw-mode").textContent = daily ? "Daily puzzle" : "Practice";
+    $("#gw-toggle").textContent = daily ? "Practice" : "Daily";
+    note($("#gw-msg"), "", "info");
+    gwDraw();
+  }
+
+  // Two passes so duplicate letters score correctly: exact matches are taken
+  // first, then the rest are matched against what is left of the answer.
+  function gwScore(guess, answer) {
+    var out = new Array(5).fill("miss");
+    var pool = {};
+    for (var i = 0; i < 5; i++) {
+      if (guess[i] === answer[i]) out[i] = "hit";
+      else pool[answer[i]] = (pool[answer[i]] || 0) + 1;
+    }
+    for (var j = 0; j < 5; j++) {
+      if (out[j] === "hit") continue;
+      if (pool[guess[j]]) { out[j] = "near"; pool[guess[j]]--; }
+    }
+    return out;
+  }
+
+  function gwDraw() {
+    var rows = "";
+    for (var r = 0; r < 6; r++) {
+      var word = gw.rows[r] ? gw.rows[r].word : (r === gw.rows.length ? gw.cur : "");
+      var marks = gw.rows[r] ? gw.rows[r].marks : null;
+      rows += '<div class="gw__row">';
+      for (var c = 0; c < 5; c++) {
+        var ch = word[c] || "";
+        rows += '<div class="gw__c' + (marks ? " gw__c--" + marks[c] : "") + '">' + esc(ch) + "</div>";
+      }
+      rows += "</div>";
+    }
+    $("#gw-board").innerHTML = rows;
+
+    var state = {};
+    gw.rows.forEach(function (row) {
+      row.word.split("").forEach(function (ch, i) {
+        var m = row.marks[i];
+        if (state[ch] === "hit") return;
+        if (m === "hit" || (m === "near" && state[ch] !== "hit") || !state[ch]) state[ch] = m;
+      });
+    });
+
+    $("#gw-kb").innerHTML = ["qwertyuiop", "asdfghjkl", "zxcvbnm"].map(function (row, i) {
+      return '<div class="gw__kr">'
+        + (i === 2 ? '<button class="gw__k gw__k--wide" data-k="enter">Enter</button>' : "")
+        + row.split("").map(function (ch) {
+            return '<button class="gw__k' + (state[ch] ? " gw__k--" + state[ch] : "") + '" data-k="' + ch + '">' + ch + "</button>";
+          }).join("")
+        + (i === 2 ? '<button class="gw__k gw__k--wide" data-k="back">Del</button>' : "")
+        + "</div>";
+    }).join("");
+  }
+
+  function gwKey(k) {
+    if (gw.done) return;
+    if (k === "enter") {
+      if (gw.cur.length !== 5) { note($("#gw-msg"), "Five letters needed.", "bad"); return; }
+      var marks = gwScore(gw.cur, gw.answer);
+      gw.rows.push({ word: gw.cur, marks: marks });
+      var won = gw.cur === gw.answer;
+      gw.cur = "";
+      gwDraw();
+      if (won) {
+        gw.done = true;
+        note($("#gw-msg"), "<b>Got it in " + gw.rows.length + ".</b> "
+          + '<button class="btn btn--sm" id="gw-share" style="margin-left:6px">Copy the grid</button>', "ok");
+        $("#gw-share").addEventListener("click", function (e) {
+          var grid = gw.rows.map(function (r) {
+            return r.marks.map(function (m) { return m === "hit" ? "🟩" : m === "near" ? "🟧" : "⬛"; }).join("");
+          }).join("\n");
+          Bench.copy("Bench word guesser " + gw.rows.length + "/6\n\n" + grid, e.currentTarget);
+        });
+      } else if (gw.rows.length >= 6) {
+        gw.done = true;
+        note($("#gw-msg"), "Out of guesses. The word was <b>" + esc(gw.answer.toUpperCase()) + "</b>.", "bad");
+      } else {
+        note($("#gw-msg"), "", "info");
+      }
+      return;
+    }
+    if (k === "back") { gw.cur = gw.cur.slice(0, -1); gwDraw(); return; }
+    if (/^[a-z]$/.test(k) && gw.cur.length < 5) { gw.cur += k; gwDraw(); }
+  }
+
+  $("#gw-kb").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-k]");
+    if (b) gwKey(b.dataset.k);
+  });
+
+  $("#gw-new").addEventListener("click", function () { gwNew(false); });
+  $("#gw-toggle").addEventListener("click", function () { gwNew(!gw.daily); });
+
+  /* ==================================================================
+     Sudoku
+     ================================================================== */
+
+  var gs = { puzzle: [], solution: [], grid: [], notes: [], sel: 0, notesMode: false, started: 0, prev: null };
+
+  function gsPeers(i) {
+    var r = Math.floor(i / 9), c = i % 9;
+    var out = [];
+    for (var k = 0; k < 9; k++) {
+      out.push(r * 9 + k);
+      out.push(k * 9 + c);
+    }
+    var br = Math.floor(r / 3) * 3, bc = Math.floor(c / 3) * 3;
+    for (var a = 0; a < 3; a++) for (var b = 0; b < 3; b++) out.push((br + a) * 9 + bc + b);
+    return out;
+  }
+
+  function gsOk(grid, i, v) {
+    var peers = gsPeers(i);
+    for (var p = 0; p < peers.length; p++) {
+      if (peers[p] !== i && grid[peers[p]] === v) return false;
+    }
+    return true;
+  }
+
+  function gsFill(grid) {
+    var i = grid.indexOf(0);
+    if (i === -1) return true;
+    var nums = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+    for (var n = nums.length - 1; n > 0; n--) {
+      var j = Bench.randInt(n + 1);
+      var t = nums[n]; nums[n] = nums[j]; nums[j] = t;
+    }
+    for (var k = 0; k < 9; k++) {
+      if (gsOk(grid, i, nums[k])) {
+        grid[i] = nums[k];
+        if (gsFill(grid)) return true;
+        grid[i] = 0;
+      }
+    }
+    return false;
+  }
+
+  // Counts solutions, stopping at two — enough to prove a clue can be removed.
+  function gsCount(grid, limit) {
+    var i = grid.indexOf(0);
+    if (i === -1) return 1;
+    var total = 0;
+    for (var v = 1; v <= 9; v++) {
+      if (!gsOk(grid, i, v)) continue;
+      grid[i] = v;
+      total += gsCount(grid, limit);
+      grid[i] = 0;
+      if (total >= limit) break;
+    }
+    return total;
+  }
+
+  function gsGenerate(clues) {
+    var full = new Array(81).fill(0);
+    gsFill(full);
+    var puzzle = full.slice();
+    var order = Array.from({ length: 81 }, function (_, i) { return i; });
+    for (var n = 80; n > 0; n--) { var j = Bench.randInt(n + 1); var t = order[n]; order[n] = order[j]; order[j] = t; }
+
+    var remaining = 81;
+    for (var k = 0; k < order.length && remaining > clues; k++) {
+      var i = order[k];
+      var kept = puzzle[i];
+      puzzle[i] = 0;
+      var copy = puzzle.slice();
+      if (gsCount(copy, 2) !== 1) puzzle[i] = kept;      // removal made it ambiguous
+      else remaining--;
+    }
+    return { puzzle: puzzle, solution: full };
+  }
+
+  function gsNew() {
+    var clues = Number($("#gs-diff").value);
+    $("#gs-msg").innerHTML = '<div class="note note--info"><span class="note__mark">i</span><span>Generating a puzzle with a unique solution…</span></div>';
+    // Yield first so the message paints before the solver blocks.
+    setTimeout(function () {
+      var g = gsGenerate(clues);
+      gs.puzzle = g.puzzle;
+      gs.solution = g.solution;
+      gs.grid = g.puzzle.slice();
+      gs.notes = Array.from({ length: 81 }, function () { return {}; });
+      gs.sel = gs.puzzle.indexOf(0);
+      gs.started = Date.now();
+      gs.prev = null;
+      note($("#gs-msg"), "", "info");
+      gsDraw();
+    }, 20);
+  }
+
+  function gsDraw() {
+    var peers = gsPeers(gs.sel);
+    $("#gs-board").innerHTML = gs.grid.map(function (v, i) {
+      var given = gs.puzzle[i] !== 0;
+      var bad = v && !given && !gsOk(gs.grid, i, v);
+      var notes = gs.notes[i];
+      var noteHTML = !v && notes && Object.keys(notes).length
+        ? '<span class="gs__n">' + Array.from({ length: 9 }, function (_, n) {
+            return "<span>" + (notes[n + 1] ? (n + 1) : "") + "</span>";
+          }).join("") + "</span>"
+        : "";
+      return '<button class="gs__c' + (given ? " gs__c--given" : "")
+        + (i === gs.sel ? " gs__c--sel" : peers.indexOf(i) !== -1 ? " gs__c--peer" : "")
+        + (bad ? " gs__c--bad" : "") + '" data-i="' + i + '" aria-label="Row '
+        + (Math.floor(i / 9) + 1) + " column " + (i % 9 + 1) + (v ? ", " + v : ", empty") + '">'
+        + (v || "") + noteHTML + "</button>";
+    }).join("");
+
+    var filled = gs.grid.filter(Boolean).length;
+    var mins = Math.floor((Date.now() - gs.started) / 60000);
+    $("#gs-info").textContent = filled + "/81 · " + mins + " min";
+
+    if (filled === 81 && gs.grid.every(function (v, i) { return v === gs.solution[i]; })) {
+      note($("#gs-msg"), "<b>Solved</b> in " + mins + " minutes.", "ok");
+    }
+  }
+
+  $("#gs-pad").innerHTML = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map(function (n) {
+    return '<button class="btn btn--sm" data-n="' + n + '">' + (n || "✕") + "</button>";
+  }).join("");
+
+  function gsSet(v) {
+    var i = gs.sel;
+    if (gs.puzzle[i] !== 0) return;
+    gs.prev = { grid: gs.grid.slice(), notes: JSON.parse(JSON.stringify(gs.notes)) };
+    if (gs.notesMode && v) {
+      if (gs.notes[i][v]) delete gs.notes[i][v]; else gs.notes[i][v] = true;
+    } else {
+      gs.grid[i] = v;
+      gs.notes[i] = {};
+    }
+    gsDraw();
+  }
+
+  $("#gs-pad").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-n]");
+    if (b) gsSet(Number(b.dataset.n));
+  });
+
+  $("#gs-board").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-i]");
+    if (!b) return;
+    gs.sel = +b.dataset.i;
+    gsDraw();
+  });
+
+  $("#gs-notes").addEventListener("click", function () {
+    gs.notesMode = !gs.notesMode;
+    this.textContent = "Notes: " + (gs.notesMode ? "on" : "off");
+    this.classList.toggle("btn--on", gs.notesMode);
+  });
+
+  $("#gs-hint").addEventListener("click", function () {
+    var empties = [];
+    gs.grid.forEach(function (v, i) { if (!v) empties.push(i); });
+    if (!empties.length) return;
+    var i = empties[Bench.randInt(empties.length)];
+    gs.prev = { grid: gs.grid.slice(), notes: JSON.parse(JSON.stringify(gs.notes)) };
+    gs.grid[i] = gs.solution[i];
+    gs.sel = i;
+    gsDraw();
+  });
+
+  $("#gs-check").addEventListener("click", function () {
+    var wrong = 0;
+    gs.grid.forEach(function (v, i) { if (v && v !== gs.solution[i]) wrong++; });
+    note($("#gs-msg"), wrong
+      ? "<b>" + Bench.plural(wrong, "cell") + "</b> do not match the solution."
+      : "Everything filled in so far is correct.", wrong ? "bad" : "ok");
+  });
+
+  $("#gs-undo").addEventListener("click", function () {
+    if (!gs.prev) return;
+    gs.grid = gs.prev.grid; gs.notes = gs.prev.notes; gs.prev = null;
+    gsDraw();
+  });
+
+  $("#gs-new").addEventListener("click", gsNew);
+
+  /* --- shared keyboard ---------------------------------------------------- */
+
+  document.addEventListener("keydown", function (e) {
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+
+    if (active === "g2") {
+      var map = { ArrowLeft: "left", ArrowRight: "right", ArrowUp: "up", ArrowDown: "down",
+        a: "left", d: "right", w: "up", s: "down" };
+      var dir = map[e.key] || map[e.key.toLowerCase()];
+      if (dir) { e.preventDefault(); g2Move(dir); }
+      return;
+    }
+
+    if (active === "gw") {
+      if (e.key === "Enter") { e.preventDefault(); gwKey("enter"); }
+      else if (e.key === "Backspace") { e.preventDefault(); gwKey("back"); }
+      else if (/^[a-zA-Z]$/.test(e.key)) { e.preventDefault(); gwKey(e.key.toLowerCase()); }
+      return;
+    }
+
+    if (active === "gs") {
+      if (/^[1-9]$/.test(e.key)) { e.preventDefault(); gsSet(Number(e.key)); return; }
+      if (e.key === "Backspace" || e.key === "Delete" || e.key === "0") { e.preventDefault(); gsSet(0); return; }
+      var d = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -9, ArrowDown: 9 }[e.key];
+      if (d) {
+        e.preventDefault();
+        var n = gs.sel + d;
+        if (n >= 0 && n < 81) { gs.sel = n; gsDraw(); }
+      }
+    }
+  });
+
+  /* --- boot ---------------------------------------------------------------- */
+
+  showTab(active);
+
+  var saved2048 = store.get("g2", null);
+  if (saved2048 && Array.isArray(saved2048.grid)) {
+    g2.grid = saved2048.grid; g2.score = saved2048.score || 0;
+    if (!g2Moves()) g2New(); else g2Draw();
+  } else g2New();
+
+  gwNew(true);
+  gsNew();
+});
+</script>
+
+</body>
+</html>

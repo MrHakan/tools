@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mock API Designer — Bench</title>
+<meta name="description" content="Define fake endpoints and try them without running a server, with templated responses and generated snippets.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314211f'/%3E%3Cpath d='M6 6h9v20H6zM17 6h9v20h-9z' fill='%23e0521a' opacity='.85'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/css/bench.css">
+<style>
+  .ma__ep { border: 1px solid var(--edge); border-radius: var(--r); background: var(--card); padding: 9px 11px; margin-bottom: 6px; cursor: pointer; display: flex; align-items: center; gap: 9px; }
+  .ma__ep--on { border-color: var(--signal); background: var(--signal-soft); }
+  .ma__m { font-family: var(--mono); font-size: 10.5px; font-weight: 700; padding: 2px 6px; border-radius: 2px; flex: none; min-width: 52px; text-align: center; }
+  .ma__m--GET { background: var(--verify-soft); color: var(--verify); }
+  .ma__m--POST { background: var(--signal-soft); color: var(--signal); }
+  .ma__m--PUT, .ma__m--PATCH { background: rgba(138,92,216,.14); color: #8a5cd8; }
+  .ma__m--DELETE { background: var(--fault-soft); color: var(--fault); }
+  .ma__path { font-family: var(--mono); font-size: 12.5px; flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .ma__code { font-family: var(--mono); font-size: 11.5px; color: var(--steel); }
+  .ma__ico { width: 22px; height: 22px; background: none; border: 1px solid transparent; border-radius: var(--r); color: var(--steel); font-size: 11px; flex: none; }
+  .ma__ico:hover { border-color: var(--fault); color: var(--fault); }
+  .ma__status { font-family: var(--mono); font-size: 14px; font-weight: 500; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__home" href="../../index.html"><span class="topbar__mark">▚</span> bench</a>
+  <span class="topbar__sep">/</span>
+  <span class="topbar__here">Mock API Designer</span>
+  <button class="topbar__theme" data-theme-toggle aria-label="Switch colour theme">◐</button>
+</header>
+
+<main class="wrap">
+
+  <div class="toolhead">
+    <p class="toolhead__spec mono">GET /users → 200</p>
+    <h1 class="toolhead__title">Mock API Designer</h1>
+    <p class="toolhead__desc">Sketch an API's shape and try it before anyone builds it. The console matches your routes in the page — no server involved.</p>
+  </div>
+
+  <div class="split split--narrow">
+
+    <div class="stack">
+      <section class="panel">
+        <h2 class="panel__title">Endpoints</h2>
+        <div id="list"></div>
+        <div class="row" style="margin-top:10px">
+          <button class="btn btn--sm" id="new">New endpoint</button>
+          <button class="btn btn--sm" id="exp">Export</button>
+          <button class="btn btn--sm" id="imp">Import</button>
+          <input type="file" id="imp-file" accept=".json" hidden>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2 class="panel__title">Try it</h2>
+        <div class="row" style="margin-bottom:10px">
+          <label class="sr-only" for="t-method">Method</label>
+          <select class="select" id="t-method" style="width:auto">
+            <option>GET</option><option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option>
+          </select>
+          <label class="sr-only" for="t-path">Path</label>
+          <input class="input input--mono grow" id="t-path" value="/users/42?page=2" spellcheck="false">
+          <button class="btn btn--primary" id="send">Send</button>
+        </div>
+        <div class="field">
+          <label class="label" for="t-body">Request body</label>
+          <textarea class="textarea" id="t-body" style="min-height:70px" spellcheck="false"></textarea>
+        </div>
+        <div id="response"></div>
+      </section>
+    </div>
+
+    <div class="stack">
+      <section class="panel">
+        <h2 class="panel__title" id="ed-title">Endpoint</h2>
+        <div id="editor"><p class="empty">Pick an endpoint on the left.</p></div>
+      </section>
+
+      <section class="panel">
+        <h2 class="panel__title">Snippets</h2>
+        <div class="row" style="margin-bottom:10px">
+          <button class="btn btn--sm btn--on" data-sn="curl">curl</button>
+          <button class="btn btn--sm" data-sn="fetch">fetch</button>
+          <button class="btn btn--sm" data-sn="openapi">OpenAPI</button>
+          <span class="grow"></span>
+          <button class="btn btn--sm" id="sn-copy">Copy</button>
+        </div>
+        <div class="out out--wrap" id="snippet" style="min-height:130px"></div>
+      </section>
+    </div>
+
+  </div>
+
+  <footer class="foot">
+    <a href="../../index.html">← All tools</a>
+    <span>·</span>
+    <span>Runs entirely in your browser</span>
+  </footer>
+
+</main>
+
+<script src="../../assets/js/bench.js" defer></script>
+<script defer>
+document.addEventListener("DOMContentLoaded", function () {
+  "use strict";
+  var $ = Bench.$, $$ = Bench.$$, esc = Bench.esc;
+  var store = Bench.store("mock-api");
+
+  var REASON = { 200: "OK", 201: "Created", 202: "Accepted", 204: "No Content", 301: "Moved Permanently",
+    304: "Not Modified", 400: "Bad Request", 401: "Unauthorized", 403: "Forbidden", 404: "Not Found",
+    409: "Conflict", 422: "Unprocessable Content", 429: "Too Many Requests", 500: "Internal Server Error",
+    502: "Bad Gateway", 503: "Service Unavailable" };
+
+  var NAMES = "Ana Ben Chidi Dara Elif Farid Greta Hugo Iris Jonas Kira Luca Mira Noor Omar Priya Rosa Sami Tara Umar".split(" ");
+  var SURNAMES = "Ferreira Okafor Nwosu Whitfield Kaya Haddad Lindqvist Moreau Novak Silva Tanaka Vargas".split(" ");
+  var WORDS = "alpha beacon cobalt delta ember falcon granite harbor indigo jasmine kestrel lantern".split(" ");
+
+  var DEFAULT = [
+    { method: "GET", path: "/users", status: 200, delay: 120,
+      headers: '{"Content-Type": "application/json"}',
+      body: '{\n  "page": {{query.page}},\n  "users": [\n    {{repeat 3}}\n    { "id": {{index}}, "name": "{{name}}", "email": "{{email}}", "active": {{bool}} }\n    {{/repeat}}\n  ]\n}' },
+    { method: "GET", path: "/users/me", status: 200, delay: 60,
+      headers: '{"Content-Type": "application/json"}',
+      body: '{ "id": 1, "name": "{{name}}", "role": "admin" }' },
+    { method: "GET", path: "/users/:id", status: 200, delay: 90,
+      headers: '{"Content-Type": "application/json"}',
+      body: '{ "id": {{params.id}}, "name": "{{name}}", "email": "{{email}}", "createdAt": "{{date}}" }' },
+    { method: "POST", path: "/users", status: 201, delay: 200,
+      headers: '{"Content-Type": "application/json", "Location": "/users/101"}',
+      body: '{ "id": 101, "created": true, "uuid": "{{uuid}}" }' },
+    { method: "DELETE", path: "/users/:id", status: 204, delay: 80, headers: "{}", body: "" }
+  ];
+
+  var endpoints = store.get("endpoints", null) || DEFAULT;
+  var selected = 0;
+  var snFmt = "curl";
+
+  function save() { store.set("endpoints", endpoints); }
+
+  /* --- matching ----------------------------------------------------------
+     A literal segment beats a :param one, so /users/me wins over /users/:id
+     however they are ordered in the list. */
+
+  function score(pattern, path) {
+    var a = pattern.split("/").filter(Boolean);
+    var b = path.split("/").filter(Boolean);
+    if (a.length !== b.length) return null;
+    var params = {}, points = 0;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i][0] === ":") { params[a[i].slice(1)] = decodeURIComponent(b[i]); points += 1; }
+      else if (a[i].toLowerCase() === b[i].toLowerCase()) points += 10;
+      else return null;
+    }
+    return { params: params, points: points };
+  }
+
+  function match(method, fullPath) {
+    var qIndex = fullPath.indexOf("?");
+    var path = qIndex === -1 ? fullPath : fullPath.slice(0, qIndex);
+    var query = {};
+    if (qIndex !== -1) {
+      new URLSearchParams(fullPath.slice(qIndex + 1)).forEach(function (v, k) { query[k] = v; });
+    }
+    var best = null;
+    endpoints.forEach(function (e) {
+      if (e.method !== method) return;
+      var s = score(e.path, path);
+      if (s && (!best || s.points > best.points)) best = { ep: e, params: s.params, points: s.points };
+    });
+    return best ? { ep: best.ep, params: best.params, query: query } : { params: {}, query: query };
+  }
+
+  /* --- templating -------------------------------------------------------- */
+
+  function token(name, ctx, index) {
+    var m = /^int\s+(-?\d+)\s+(-?\d+)$/.exec(name);
+    if (m) return String(Number(m[1]) + Bench.randInt(Number(m[2]) - Number(m[1]) + 1));
+    if (name === "uuid") return Bench.uuid();
+    if (name === "name") return Bench.randPick(NAMES) + " " + Bench.randPick(SURNAMES);
+    if (name === "email") return Bench.randPick(NAMES).toLowerCase() + "." + Bench.randPick(SURNAMES).toLowerCase() + "@example.com";
+    if (name === "word") return Bench.randPick(WORDS);
+    if (name === "bool") return Bench.randInt(2) ? "true" : "false";
+    if (name === "index") return String(index);
+    if (name === "date") {
+      var d = new Date(Date.now() - Bench.randInt(400) * 86400000);
+      return d.toISOString().slice(0, 10);
+    }
+    if (name.indexOf("params.") === 0) return ctx.params[name.slice(7)] !== undefined ? ctx.params[name.slice(7)] : "null";
+    if (name.indexOf("query.") === 0) return ctx.query[name.slice(6)] !== undefined ? ctx.query[name.slice(6)] : "null";
+    return "";
+  }
+
+  function template(text, ctx) {
+    // Expand repeat blocks first, so the tokens inside are resolved per item.
+    var out = text.replace(/\{\{repeat\s+(\d+)\}\}([\s\S]*?)\{\{\/repeat\}\}/g, function (_, n, block) {
+      var parts = [];
+      for (var i = 1; i <= Number(n); i++) {
+        parts.push(block.replace(/\{\{\s*([^}]+?)\s*\}\}/g, function (__, t) { return token(t, ctx, i); }).trim());
+      }
+      return parts.join(",\n    ");
+    });
+    return out.replace(/\{\{\s*([^}]+?)\s*\}\}/g, function (_, t) { return token(t, ctx, 1); });
+  }
+
+  /* --- render ------------------------------------------------------------ */
+
+  function renderList() {
+    $("#list").innerHTML = endpoints.map(function (e, i) {
+      return '<div class="ma__ep' + (i === selected ? " ma__ep--on" : "") + '" data-i="' + i + '">'
+        + '<span class="ma__m ma__m--' + e.method + '">' + e.method + "</span>"
+        + '<span class="ma__path">' + esc(e.path) + "</span>"
+        + '<span class="ma__code">' + e.status + "</span>"
+        + '<button class="ma__ico" data-del="' + i + '" aria-label="Delete this endpoint">✕</button></div>';
+    }).join("") || '<p class="empty">No endpoints yet.</p>';
+  }
+
+  function renderEditor() {
+    var e = endpoints[selected];
+    if (!e) { $("#editor").innerHTML = '<p class="empty">Pick an endpoint on the left.</p>'; return; }
+    $("#ed-title").textContent = e.method + " " + e.path;
+
+    $("#editor").innerHTML =
+      '<div class="split" style="gap:12px">'
+      + '<div class="field"><label class="label" for="e-method">Method</label><select class="select" id="e-method">'
+      + ["GET", "POST", "PUT", "PATCH", "DELETE"].map(function (m) {
+          return "<option" + (e.method === m ? " selected" : "") + ">" + m + "</option>";
+        }).join("") + "</select></div>"
+      + '<div class="field"><label class="label" for="e-status">Status</label><input class="input input--mono" type="number" id="e-status" value="' + e.status + '"></div></div>'
+      + '<div class="field"><label class="label" for="e-path">Path — use :name for a parameter</label>'
+      + '<input class="input input--mono" id="e-path" value="' + esc(e.path) + '" spellcheck="false"></div>'
+      + '<div class="field"><label class="label" for="e-delay">Simulated latency, ms</label>'
+      + '<input class="input input--mono" type="number" id="e-delay" min="0" max="10000" value="' + e.delay + '"></div>'
+      + '<div class="field"><label class="label" for="e-headers">Response headers, as JSON</label>'
+      + '<textarea class="textarea" id="e-headers" style="min-height:60px" spellcheck="false">' + esc(e.headers) + "</textarea></div>"
+      + '<div class="field"><label class="label" for="e-body">Response body</label>'
+      + '<textarea class="textarea" id="e-body" style="min-height:150px" spellcheck="false">' + esc(e.body) + "</textarea></div>"
+      + '<p class="empty" style="line-height:1.5">Tokens: <code class="mono">{{params.id}} {{query.page}} {{uuid}} {{name}} {{email}} {{word}} {{int 1 100}} {{bool}} {{date}} {{index}}</code>'
+      + ' and <code class="mono">{{repeat 3}}…{{/repeat}}</code> for lists.</p>';
+
+    [["e-method", "method"], ["e-path", "path"], ["e-headers", "headers"], ["e-body", "body"]].forEach(function (p) {
+      $("#" + p[0]).addEventListener("input", function () { e[p[1]] = this.value; save(); renderList(); renderSnippet(); });
+      $("#" + p[0]).addEventListener("change", function () { e[p[1]] = this.value; save(); renderList(); renderSnippet(); $("#ed-title").textContent = e.method + " " + e.path; });
+    });
+    ["e-status", "e-delay"].forEach(function (id) {
+      $("#" + id).addEventListener("input", function () {
+        e[id === "e-status" ? "status" : "delay"] = Number(this.value) || 0;
+        save(); renderList(); renderSnippet();
+      });
+    });
+
+    renderSnippet();
+  }
+
+  function renderSnippet() {
+    var e = endpoints[selected];
+    if (!e) { $("#snippet").textContent = ""; return; }
+    var base = "https://api.example.com";
+    var text;
+
+    if (snFmt === "curl") {
+      var h = {};
+      try { h = JSON.parse(e.headers || "{}"); } catch (err) {}
+      text = "curl -X " + e.method + " '" + base + e.path + "' \\\n"
+        + Object.keys(h).map(function (k) { return "  -H '" + k + ": " + h[k] + "' \\\n"; }).join("")
+        + (e.method === "GET" || e.method === "DELETE" ? "  -i" : "  -d '{ \"example\": true }'");
+    } else if (snFmt === "fetch") {
+      text = "const res = await fetch('" + base + e.path + "', {\n  method: '" + e.method + "',\n"
+        + "  headers: { 'Content-Type': 'application/json' }"
+        + (e.method === "GET" || e.method === "DELETE" ? "" : ",\n  body: JSON.stringify({ example: true })")
+        + "\n});\nconst data = await res.json();";
+    } else {
+      var params = (e.path.match(/:([A-Za-z0-9_]+)/g) || []).map(function (p) { return p.slice(1); });
+      text = e.path.replace(/:([A-Za-z0-9_]+)/g, "{$1}") + ":\n  " + e.method.toLowerCase() + ":\n"
+        + "    summary: " + e.method + " " + e.path + "\n"
+        + (params.length ? "    parameters:\n" + params.map(function (p) {
+            return "      - name: " + p + "\n        in: path\n        required: true\n        schema:\n          type: string";
+          }).join("\n") + "\n" : "")
+        + "    responses:\n      '" + e.status + "':\n        description: " + (REASON[e.status] || "Response")
+        + (e.body ? "\n        content:\n          application/json: {}" : "");
+    }
+    $("#snippet").textContent = text;
+  }
+
+  /* --- console ----------------------------------------------------------- */
+
+  $("#send").addEventListener("click", function () {
+    var method = $("#t-method").value;
+    var path = $("#t-path").value.trim();
+    var host = $("#response");
+    var started = performance.now();
+
+    var hit = match(method, path);
+
+    function show(status, headers, body, extra) {
+      var took = Math.round(performance.now() - started);
+      host.innerHTML = '<div class="row" style="margin-bottom:8px">'
+        + '<span class="ma__status" style="color:' + (status < 300 ? "var(--verify)" : status < 400 ? "var(--signal)" : "var(--fault)") + '">'
+        + status + " " + esc(REASON[status] || "") + "</span>"
+        + '<span class="ma__code">' + took + " ms</span></div>"
+        + (Object.keys(headers).length
+          ? '<div class="out out--wrap out--auto" style="min-height:0;margin-bottom:8px">'
+            + Object.keys(headers).map(function (k) { return esc(k + ": " + headers[k]); }).join("\n") + "</div>"
+          : "")
+        + '<div class="out out--wrap" style="min-height:80px">' + (body ? esc(body) : '<span class="empty">No body.</span>') + "</div>"
+        + (extra || "");
+    }
+
+    if (!hit.ep) {
+      show(404, { "Content-Type": "application/json" },
+        JSON.stringify({ error: "No endpoint matched", method: method, path: path }, null, 2),
+        '<div class="note note--warn" style="margin-top:8px"><span class="note__mark">!</span><span>'
+        + "Nothing in the list matches that method and path. Check the method, and remember a "
+        + "parameter segment is written <code class=\"mono\">:id</code>.</span></div>");
+      return;
+    }
+
+    var e = hit.ep;
+    var ctx = { params: hit.params, query: hit.query };
+    var headers = {};
+    try { headers = JSON.parse(e.headers || "{}"); }
+    catch (err) { headers = { "X-Warning": "response headers are not valid JSON" }; }
+
+    var body = e.body ? template(e.body, ctx) : "";
+    // Pretty-print when the result parses, so the shape is readable.
+    try { if (body.trim()) body = JSON.stringify(JSON.parse(body), null, 2); } catch (err) {}
+
+    setTimeout(function () {
+      show(e.status, headers, body,
+        '<div class="note note--info" style="margin-top:8px"><span class="note__mark">i</span><span>Matched <code class="mono">'
+        + esc(e.method + " " + e.path) + "</code>"
+        + (Object.keys(hit.params).length ? " · params " + esc(JSON.stringify(hit.params)) : "")
+        + (Object.keys(hit.query).length ? " · query " + esc(JSON.stringify(hit.query)) : "")
+        + "</span></div>");
+    }, Math.min(3000, e.delay || 0));
+  });
+
+  /* --- events ------------------------------------------------------------ */
+
+  $("#list").addEventListener("click", function (e) {
+    var d = e.target.closest("[data-del]");
+    if (d) {
+      endpoints.splice(+d.dataset.del, 1);
+      if (selected >= endpoints.length) selected = Math.max(0, endpoints.length - 1);
+      save(); renderList(); renderEditor();
+      return;
+    }
+    var it = e.target.closest("[data-i]");
+    if (!it) return;
+    selected = +it.dataset.i;
+    renderList(); renderEditor();
+  });
+
+  $("#new").addEventListener("click", function () {
+    endpoints.push({ method: "GET", path: "/new", status: 200, delay: 0,
+      headers: '{"Content-Type": "application/json"}', body: '{ "ok": true }' });
+    selected = endpoints.length - 1;
+    save(); renderList(); renderEditor();
+  });
+
+  $$("[data-sn]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      snFmt = b.dataset.sn;
+      $$("[data-sn]").forEach(function (x) { x.classList.toggle("btn--on", x === b); });
+      renderSnippet();
+    });
+  });
+
+  $("#sn-copy").addEventListener("click", function (e) { Bench.copy($("#snippet").textContent, e.currentTarget); });
+
+  $("#exp").addEventListener("click", function () {
+    Bench.download("mock-api.json", JSON.stringify(endpoints, null, 2), "application/json");
+  });
+
+  $("#imp").addEventListener("click", function () { $("#imp-file").click(); });
+  $("#imp-file").addEventListener("change", function () {
+    var f = this.files[0];
+    this.value = "";
+    if (!f) return;
+    Bench.readFile(f).then(function (t) {
+      var data;
+      try { data = JSON.parse(t); } catch (err) { Bench.toast("That file is not valid JSON", "bad"); return; }
+      if (!Array.isArray(data)) { Bench.toast("That JSON is not an endpoint list", "bad"); return; }
+      endpoints = data.filter(function (e) { return e && e.path; }).map(function (e) {
+        return { method: String(e.method || "GET").toUpperCase(), path: String(e.path),
+          status: Number(e.status) || 200, delay: Number(e.delay) || 0,
+          headers: String(e.headers || "{}"), body: String(e.body || "") };
+      });
+      selected = 0;
+      save(); renderList(); renderEditor();
+      Bench.toast("Imported " + Bench.plural(endpoints.length, "endpoint"));
+    });
+  });
+
+  renderList();
+  renderEditor();
+});
+</script>
+
+</body>
+</html>

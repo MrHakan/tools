@@ -59,7 +59,7 @@ window.BENCH_TOOLS = [
     blurb: "Draft .env templates and find missing variables.", keys: "environment dotenv variable config secret validate" },
   { slug: "rate-limit-calculator", cat: "Developer utilities", spec: "100 req/s", name: "Rate Limit Calculator",
     blurb: "Work out quota burn-down and safe request spacing.", keys: "api quota throttle burst requests per second budget" },
-  { soon: true, slug: "mock-api", cat: "Developer utilities", spec: "GET /users → 200", name: "Mock API Designer",
+  { slug: "mock-api", cat: "Developer utilities", spec: "GET /users → 200", name: "Mock API Designer",
     blurb: "Define fake endpoints and try them without a server.", keys: "stub fake endpoint rest response fixture test" },
   { slug: "semver-calculator", cat: "Developer utilities", spec: "1.4.2 → 2.0.0", name: "SemVer Calculator",
     blurb: "Bump versions, check ranges, draft a changelog.", keys: "semantic version major minor patch release npm range" },
@@ -111,7 +111,7 @@ window.BENCH_TOOLS = [
     blurb: "Passwords, names, numbers, dice, picks and shuffles.", keys: "random password name number dice choose shuffle coin" },
 
   /* --- Media & misc ------------------------------------------------------- */
-  { soon: true, slug: "image-editor", cat: "Media & misc", spec: "blur(4px)", name: "Image Editor",
+  { slug: "image-editor", cat: "Media & misc", spec: "blur(4px)", name: "Image Editor",
     blurb: "Crop, resize and filter images on canvas.", keys: "photo grayscale brightness rotate flip resize crop" },
   { slug: "qr-tool", cat: "Media & misc", spec: "█▀█ ▄▄ █▀█", name: "QR Code Studio",
     blurb: "Generate QR codes and scan them with your camera.", keys: "qrcode barcode scan camera url wifi vcard" },
@@ -121,7 +121,7 @@ window.BENCH_TOOLS = [
     blurb: "Preview share cards and copy the meta tags.", keys: "open graph twitter card seo social head html" },
   { slug: "password-checker", cat: "Media & misc", spec: "entropy 78 bits", name: "Password Strength",
     blurb: "Measure entropy and crack time, or make a strong one.", keys: "security strength entropy generator passphrase secure" },
-  { soon: true, slug: "password-vault", cat: "Media & misc", spec: "••••••••••", name: "Encrypted Vault",
+  { slug: "password-vault", cat: "Media & misc", spec: "••••••••••", name: "Encrypted Vault",
     blurb: "A local AES-GCM vault behind one master password.", keys: "password manager encrypt secret store aes export" },
   { slug: "http-status", cat: "Media & misc", spec: "404 Not Found", name: "HTTP Status Codes",
     blurb: "Every status code, searchable, with when to use it.", keys: "http response code reference rest api 200 500 301" },
@@ -131,7 +131,7 @@ window.BENCH_TOOLS = [
     blurb: "Sketch boxes, arrows and notes, export as PNG.", keys: "draw diagram excalidraw canvas sketch shapes export" },
   { slug: "url-shortener", cat: "Media & misc", spec: "/x/9fK2a", name: "Link Keeper",
     blurb: "Short codes for long links, stored in this browser.", keys: "url shortener link bookmark alias redirect save" },
-  { soon: true, slug: "games", cat: "Media & misc", spec: "2048 · Wordle", name: "Game Corner",
+  { slug: "games", cat: "Media & misc", spec: "2048 · Wordle", name: "Game Corner",
     blurb: "2048, a word guesser and Sudoku for a quiet moment.", keys: "2048 wordle sudoku puzzle play break fun" },
 
   /* --- Pattern toolbox ---------------------------------------------------- */
